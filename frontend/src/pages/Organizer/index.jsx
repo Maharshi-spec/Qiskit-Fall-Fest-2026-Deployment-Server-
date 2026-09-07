@@ -67,7 +67,7 @@ const OrganizerLayout = ({ children }) => {
   const navItems = [
     {
       label: 'Send Email',
-      to: '/organizer/email',
+      to: getProfilePath('organizer/email'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -77,7 +77,7 @@ const OrganizerLayout = ({ children }) => {
     },
     {
       label: 'Attendance',
-      to: '/organizer/attendance',
+      to: getProfilePath('organizer/attendance'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <rect x="3" y="3" width="7" height="7" />
@@ -89,7 +89,7 @@ const OrganizerLayout = ({ children }) => {
     },
     {
       label: 'Participants',
-      to: '/organizer/participants',
+      to: getProfilePath('organizer/participants'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -101,7 +101,7 @@ const OrganizerLayout = ({ children }) => {
     },
     {
       label: 'Rewards',
-      to: '/organizer/rewards',
+      to: getProfilePath('organizer/rewards'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="8" r="6" />
@@ -111,13 +111,22 @@ const OrganizerLayout = ({ children }) => {
     },
     {
       label: 'Events',
-      to: '/organizer/events',
+      to: getProfilePath('organizer/events'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
           <line x1="8" y1="2" x2="8" y2="6" />
           <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Post-Event',
+      to: getProfilePath('organizer/post-event'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
         </svg>
       ),
     },
@@ -217,7 +226,7 @@ const OrganizerLayout = ({ children }) => {
                 key={item.label}
                 to={item.to}
                 className={({ isActive }) => `organizer-sidebar__link ${isActive ? 'is-active' : ''}`}
-                end={item.to === '/organizer'}
+                end={item.to === getProfilePath('organizer')}
                 onClick={() => setSidebarOpen(false)}
               >
                 <span className="organizer-sidebar__icon">{item.icon}</span>
@@ -331,7 +340,7 @@ const OrganizerDashboardHome = () => {
         <div className="detail-page__info-stack">
         <div className="detail-info-item">
           <span>Operations</span>
-          <strong>5 sections</strong>
+          <strong>6 sections</strong>
         </div>
         <div className="detail-info-item">
           <span>Access</span>
@@ -369,6 +378,12 @@ const OrganizerDashboardHome = () => {
           <h3>Send Email</h3>
           <p>Dispatch official updates and notices to event participants.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Email →</span>
+        </Link>
+        <Link to={getProfilePath('organizer/post-event')} className="detail-card organizer-dashboard-home__card">
+          <span className="organizer-dashboard-home__card-icon" aria-hidden="true">⚙️</span>
+          <h3>Post-Event</h3>
+          <p>Configure and enable the Post-Qiskit phase independently.</p>
+          <span className="organizer-dashboard-home__card-arrow">Open Post-Event →</span>
         </Link>
         </div>
       </div>
@@ -1487,6 +1502,406 @@ const OrganizerEventsPage = () => {
   )
 }
 
+const OrganizerPostEventPage = () => {
+  const { refreshPostQiskitConfig } = useEventProfile()
+  const [formData, setFormData] = useState({
+    enabled: false,
+    start_date: '2026-10-05',
+    end_date: '2026-10-10',
+    coordinator_name: '',
+    coordinator_contact: '',
+    venue: '',
+    location: '',
+    start_time: '09:00',
+    end_time: '17:00',
+    timezone: 'Asia/Kolkata',
+    description: '',
+    activities: '',
+  })
+  const [status, setStatus] = useState('DISABLED')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const fetchConfig = async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const result = await api.getPostEventConfig()
+      if (result.success && result.data) {
+        setFormData({
+          enabled: Boolean(result.data.enabled),
+          start_date: result.data.start_date ? String(result.data.start_date).slice(0, 10) : '2026-10-05',
+          end_date: result.data.end_date ? String(result.data.end_date).slice(0, 10) : '2026-10-10',
+          coordinator_name: result.data.coordinator_name || '',
+          coordinator_contact: result.data.coordinator_contact || '',
+          venue: result.data.venue || '',
+          location: result.data.location || '',
+          start_time: result.data.start_time ? String(result.data.start_time).slice(0, 5) : '09:00',
+          end_time: result.data.end_time ? String(result.data.end_time).slice(0, 5) : '17:00',
+          timezone: result.data.timezone || 'Asia/Kolkata',
+          description: result.data.description || '',
+          activities: result.data.activities || '',
+        })
+        setStatus(result.data.status || (result.data.enabled ? 'UPCOMING' : 'DISABLED'))
+      } else {
+        setError(result.error?.message || 'Failed to load Post-Event configuration.')
+      }
+    } catch (_err) {
+      setError('Unable to load Post-Event configuration.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchConfig()
+  }, [])
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+    setError('')
+    setSuccess('')
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setIsSaving(true)
+    setError('')
+    setSuccess('')
+
+    if (formData.start_date && formData.end_date && formData.start_date > formData.end_date) {
+      setError('Start date cannot be after end date.')
+      setIsSaving(false)
+      return
+    }
+
+    try {
+      const result = await api.updatePostEventConfig({
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        coordinator_name: formData.coordinator_name,
+        coordinator_contact: formData.coordinator_contact,
+        venue: formData.venue,
+        location: formData.location,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        timezone: formData.timezone,
+        description: formData.description,
+        activities: formData.activities,
+      })
+
+      if (result.success) {
+        setSuccess('Post-Event configuration saved successfully.')
+        if (result.data?.status) {
+          setStatus(result.data.status)
+        }
+        await refreshPostQiskitConfig()
+      } else {
+        setError(result.error?.message || 'Failed to update configuration.')
+      }
+    } catch (_err) {
+      setError('An unexpected error occurred while saving.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleToggleEnable = async () => {
+    setIsToggling(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      if (formData.enabled) {
+        const result = await api.disablePostEvent()
+        if (result.success) {
+          setFormData((prev) => ({ ...prev, enabled: false }))
+          setStatus('DISABLED')
+          setSuccess('Post-Event has been DISABLED. The landing page Enter button is now inactive.')
+          await refreshPostQiskitConfig()
+        } else {
+          setError(result.error?.message || 'Failed to disable Post-Event.')
+        }
+      } else {
+        const result = await api.enablePostEvent()
+        if (result.success) {
+          setFormData((prev) => ({ ...prev, enabled: true }))
+          setStatus(result.data?.status || 'UPCOMING')
+          setSuccess('Post-Event has been ENABLED! The landing page Enter button is now active.')
+          await refreshPostQiskitConfig()
+        } else {
+          setError(result.error?.message || 'Failed to enable Post-Event.')
+        }
+      }
+    } catch (_err) {
+      setError('An error occurred while toggling the event status.')
+    } finally {
+      setIsToggling(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="organizer-page-view organizer-post-event-page">
+        <OrganizerPageHeading eyebrow="Phase 2 Control" title="Post-Event Configuration" description="Loading event configuration..." />
+        <div className="organizer-page-content-panel" style={{ padding: '2rem', textAlign: 'center', color: '#8b849c' }}>
+          Loading Post-Event settings...
+        </div>
+      </div>
+    )
+  }
+
+  const isEnabled = Boolean(formData.enabled)
+
+  return (
+    <div className="organizer-page-view organizer-post-event-page">
+      <OrganizerPageHeading
+        eyebrow="Phase 2 Control"
+        title="Post-Event Configuration"
+        description="Configure and manage the independent Post-Qiskit Fall Fest event phase."
+        action={
+          <Button
+            type="button"
+            kind={isEnabled ? 'secondary' : 'primary'}
+            disabled={isToggling}
+            onClick={handleToggleEnable}
+          >
+            {isToggling ? 'Updating…' : isEnabled ? 'Disable Post-Event' : 'Enable Post-Event'}
+          </Button>
+        }
+      />
+
+      <div className="organizer-page-content-panel">
+        {/* Status indicator bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '1.2rem 1.5rem',
+            borderRadius: '16px',
+            marginBottom: '1.8rem',
+            backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+            border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+            flexWrap: 'wrap',
+            gap: '1rem',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: isEnabled ? '#10b981' : '#ef4444',
+                }}
+              />
+              <strong style={{ fontSize: '1rem', color: isEnabled ? '#065f46' : '#991b1b' }}>
+                Status: {status}
+              </strong>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '999px',
+                  backgroundColor: isEnabled ? '#d1fae5' : '#fee2e2',
+                  color: isEnabled ? '#065f46' : '#991b1b',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {isEnabled ? 'Live / Activated' : 'Disabled'}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.88rem', color: isEnabled ? '#047857' : '#b91c1c' }}>
+              {isEnabled
+                ? 'Post-Qiskit is active. Participants can access the Post-Qiskit profile from the landing page.'
+                : 'Post-Qiskit is disabled. The landing page Enter button is locked and /post-qiskit routes are guarded.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleEnable}
+            disabled={isToggling}
+            style={{
+              padding: '0.65rem 1.25rem',
+              borderRadius: '10px',
+              border: `1px solid ${isEnabled ? '#f87171' : '#34d399'}`,
+              backgroundColor: isEnabled ? '#ffffff' : '#10b981',
+              color: isEnabled ? '#dc2626' : '#ffffff',
+              fontWeight: 600,
+              fontSize: '0.88rem',
+              cursor: isToggling ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {isToggling ? 'Saving...' : isEnabled ? 'Click to Disable' : 'Click to Enable'}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ padding: '0.8rem 1rem', borderRadius: '12px', background: 'rgba(255,79,163,0.08)', color: '#c2348a', border: '1px solid rgba(255,79,163,0.25)', marginBottom: '1.5rem' }}>
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div style={{ padding: '0.8rem 1rem', borderRadius: '12px', background: 'rgba(42, 190, 120, 0.08)', color: '#1b8f65', border: '1px solid rgba(42, 190, 120, 0.25)', marginBottom: '1.5rem' }}>
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleSave} className="detail-form">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <label>
+              Post-Event Start Date *
+              <input
+                type="date"
+                name="start_date"
+                value={formData.start_date}
+                onChange={handleChange}
+                required
+              />
+            </label>
+
+            <label>
+              Post-Event End Date *
+              <input
+                type="date"
+                name="end_date"
+                value={formData.end_date}
+                onChange={handleChange}
+                required
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <label>
+              Start Time
+              <input
+                type="time"
+                name="start_time"
+                value={formData.start_time}
+                onChange={handleChange}
+              />
+            </label>
+
+            <label>
+              End Time
+              <input
+                type="time"
+                name="end_time"
+                value={formData.end_time}
+                onChange={handleChange}
+              />
+            </label>
+
+            <label>
+              Timezone
+              <input
+                type="text"
+                name="timezone"
+                value={formData.timezone}
+                onChange={handleChange}
+                placeholder="e.g. Asia/Kolkata"
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <label>
+              Coordinator Name
+              <input
+                type="text"
+                name="coordinator_name"
+                value={formData.coordinator_name}
+                onChange={handleChange}
+                placeholder="e.g. Dr. Jane Doe"
+              />
+            </label>
+
+            <label>
+              Coordinator Contact / Details
+              <input
+                type="text"
+                name="coordinator_contact"
+                value={formData.coordinator_contact}
+                onChange={handleChange}
+                placeholder="e.g. coordinator@example.com / +91-9876543210"
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+            <label>
+              Venue / Place
+              <input
+                type="text"
+                name="venue"
+                value={formData.venue}
+                onChange={handleChange}
+                placeholder="e.g. CUTM-AP Campus Auditorium"
+              />
+            </label>
+
+            <label>
+              Location / City
+              <input
+                type="text"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="e.g. Main Auditorium / Hybrid"
+              />
+            </label>
+          </div>
+
+          <label style={{ marginBottom: '1.25rem' }}>
+            Post-Event Description & Details
+            <textarea
+              name="description"
+              rows={4}
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Describe the Post-Qiskit event, tracks, hackathon focus, etc."
+              style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255,79,163,0.18)', padding: '0.8rem 0.9rem' }}
+            />
+          </label>
+
+          <label style={{ marginBottom: '1.5rem' }}>
+            Event Schedule / Activities
+            <textarea
+              name="activities"
+              rows={4}
+              value={formData.activities}
+              onChange={handleChange}
+              placeholder="List the key activities, workshops, keynote sessions, and hackathon milestones."
+              style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255,79,163,0.18)', padding: '0.8rem 0.9rem' }}
+            />
+          </label>
+
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <Button type="submit" kind="primary" disabled={isSaving}>
+              {isSaving ? 'Saving Settings…' : 'Save Configuration'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const OrganizerRoutes = () => {
   const location = useLocation()
   const { getProfilePath } = useEventProfile()
@@ -1504,6 +1919,7 @@ const OrganizerRoutes = () => {
         <Route path="participants" element={<OrganizerParticipantsPage />} />
         <Route path="rewards" element={<OrganizerRewardsPage />} />
         <Route path="events" element={<OrganizerEventsPage />} />
+        <Route path="post-event" element={<OrganizerPostEventPage />} />
       </Routes>
     </OrganizerLayout>
   )

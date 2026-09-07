@@ -19,6 +19,7 @@ import Profile from './pages/Profile'
 import ProfileSelection from './pages/ProfileSelection'
 import { initializeGsap } from './utils/animation'
 import { ALLOWED_PROFILES } from './config/eventProfiles'
+import { useEventProfile } from './context/EventProfileContext'
 
 const AnimatedPage = ({ children }) => (
   <motion.div
@@ -85,15 +86,40 @@ const ProfilePage = ({ children }) => (
   <ProfilePageContent>{children}</ProfilePageContent>
 )
 
+// Guard: validates profile param; if post-qiskit is disabled, redirects to /
 const ProfilePageContent = ({ children }) => {
   const { profile } = useParams()
+  const { postQiskitEnabled, postQiskitConfigLoading } = useEventProfile()
+
   if (!ALLOWED_PROFILES.includes(profile)) return <Navigate to="/" replace />
+
+  // If navigating to post-qiskit and it's disabled (and config has finished loading), redirect to /
+  if (profile === 'post-qiskit' && !postQiskitConfigLoading && !postQiskitEnabled) {
+    return <Navigate to="/" replace />
+  }
+
+  // While loading config for post-qiskit, show nothing briefly (prevents flash)
+  if (profile === 'post-qiskit' && postQiskitConfigLoading) {
+    return null
+  }
+
   return <AnimatedPage><MainLayout>{children}</MainLayout></AnimatedPage>
 }
 
 const ProfileHome = () => {
   const { profile } = useParams()
+  const { postQiskitEnabled, postQiskitConfigLoading } = useEventProfile()
+
   if (!ALLOWED_PROFILES.includes(profile)) return <Navigate to="/" replace />
+
+  if (profile === 'post-qiskit' && !postQiskitConfigLoading && !postQiskitEnabled) {
+    return <Navigate to="/" replace />
+  }
+
+  if (profile === 'post-qiskit' && postQiskitConfigLoading) {
+    return null
+  }
+
   return <ProfilePage><Home /></ProfilePage>
 }
 

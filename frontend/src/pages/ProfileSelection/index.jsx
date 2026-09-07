@@ -4,6 +4,7 @@ import { EVENT_PROFILES, calculateProfileStatus } from '../../config/eventProfil
 import { useEventProfile } from '../../context/EventProfileContext'
 import qiskitBadge from '../../assets/qiskit/badge-pink.png.png'
 
+// ─── Status badge styles ──────────────────────────────────────────────────────
 const statusStyles = {
   GOING: {
     label: 'GOING',
@@ -26,35 +27,65 @@ const statusStyles = {
     border: '#e5e7eb',
     dot: '#9ca3af',
   },
+  DISABLED: {
+    label: 'UPCOMING',
+    bg: '#f9f5ff',
+    color: '#7c3aed',
+    border: '#ddd6fe',
+    dot: '#8b5cf6',
+  },
 }
 
+// ─── ProfileSelection ─────────────────────────────────────────────────────────
 const ProfileSelection = () => {
   const navigate = useNavigate()
-  const { switchProfile } = useEventProfile()
+  const {
+    switchProfile,
+    postQiskitEnabled,
+    postQiskitStatus,
+    postQiskitConfig,
+    postQiskitConfigLoading,
+  } = useEventProfile()
 
   const preProfile = EVENT_PROFILES['pre-qiskit']
-  const postProfile = EVENT_PROFILES['post-qiskit']
-
   const preStatus = calculateProfileStatus('pre-qiskit')
-  const postStatus = calculateProfileStatus('post-qiskit')
+
+  // Post-Qiskit display data: prefer backend config over static config
+  const postDateLabel = postQiskitConfig?.start_date && postQiskitConfig?.end_date
+    ? (() => {
+        const s = new Date(postQiskitConfig.start_date + 'T12:00:00Z')
+        const e = new Date(postQiskitConfig.end_date + 'T12:00:00Z')
+        const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+        return `${fmt(s)} – ${fmt(e)}`
+      })()
+    : EVENT_PROFILES['post-qiskit'].dateLabel
+
+  const postShortDateLabel = postQiskitConfig?.start_date && postQiskitConfig?.end_date
+    ? (() => {
+        const s = new Date(postQiskitConfig.start_date + 'T12:00:00Z')
+        const e = new Date(postQiskitConfig.end_date + 'T12:00:00Z')
+        const shortFmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+        return `${shortFmt(s)} – ${shortFmt(e)}`
+      })()
+    : EVENT_PROFILES['post-qiskit'].shortDateLabel
+
+  const postDescription = postQiskitConfig?.description || EVENT_PROFILES['post-qiskit'].description
+
+  // The status shown on the card
+  const displayPostStatus = postQiskitConfigLoading ? 'DISABLED' : (postQiskitStatus || 'DISABLED')
+  const isPostEnabled = !postQiskitConfigLoading && postQiskitEnabled
 
   const handleSelect = (profileId) => {
+    if (profileId === 'post-qiskit' && !isPostEnabled) return
     switchProfile(profileId)
     navigate(`/${profileId}`)
   }
 
-  const profiles = [
-    {
-      config: preProfile,
-      status: preStatus,
-      badge: statusStyles[preStatus] || statusStyles.GOING,
-    },
-    {
-      config: postProfile,
-      status: postStatus,
-      badge: statusStyles[postStatus] || statusStyles.UPCOMING,
-    },
-  ]
+  const getPreBadge = () => statusStyles[preStatus] || statusStyles.GOING
+  const getPostBadge = () => {
+    if (!isPostEnabled) return statusStyles.DISABLED
+    return statusStyles[displayPostStatus] || statusStyles.DISABLED
+  }
 
   return (
     <div className="profile-selection-page">
@@ -74,78 +105,154 @@ const ProfileSelection = () => {
         </header>
 
         <div className="profile-cards-grid">
-          {profiles.map(({ config, status, badge }) => (
-            <motion.div
-              key={config.id}
-              className={`profile-card profile-card--${config.id}`}
-              whileHover={{ y: -6, scale: 1.015 }}
-              whileTap={{ scale: 0.99 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              onClick={() => handleSelect(config.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  handleSelect(config.id)
-                }
-              }}
-            >
-              <div className="profile-card__header">
-                <span
-                  className="profile-card__badge"
-                  style={{
-                    backgroundColor: badge.bg,
-                    color: badge.color,
-                    borderColor: badge.border,
-                  }}
-                >
-                  <span
-                    className="profile-card__badge-dot"
-                    style={{ backgroundColor: badge.dot }}
-                  />
-                  {status}
-                </span>
-                <span className="profile-card__tag">{config.shortDateLabel}</span>
-              </div>
+          {/* ── PRE-QISKIT CARD ─────────────────────────────────────────────── */}
+          <ProfileCard
+            config={preProfile}
+            status={preStatus}
+            badge={getPreBadge()}
+            dateLabel={preProfile.dateLabel}
+            shortDateLabel={preProfile.shortDateLabel}
+            description={preProfile.description}
+            disabled={false}
+            onSelect={() => handleSelect('pre-qiskit')}
+          />
 
-              <div className="profile-card__body">
-                <h2 className="profile-card__name">{config.displayName}</h2>
-                <div className="profile-card__date-range">{config.dateLabel}</div>
-                <p className="profile-card__desc">{config.description}</p>
-              </div>
-
-              <div className="profile-card__footer">
-                <button
-                  type="button"
-                  className="profile-card__enter-btn button button--primary"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSelect(config.id)
-                  }}
-                >
-                  ENTER
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="profile-card__enter-icon"
-                  >
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </button>
-              </div>
-            </motion.div>
-          ))}
+          {/* ── POST-QISKIT CARD ─────────────────────────────────────────────── */}
+          <ProfileCard
+            config={EVENT_PROFILES['post-qiskit']}
+            status={displayPostStatus}
+            badge={getPostBadge()}
+            dateLabel={postDateLabel}
+            shortDateLabel={postShortDateLabel}
+            description={postDescription}
+            disabled={!isPostEnabled}
+            onSelect={() => handleSelect('post-qiskit')}
+          />
         </div>
       </motion.div>
     </div>
+  )
+}
+
+// ─── ProfileCard ──────────────────────────────────────────────────────────────
+const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, description, disabled, onSelect }) => {
+  const handleClick = () => {
+    if (disabled) return
+    onSelect()
+  }
+
+  const handleKeyDown = (e) => {
+    if (disabled) return
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onSelect()
+    }
+  }
+
+  const handleEnterClick = (e) => {
+    e.stopPropagation()
+    if (disabled) return
+    onSelect()
+  }
+
+  return (
+    <motion.div
+      className={`profile-card profile-card--${config.id}${disabled ? ' profile-card--disabled' : ''}`}
+      whileHover={disabled ? {} : { y: -6, scale: 1.015 }}
+      whileTap={disabled ? {} : { scale: 0.99 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
+      onClick={handleClick}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onKeyDown={handleKeyDown}
+      style={disabled ? { cursor: 'default', opacity: 0.72 } : {}}
+    >
+      <div className="profile-card__header">
+        <span
+          className="profile-card__badge"
+          style={{
+            backgroundColor: badge.bg,
+            color: badge.color,
+            borderColor: badge.border,
+          }}
+        >
+          <span
+            className="profile-card__badge-dot"
+            style={{ backgroundColor: badge.dot }}
+          />
+          {disabled ? 'COMING SOON' : status}
+        </span>
+        <span className="profile-card__tag">{shortDateLabel}</span>
+      </div>
+
+      <div className="profile-card__body">
+        <h2 className="profile-card__name">{config.displayName}</h2>
+        <div className="profile-card__date-range">{dateLabel}</div>
+        <p className="profile-card__desc">{description}</p>
+
+        {/* Show disabled explanation under the description */}
+        {disabled && (
+          <p
+            className="profile-card__disabled-note"
+            style={{
+              fontSize: '0.8rem',
+              color: '#8b849c',
+              marginTop: '0.5rem',
+              fontStyle: 'italic',
+            }}
+          >
+            Not yet available — awaiting organizer activation.
+          </p>
+        )}
+      </div>
+
+      <div className="profile-card__footer">
+        <button
+          type="button"
+          className={`profile-card__enter-btn button${disabled ? ' button--secondary' : ' button--primary'}`}
+          onClick={handleEnterClick}
+          disabled={disabled}
+          aria-disabled={disabled}
+          style={disabled ? { cursor: 'not-allowed', opacity: 0.5 } : {}}
+        >
+          {disabled ? 'NOT AVAILABLE' : 'ENTER'}
+          {!disabled && (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="profile-card__enter-icon"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          )}
+          {disabled && (
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="profile-card__enter-icon"
+              aria-hidden="true"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          )}
+        </button>
+      </div>
+    </motion.div>
   )
 }
 

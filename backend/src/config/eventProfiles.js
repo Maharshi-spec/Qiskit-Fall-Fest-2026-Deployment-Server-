@@ -63,12 +63,19 @@ const getTodayInTimezone = (timezone = TIMEZONE, date = new Date()) => {
   return formatter.format(d)
 }
 
-const calculateProfileStatus = (profileId, referenceDate = new Date()) => {
+const calculateProfileStatus = (profileId, referenceDate = new Date(), options = {}) => {
   const profile = EVENT_PROFILES[profileId]
   if (!profile) return 'UNKNOWN'
 
-  const today = getTodayInTimezone(profile.timezone, referenceDate)
-  const { startDate, endDate } = profile
+  if (options.enabled === false) {
+    return 'DISABLED'
+  }
+
+  const startDate = options.startDate || profile.startDate
+  const endDate = options.endDate || profile.endDate
+  const timezone = options.timezone || profile.timezone
+
+  const today = getTodayInTimezone(timezone, referenceDate)
 
   if (today < startDate) {
     return 'UPCOMING'

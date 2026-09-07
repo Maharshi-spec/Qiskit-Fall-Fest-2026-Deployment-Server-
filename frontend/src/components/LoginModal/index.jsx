@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
@@ -18,14 +18,22 @@ const LoginModal = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
 
-  const isHomepage = location.pathname === '/'
+  const isProfileRoute = useMemo(() => {
+    const parts = location.pathname.split('/').filter(Boolean)
+    // Must be inside /pre-qiskit/... or /post-qiskit/... (not on '/' itself)
+    const profileSegment = parts[0]
+    return (
+      (profileSegment === 'pre-qiskit' || profileSegment === 'post-qiskit') &&
+      parts.length >= 1
+    )
+  }, [location.pathname])
 
   useEffect(() => {
     const dismissed = sessionStorage.getItem(DISMISSED_KEY) === 'true'
     setIsDismissed(dismissed)
   }, [])
 
-  const shouldShow = (!isLoading && !isLoggedIn && isHomepage && !isDismissed) || isLoginModalOpen
+  const shouldShow = isLoginModalOpen || (!isLoading && !isLoggedIn && isProfileRoute && !isDismissed)
 
   const handleDismiss = () => {
     sessionStorage.setItem(DISMISSED_KEY, 'true')

@@ -18,6 +18,10 @@ const EventProfileContext = createContext({
   profileConfig: EVENT_PROFILES[DEFAULT_PROFILE],
   status: 'GOING',
   allProfiles: [],
+  postQiskitConfig: null,
+  postQiskitEnabled: false,
+  postQiskitStatus: 'DISABLED',
+  refreshPostQiskitConfig: () => {},
   switchProfile: () => {},
   getProfilePath: () => '',
   isProfileRoute: false,
@@ -42,6 +46,29 @@ export const EventProfileProvider = ({ children }) => {
     return normalizeProfile(stored) || DEFAULT_PROFILE
   })
 
+  // Post-Qiskit backend config state
+  const [postQiskitConfig, setPostQiskitConfig] = useState(null)
+  const [postQiskitConfigLoading, setPostQiskitConfigLoading] = useState(true)
+
+  // Fetch Post-Qiskit public status from backend on mount and after changes
+  const refreshPostQiskitConfig = useCallback(async () => {
+    try {
+      setPostQiskitConfigLoading(true)
+      const result = await api.getPostEventStatus()
+      if (result.success && result.data) {
+        setPostQiskitConfig(result.data)
+      }
+    } catch (_err) {
+      // Silently fail — UI falls back to disabled state
+    } finally {
+      setPostQiskitConfigLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshPostQiskitConfig()
+  }, [refreshPostQiskitConfig])
+
   useEffect(() => {
     if (detectedFromUrl && detectedFromUrl !== activeProfile) {
       setActiveProfile(detectedFromUrl)
@@ -59,6 +86,17 @@ export const EventProfileProvider = ({ children }) => {
   const status = useMemo(() => {
     return calculateProfileStatus(activeProfile)
   }, [activeProfile])
+
+  // Derive Post-Qiskit enabled and status from backend config
+  const postQiskitEnabled = useMemo(() => {
+    if (!postQiskitConfig) return false
+    return Boolean(postQiskitConfig.enabled)
+  }, [postQiskitConfig])
+
+  const postQiskitStatus = useMemo(() => {
+    if (!postQiskitConfig) return 'DISABLED'
+    return postQiskitConfig.status || 'DISABLED'
+  }, [postQiskitConfig])
 
   const allProfiles = useMemo(() => {
     return getAllProfilesSummary()
@@ -96,10 +134,15 @@ export const EventProfileProvider = ({ children }) => {
     profileConfig,
     status,
     allProfiles,
+    postQiskitConfig,
+    postQiskitEnabled,
+    postQiskitStatus,
+    postQiskitConfigLoading,
+    refreshPostQiskitConfig,
     switchProfile,
     getProfilePath,
     isProfileRoute,
-  }), [activeProfile, profileConfig, status, allProfiles, switchProfile, getProfilePath, isProfileRoute])
+  }), [activeProfile, profileConfig, status, allProfiles, postQiskitConfig, postQiskitEnabled, postQiskitStatus, postQiskitConfigLoading, refreshPostQiskitConfig, switchProfile, getProfilePath, isProfileRoute])
 
   return (
     <EventProfileContext.Provider value={value}>

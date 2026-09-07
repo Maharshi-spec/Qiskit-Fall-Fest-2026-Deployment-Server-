@@ -700,5 +700,99 @@ export const api = {
       }
     }
   },
+
+  // ─── Post-Event Config API ─────────────────────────────────────────────────
+
+  /** Public: get Post-Qiskit enabled state and safe display info */
+  async getPostEventStatus() {
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/status'), {
+        headers: buildJsonHeaders(),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || {} }
+        : { success: false, data: {} }
+    } catch (_err) {
+      return { success: false, data: {} }
+    }
+  },
+
+  /** Organizer: get full Post-Qiskit config (includes coordinator_contact) */
+  async getPostEventConfig() {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/config'), {
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to load config.' } }
+      }
+      return { success: true, data: data?.data || {} }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
+
+  /** Organizer: update Post-Qiskit config fields */
+  async updatePostEventConfig(payload) {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/config'), {
+        method: 'PUT',
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to update config.' } }
+      }
+      return { success: true, data: data?.data || {}, message: data?.message }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
+
+  /** Organizer: enable Post-Qiskit */
+  async enablePostEvent() {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/enable'), {
+        method: 'POST',
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to enable Post-Qiskit.' } }
+      }
+      return { success: true, data: data?.data || {}, message: data?.message }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
+
+  /** Organizer: disable Post-Qiskit */
+  async disablePostEvent() {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/disable'), {
+        method: 'POST',
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to disable Post-Qiskit.' } }
+      }
+      return { success: true, data: data?.data || {}, message: data?.message }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
 }
 
