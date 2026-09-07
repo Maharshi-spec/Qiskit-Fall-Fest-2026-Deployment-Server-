@@ -1083,7 +1083,7 @@ const loginOrganizer = async (payload = {}) => {
 
   try {
     const result = await pool.query(
-      'SELECT organizer_id AS "organizerId", email, password FROM organizers WHERE email = $1 LIMIT 1',
+      'SELECT organizer_id AS "organizerId", name, email, password FROM organizers WHERE email = $1 LIMIT 1',
       [normalizedEmail],
     )
     if (result.rows.length > 0) {
@@ -1107,7 +1107,12 @@ const loginOrganizer = async (payload = {}) => {
   }
 
   const token = jwt.sign(
-    { userId: organizer.organizer_id || organizer.organizerId || 'org-1', email: organizer.email, role: 'ORGANIZER' },
+    {
+      userId: organizer.organizer_id || organizer.organizerId || 'org-1',
+      name: organizer.name,
+      email: organizer.email,
+      role: 'ORGANIZER',
+    },
     process.env.JWT_SECRET || 'dev-secret',
     { expiresIn: '7d' },
   )
@@ -1118,6 +1123,7 @@ const loginOrganizer = async (payload = {}) => {
       token,
       user: {
         id: organizer.organizer_id || organizer.organizerId || 'org-1',
+        name: organizer.name,
         email: organizer.email,
         role: 'ORGANIZER',
       },
