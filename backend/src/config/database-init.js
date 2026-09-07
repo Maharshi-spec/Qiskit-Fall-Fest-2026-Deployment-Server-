@@ -17,6 +17,7 @@ const requiredTables = [
   'event_reminders',
   'hackathon_results',
 ]
+const organizerDetailsMigration = '012_add_organizers_details.sql'
 
 const getMissingTables = async (client) => {
   const result = await client.query(
@@ -43,20 +44,24 @@ const initializeDatabase = async () => {
   try {
     const missingTables = await getMissingTables(client)
 
-    if (missingTables.length === 0) {
-      console.log('Database tables already exist. Initialization complete.')
-      return
-    }
-
     const migrationFiles = await getMigrationFiles()
     if (migrationFiles.length === 0) {
       throw new Error(`No SQL migration files found in ${schemaDirectory}`)
     }
 
-    console.log(`Missing database tables detected: ${missingTables.join(', ')}`)
+    const filesToApply = missingTables.length === 0
+      ? [organizerDetailsMigration]
+      : migrationFiles
+
+    if (missingTables.length === 0) {
+      console.log('Database tables already exist. Checking organizer details.')
+    } else {
+      console.log(`Missing database tables detected: ${missingTables.join(', ')}`)
+    }
+
     await client.query('BEGIN')
 
-    for (const migrationFile of migrationFiles) {
+    for (const migrationFile of filesToApply) {
       const migrationPath = path.join(schemaDirectory, migrationFile)
       const migrationSql = await fs.readFile(migrationPath, 'utf8')
       await client.query(migrationSql)
