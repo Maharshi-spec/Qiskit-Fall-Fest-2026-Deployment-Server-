@@ -1069,22 +1069,74 @@ const OrganizerRewardsPage = () => {
           {isEligibilityLoading && <div className="detail-info-item"><span>Loading</span><strong>Reviewing eligibility...</strong></div>}
 
           {isHackathon ? (
-            <section className="organizer-rewards__workflow">
-              <div className="organizer-rewards__section-heading">
-                <span className="organizer-rewards__kicker">Hackathon rewards</span>
-                <h3>Select team and award</h3>
-                <p>Choose an award to automatically use its certificate template.</p>
-              </div>
-              <label htmlFor="reward-team">Select team</label>
-              <select id="reward-team" value={selectedTeamId} onChange={(eventChange) => setSelectedTeamId(eventChange.target.value)}><option value="">Select Team</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.team_name}</option>)}</select>
-              <fieldset className="organizer-rewards__award-list">
-                <legend>Award</legend>
-                {hackathonPlacements.map((award) => <label key={award.value}><input type="radio" name="hackathon-award" value={award.value} checked={placement === award.value} onChange={() => setPlacement(award.value)} />{award.label}</label>)}
-              </fieldset>
-              <button type="button" className="button button--primary" onClick={handleAssignAward} disabled={!selectedTeamId || isAssigning}>{isAssigning ? 'Assigning Award...' : 'Assign Award'}</button>
-              <div className="organizer-rewards__mapping"><span>Team members</span><strong>{teamMembers.length ? teamMembers.map((member) => member.fullName).join(', ') : 'No team selected'}</strong></div>
-              <button type="button" className="button button--secondary" onClick={handleGenerateAwardCertificates} disabled={!selectedTeamId || !teamMembers.length || isGenerating}>{isGenerating ? 'Generating...' : 'Generate Award Certificates'}</button>
-            </section>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Part A: Hackathon Participant Certificates */}
+              <section className="organizer-rewards__workflow" style={{ border: '1px solid rgba(255, 79, 163, 0.15)', borderRadius: '12px', padding: '1.5rem', background: '#fff' }}>
+                <div className="organizer-rewards__section-heading">
+                  <span className="organizer-rewards__kicker">Hackathon Certificates</span>
+                  <h3>Hackathon Participant Certificate</h3>
+                  <p>Eligibility is determined by valid registered hackathon team membership.</p>
+                </div>
+                <div className="organizer-rewards__mapping">
+                  <span>Eligibility summary</span>
+                  <strong>Eligible: {eligibleParticipants.length} | Already issued: {alreadyIssued.length} | Excluded: {excludedParticipants.length}</strong>
+                </div>
+                <div className="organizer-rewards__participants" style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '1.2rem', padding: '0.5rem', border: '1px solid #f0f0f0', borderRadius: '8px', background: '#fafafa' }}>
+                  {eligibleParticipants.length > 0 ? eligibleParticipants.map((participant) => (
+                    <div className="organizer-rewards__participant" key={participant.registrationId || participant.email} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0' }}>
+                      <span aria-hidden="true" style={{ color: '#ff4fa3' }}>✓</span>
+                      <div>
+                        <strong style={{ display: 'block' }}>{getRewardParticipant(participant)}</strong>
+                        <small style={{ color: '#666' }}>{participant.publicRegistrationId} · {participant.email} · Team: {participant.teamName || 'N/A'}</small>
+                      </div>
+                    </div>
+                  )) : <p className="organizer-rewards__empty">No eligible participants in the current records.</p>}
+                </div>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={handleGenerateCertificates}
+                  disabled={!selectedEventId || isEligibilityLoading || isGenerating || eligibleParticipants.length === 0}
+                >
+                  {isGenerating ? 'Generating Participant Certificates...' : 'Generate Hackathon Participant Certificates'}
+                </button>
+              </section>
+
+              {/* Part B: Hackathon Award / Winner Certificates */}
+              <section className="organizer-rewards__workflow" style={{ border: '1px solid rgba(255, 79, 163, 0.15)', borderRadius: '12px', padding: '1.5rem', background: '#fff' }}>
+                <div className="organizer-rewards__section-heading">
+                  <span className="organizer-rewards__kicker">Hackathon Certificates</span>
+                  <h3>Hackathon Winner Certificates</h3>
+                  <p>Choose an award to automatically use its certificate template (1st Position, 1st Runner Up, 2nd Runner Up).</p>
+                </div>
+                <label htmlFor="reward-team" style={{ display: 'block', marginTop: '1rem', fontWeight: 'bold' }}>Select team</label>
+                <select id="reward-team" value={selectedTeamId} onChange={(eventChange) => setSelectedTeamId(eventChange.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #ccc', margin: '0.5rem 0 1rem 0' }}>
+                  <option value="">Select Team</option>
+                  {teams.map((team) => <option key={team.id} value={team.id}>{team.team_name}</option>)}
+                </select>
+                <fieldset className="organizer-rewards__award-list" style={{ border: '1px solid #f0f0f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.2rem' }}>
+                  <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Award</legend>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {hackathonPlacements.map((award) => (
+                      <label key={award.value} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <input type="radio" name="hackathon-award" value={award.value} checked={placement === award.value} onChange={() => setPlacement(award.value)} />
+                        {award.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <button type="button" className="button button--primary" onClick={handleAssignAward} disabled={!selectedTeamId || isAssigning} style={{ marginBottom: '1rem' }}>
+                  {isAssigning ? 'Assigning Award...' : 'Assign Award'}
+                </button>
+                <div className="organizer-rewards__mapping" style={{ margin: '1rem 0' }}>
+                  <span>Team members</span>
+                  <strong>{teamMembers.length ? teamMembers.map((member) => member.fullName).join(', ') : 'No team selected'}</strong>
+                </div>
+                <button type="button" className="button button--secondary" onClick={handleGenerateAwardCertificates} disabled={!selectedTeamId || !teamMembers.length || isGenerating}>
+                  {isGenerating ? 'Generating Award Certificates...' : 'Generate Award Certificates'}
+                </button>
+              </section>
+            </div>
           ) : (
             <section className="organizer-rewards__workflow">
               <div className="organizer-rewards__section-heading">

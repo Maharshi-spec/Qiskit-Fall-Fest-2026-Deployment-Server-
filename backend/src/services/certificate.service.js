@@ -15,7 +15,6 @@ const {
 
 const ATTENDANCE_CERTIFICATE_TYPES = new Set([
   CERTIFICATE_TYPES.GENERAL_EVENT_PARTICIPATION,
-  CERTIFICATE_TYPES.HACKATHON_PARTICIPATION,
   CERTIFICATE_TYPES.WEBINAR_PARTICIPATION,
   CERTIFICATE_TYPES.WORKSHOP_PARTICIPATION,
   CERTIFICATE_TYPES.QUANTUM_BOOTCAMP_COMPLETION,
@@ -106,6 +105,20 @@ const getAttendanceEligibleParticipants = async (eventId) => {
   return result.rows
 }
 
+const getHackathonEligibleParticipants = async (eventId) => {
+  const result = await pool.query(
+    `SELECT DISTINCT r.id AS "registrationId", r.registration_id AS "publicRegistrationId",
+       r.full_name AS "fullName", r.email, t.id AS "teamId", t.team_name AS "teamName"
+     FROM teams t
+     JOIN team_members tm ON tm.team_id = t.id
+     JOIN registrations r ON r.registration_id = tm.registration_id
+     WHERE t.event_id = $1
+     ORDER BY r.full_name ASC`,
+    [eventId],
+  )
+  return result.rows
+}
+
 const getAwardEligibleParticipants = async (eventId, certificateType) => {
   const placement = CERTIFICATE_TO_PLACEMENT[certificateType]
   const event = await getEvent(eventId)
@@ -128,6 +141,9 @@ const getAwardEligibleParticipants = async (eventId, certificateType) => {
 const getEligibleParticipants = async (eventId, certificateType) => {
   const type = ensureCertificateType(certificateType)
   const event = await getEvent(eventId)
+  if (type === CERTIFICATE_TYPES.HACKATHON_PARTICIPATION) {
+    return getHackathonEligibleParticipants(event.event_id)
+  }
   if (ATTENDANCE_CERTIFICATE_TYPES.has(type)) return getAttendanceEligibleParticipants(event.event_id)
   return getAwardEligibleParticipants(event.event_id, type)
 }
@@ -148,7 +164,7 @@ const getEligibilityPreview = async (eventId, certificateType) => {
   return {
     event,
     certificateType: type,
-    eligibilitySource: ATTENDANCE_CERTIFICATE_TYPES.has(type) ? 'attendance' : 'hackathon_results',
+    eligibilitySource: type === CERTIFICATE_TYPES.HACKATHON_PARTICIPATION ? 'teams' : (ATTENDANCE_CERTIFICATE_TYPES.has(type) ? 'attendance' : 'hackathon_results'),
     eligibleParticipants: eligible,
     alreadyIssued: eligible.filter((item) => issuedIds.has(String(item.registrationId))),
     excludedParticipants: [],
@@ -226,6 +242,16 @@ const sendCertificateEmail = async (participant, certificate) => {
 const generateOneCertificate = async ({ event, certificateType, participant }) => {
   const template = getCertificateTemplateForType(certificateType)
   if (!fs.existsSync(template.templatePath)) throw new AppError(503, 'CERTIFICATE_TEMPLATE_MISSING', `Template ${template.templateName} is missing.`)
+
+  // Prevent duplicate certificates for the same event, certificate type, and participant
+  const existing = await pool.query(
+    'SELECT 1 FROM certificates WHERE event_id = $1 AND certificate_type = $2 AND registration_id = $3 LIMIT 1',
+    [event.event_id, certificateType, participant.registrationId]
+  )
+  if (existing.rowCount > 0) {
+    throw new AppError(409, 'DUPLICATE_CERTIFICATE', 'This certificate has already been generated.')
+  }
+
   const certificateNumber = await buildCertificateNumber()
   const generated = await certificateGenerator.generateCertificate({
     templatePath: template.templatePath,
