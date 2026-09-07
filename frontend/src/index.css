@@ -908,7 +908,8 @@ a:focus-visible {
   position: absolute;
   top: calc(100% + 0.7rem);
   right: 0;
-  width: min(220px, 62vw);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 2rem));
   padding: 0.9rem;
   border: 1px solid rgba(255, 79, 163, 0.14);
   border-radius: 16px;
@@ -935,11 +936,17 @@ a:focus-visible {
   margin-bottom: 0.7rem;
 }
 
+.organizer-page__profile-summary > div,
+.organizer-page__profile-meta {
+  min-width: 0;
+}
+
 .organizer-page__profile-summary strong,
 .organizer-page__profile-meta strong {
   display: block;
   color: #2f2444;
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .organizer-page__profile-summary small,
@@ -1008,7 +1015,8 @@ a:focus-visible {
   position: absolute;
   top: calc(100% + 0.7rem);
   right: 0;
-  width: min(220px, 62vw);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 2rem));
   padding: 0.9rem;
   border: 1px solid rgba(255, 79, 163, 0.14);
   border-radius: 16px;
