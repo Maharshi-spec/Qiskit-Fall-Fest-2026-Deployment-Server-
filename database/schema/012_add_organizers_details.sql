@@ -18,4 +18,6 @@ VALUES
     ('Tekupudi Balaji', 'tekupudibalaji@gmail.com', '123456'),
     ('Maharshi', 'maha.dev.2c0@gmail.com', '123456'),
     ('Harshavardhan', 'harshavardhan99901@gmail.com', '123456'),
-    ('sai Tej', 'mrtej117@gmail.com', '123456');
+    ('sai Tej', 'mrtej117@gmail.com', '123456')
+ON CONFLICT (email) DO UPDATE
+SET name = COALESCE(organizers.name, EXCLUDED.name);
