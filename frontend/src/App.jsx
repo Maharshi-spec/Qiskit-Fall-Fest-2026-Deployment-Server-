@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import LoginModal from './components/LoginModal'
@@ -16,7 +16,9 @@ import Day4 from './pages/Day4'
 import Certificates from './pages/Certificates'
 import OrganizerPage from './pages/Organizer'
 import Profile from './pages/Profile'
+import ProfileSelection from './pages/ProfileSelection'
 import { initializeGsap } from './utils/animation'
+import { ALLOWED_PROFILES } from './config/eventProfiles'
 
 const AnimatedPage = ({ children }) => (
   <motion.div
@@ -48,23 +50,51 @@ function App() {
       <LoginModal />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<AnimatedPage><MainLayout><Home /></MainLayout></AnimatedPage>} />
-          <Route path="/register" element={<AnimatedPage><MainLayout><Registration /></MainLayout></AnimatedPage>} />
-          <Route path="/attendance" element={<AnimatedPage><MainLayout><Attendance /></MainLayout></AnimatedPage>} />
-          <Route path="/hackathon" element={<AnimatedPage><MainLayout><Hackathon /></MainLayout></AnimatedPage>} />
-          <Route path="/workshops" element={<AnimatedPage><MainLayout><Workshops /></MainLayout></AnimatedPage>} />
-          <Route path="/day-1" element={<AnimatedPage><MainLayout><Day1 /></MainLayout></AnimatedPage>} />
-          <Route path="/day-2" element={<AnimatedPage><MainLayout><Day2 /></MainLayout></AnimatedPage>} />
-          <Route path="/day-3" element={<AnimatedPage><MainLayout><Day3 /></MainLayout></AnimatedPage>} />
-          <Route path="/day-4" element={<AnimatedPage><MainLayout><Day4 /></MainLayout></AnimatedPage>} />
-          <Route path="/certificates" element={<AnimatedPage><MainLayout><Certificates /></MainLayout></AnimatedPage>} />
-          <Route path="/profile" element={<AnimatedPage><MainLayout><Profile /></MainLayout></AnimatedPage>} />
-          <Route path="/organizer/*" element={<AnimatedPage><OrganizerPage /></AnimatedPage>} />
+          <Route path="/" element={<ProfileSelection />} />
+          <Route path="/register" element={<Navigate to="/pre-qiskit/register" replace />} />
+          <Route path="/attendance" element={<Navigate to="/pre-qiskit/attendance" replace />} />
+          <Route path="/hackathon" element={<Navigate to="/pre-qiskit/hackathon" replace />} />
+          <Route path="/workshops" element={<Navigate to="/pre-qiskit/workshops" replace />} />
+          <Route path="/day-1" element={<Navigate to="/pre-qiskit/day-1" replace />} />
+          <Route path="/day-2" element={<Navigate to="/pre-qiskit/day-2" replace />} />
+          <Route path="/day-3" element={<Navigate to="/pre-qiskit/day-3" replace />} />
+          <Route path="/day-4" element={<Navigate to="/pre-qiskit/day-4" replace />} />
+          <Route path="/certificates" element={<Navigate to="/pre-qiskit/certificates" replace />} />
+          <Route path="/profile" element={<Navigate to="/pre-qiskit/profile" replace />} />
+          <Route path="/organizer/*" element={<Navigate to="/pre-qiskit/organizer" replace />} />
+          <Route path="/:profile" element={<ProfileHome />} />
+          <Route path="/:profile/register" element={<ProfilePage><Registration /></ProfilePage>} />
+          <Route path="/:profile/attendance" element={<ProfilePage><Attendance /></ProfilePage>} />
+          <Route path="/:profile/hackathon" element={<ProfilePage><Hackathon /></ProfilePage>} />
+          <Route path="/:profile/workshops" element={<ProfilePage><Workshops /></ProfilePage>} />
+          <Route path="/:profile/day-1" element={<ProfilePage><Day1 /></ProfilePage>} />
+          <Route path="/:profile/day-2" element={<ProfilePage><Day2 /></ProfilePage>} />
+          <Route path="/:profile/day-3" element={<ProfilePage><Day3 /></ProfilePage>} />
+          <Route path="/:profile/day-4" element={<ProfilePage><Day4 /></ProfilePage>} />
+          <Route path="/:profile/certificates" element={<ProfilePage><Certificates /></ProfilePage>} />
+          <Route path="/:profile/profile" element={<ProfilePage><Profile /></ProfilePage>} />
+          <Route path="/:profile/organizer/*" element={<AnimatedPage><OrganizerPage /></AnimatedPage>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>
     </>
   )
+}
+
+const ProfilePage = ({ children }) => (
+  <ProfilePageContent>{children}</ProfilePageContent>
+)
+
+const ProfilePageContent = ({ children }) => {
+  const { profile } = useParams()
+  if (!ALLOWED_PROFILES.includes(profile)) return <Navigate to="/" replace />
+  return <AnimatedPage><MainLayout>{children}</MainLayout></AnimatedPage>
+}
+
+const ProfileHome = () => {
+  const { profile } = useParams()
+  if (!ALLOWED_PROFILES.includes(profile)) return <Navigate to="/" replace />
+  return <ProfilePage><Home /></ProfilePage>
 }
 
 export default App

@@ -2,23 +2,22 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
+import ProfileSwitcher from '../ProfileSwitcher'
 import qiskitBadge from '../../assets/qiskit/badge-pink.png.png'
 
-const navItems = [
-  { label: 'Home', to: '/' },
-  { label: 'Register', to: '/register' },
-  { label: 'Hackathon', to: '/hackathon' },
-  { label: 'Workshops', to: '/workshops' },
-  { label: 'Attendance', to: '/attendance' },
-  { label: 'Day 1', to: '/day-1', isDay: true },
-  { label: 'Day 2', to: '/day-2', isDay: true },
-  { label: 'Day 3', to: '/day-3', isDay: true },
-  { label: 'Day 4', to: '/day-4', isDay: true },
-  { label: 'Certificates', to: '/certificates' },
+const rawNavItems = [
+  { label: 'Home', subpath: '' },
+  { label: 'Register', subpath: 'register' },
+  { label: 'Hackathon', subpath: 'hackathon' },
+  { label: 'Workshops', subpath: 'workshops' },
+  { label: 'Attendance', subpath: 'attendance' },
+  { label: 'Day 1', subpath: 'day-1', isDay: true },
+  { label: 'Day 2', subpath: 'day-2', isDay: true },
+  { label: 'Day 3', subpath: 'day-3', isDay: true },
+  { label: 'Day 4', subpath: 'day-4', isDay: true },
+  { label: 'Certificates', subpath: 'certificates' },
 ]
-
-const dayNavItems = navItems.filter((item) => item.isDay)
-const primaryNavItems = navItems.filter((item) => !item.isDay)
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
@@ -27,6 +26,15 @@ const Navbar = () => {
   const logoRef = useRef(null)
   const animatedLogoRef = useRef(null)
   const { isLoggedIn, openLoginModal, logout } = useAuth()
+  const { getProfilePath } = useEventProfile()
+
+  const navItems = rawNavItems.map((item) => ({
+    ...item,
+    to: getProfilePath(item.subpath),
+  }))
+
+  const dayNavItems = navItems.filter((item) => item.isDay)
+  const primaryNavItems = navItems.filter((item) => !item.isDay)
 
   const authActions = (
     <div className="topbar__actions">
@@ -37,7 +45,7 @@ const Navbar = () => {
       >
         {isLoggedIn ? 'Logout' : 'Login'}
       </button>
-      <NavLink to="/register" className="topbar__action topbar__action--register">
+      <NavLink to={getProfilePath('register')} className="topbar__action topbar__action--register">
         Register
       </NavLink>
     </div>

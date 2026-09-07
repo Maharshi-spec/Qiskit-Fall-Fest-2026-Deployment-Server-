@@ -7,3 +7,6 @@ dist/
 build/
 coverage/
 *.log
+uploads/
+backend/uploads/
+*.pdf

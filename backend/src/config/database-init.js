@@ -4,7 +4,7 @@ const { pool } = require('./database')
 
 const schemaDirectory = path.resolve(__dirname, '../../../database/schema')
 
-const requiredTables = [
+const requiredPreQiskitTables = [
   'events',
   'organizers',
   'registrations',
@@ -17,18 +17,33 @@ const requiredTables = [
   'event_reminders',
   'hackathon_results',
 ]
-const organizerDetailsMigration = '012_add_organizers_details.sql'
 
-const getMissingTables = async (client) => {
+const requiredPostQiskitTables = [
+  'post_qiskit_events',
+  'post_qiskit_registrations',
+  'post_qiskit_teams',
+  'post_qiskit_team_members',
+  'post_qiskit_attendance',
+  'post_qiskit_attendance_sessions',
+  'post_qiskit_attendance_tokens',
+  'post_qiskit_certificates',
+  'post_qiskit_event_reminders',
+  'post_qiskit_hackathon_results',
+]
+
+const organizerDetailsMigration = '012_add_organizers_details.sql'
+const postQiskitSchemaMigration = '013_create_post_qiskit_schema.sql'
+
+const getMissingTables = async (client, tables) => {
   const result = await client.query(
     `SELECT table_name
      FROM information_schema.tables
      WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
-    [requiredTables]
+    [tables]
   )
 
   const existingTables = new Set(result.rows.map((row) => row.table_name))
-  return requiredTables.filter((tableName) => !existingTables.has(tableName))
+  return tables.filter((tableName) => !existingTables.has(tableName))
 }
 
 const getMigrationFiles = async () => {
@@ -42,21 +57,28 @@ const initializeDatabase = async () => {
   const client = await pool.connect()
 
   try {
-    const missingTables = await getMissingTables(client)
+    const missingPreTables = await getMissingTables(client, requiredPreQiskitTables)
+    const missingPostTables = await getMissingTables(client, requiredPostQiskitTables)
 
     const migrationFiles = await getMigrationFiles()
     if (migrationFiles.length === 0) {
       throw new Error(`No SQL migration files found in ${schemaDirectory}`)
     }
 
-    const filesToApply = missingTables.length === 0
-      ? [organizerDetailsMigration]
-      : migrationFiles
-
-    if (missingTables.length === 0) {
-      console.log('Database tables already exist. Checking organizer details.')
+    let filesToApply
+    if (missingPreTables.length > 0) {
+      console.log(`Missing Pre-Qiskit database tables detected: ${missingPreTables.join(', ')}`)
+      filesToApply = migrationFiles
     } else {
-      console.log(`Missing database tables detected: ${missingTables.join(', ')}`)
+      console.log('Pre-Qiskit database tables verified.')
+      const updates = [organizerDetailsMigration]
+      if (missingPostTables.length > 0) {
+        console.log(`Missing Post-Qiskit database tables detected: ${missingPostTables.join(', ')}`)
+        updates.push(postQiskitSchemaMigration)
+      } else {
+        updates.push(postQiskitSchemaMigration)
+      }
+      filesToApply = updates
     }
 
     await client.query('BEGIN')

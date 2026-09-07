@@ -22,10 +22,27 @@ const writeOrganizerToken = (token) => {
   localStorage.removeItem(ORGANIZER_TOKEN_KEY)
 }
 
+let currentEventProfile = localStorage.getItem('qff_active_profile') || 'pre-qiskit'
+
+const getProfileHeader = () => ({
+  'X-Event-Profile': currentEventProfile,
+})
+
 const buildJsonHeaders = (extra = {}) => ({
   'Content-Type': 'application/json',
+  ...getProfileHeader(),
   ...extra,
 })
+
+const profileFetch = (url, options = {}) => {
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...getProfileHeader(),
+      ...(options.headers || {}),
+    },
+  })
+}
 
 const parseApiResponse = async (response) => {
   const contentType = response.headers.get('content-type') || ''
@@ -42,10 +59,26 @@ export const api = {
   getOrganizerToken: readOrganizerToken,
   setOrganizerToken: writeOrganizerToken,
   clearOrganizerToken: () => writeOrganizerToken(''),
+  getEventProfile: () => currentEventProfile,
+  setEventProfile: (profile) => {
+    if (profile) currentEventProfile = profile
+  },
+  async fetchEventProfiles() {
+    try {
+      const response = await profileFetch(resolveApiUrl('/api/v1/profiles'), {
+        headers: buildJsonHeaders(),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok ? { success: true, data: data?.data || [] } : { success: false, data: [] }
+    } catch (err) {
+      return { success: false, data: [] }
+    }
+  },
 
   async submitRegistration(formData) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/registrations'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/registrations'), {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -74,7 +107,7 @@ export const api = {
 
   async loginParticipant(credentials) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/registrations/login'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/registrations/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,7 +140,7 @@ export const api = {
 
   async getCurrentUser(token) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/registrations/me'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/registrations/me'), {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -142,7 +175,7 @@ export const api = {
 
   async organizerLogin(payload) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/organizers/login'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/organizers/login'), {
         method: 'POST',
         headers: buildJsonHeaders(),
         credentials: 'include',
@@ -177,7 +210,7 @@ export const api = {
 
   async organizerFetchParticipants() {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/admin/participants'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/admin/participants'), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -208,7 +241,7 @@ export const api = {
 
   async organizerFetchAttendance() {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/admin/attendance'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/admin/attendance'), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -239,7 +272,7 @@ export const api = {
 
   async organizerUpdateAttendance(registrationId, status) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/admin/attendance/${registrationId}`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/admin/attendance/${registrationId}`), {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
@@ -272,7 +305,7 @@ export const api = {
 
   async organizerSendEmail(payload) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/admin/email/send'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/admin/email/send'), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
@@ -305,7 +338,7 @@ export const api = {
 
   async organizerFetchCertificates() {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/certificates'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/certificates'), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -336,7 +369,7 @@ export const api = {
 
   async organizerFetchEligibleParticipants(eventId, certificateType) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/eligible?certificateType=${encodeURIComponent(certificateType)}`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/eligible?certificateType=${encodeURIComponent(certificateType)}`), {
         headers: { Authorization: `Bearer ${readOrganizerToken()}` },
         credentials: 'include',
       })
@@ -351,7 +384,7 @@ export const api = {
 
   async organizerPreviewCertificateEligibility(eventId, certificateType) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/eligibility-preview?certificateType=${encodeURIComponent(certificateType)}`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/eligibility-preview?certificateType=${encodeURIComponent(certificateType)}`), {
         headers: { Authorization: `Bearer ${readOrganizerToken()}` },
         credentials: 'include',
       })
@@ -366,7 +399,7 @@ export const api = {
 
   async organizerGenerateCertificates(eventId, payload) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/generate`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/certificates/generate`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${readOrganizerToken()}`, ...buildJsonHeaders() },
         body: JSON.stringify(payload),
@@ -383,7 +416,7 @@ export const api = {
 
   async organizerFetchTeams(eventId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams`), {
         headers: { Authorization: `Bearer ${readOrganizerToken()}` },
         credentials: 'include',
       })
@@ -398,7 +431,7 @@ export const api = {
 
   async organizerFetchTeamMembers(teamId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/teams/${teamId}/members`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/teams/${teamId}/members`), {
         headers: { Authorization: `Bearer ${readOrganizerToken()}` },
         credentials: 'include',
       })
@@ -413,7 +446,7 @@ export const api = {
 
   async organizerAssignHackathonAward(eventId, teamId, placement) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams/${teamId}/award`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams/${teamId}/award`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${readOrganizerToken()}`, ...buildJsonHeaders() },
         body: JSON.stringify({ placement }),
@@ -430,7 +463,7 @@ export const api = {
 
   async organizerGenerateAwardCertificates(eventId, teamId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams/${teamId}/certificates/generate`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/teams/${teamId}/certificates/generate`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${readOrganizerToken()}`, ...buildJsonHeaders() },
         credentials: 'include',
@@ -446,7 +479,7 @@ export const api = {
 
   async fetchParticipantCertificates(token) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/participants/me/certificates'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/participants/me/certificates'), {
         headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       })
@@ -461,7 +494,7 @@ export const api = {
 
   async verifyCertificate(verificationCode) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/certificates/verify/${encodeURIComponent(verificationCode)}`))
+      const response = await profileFetch(resolveApiUrl(`/api/v1/certificates/verify/${encodeURIComponent(verificationCode)}`))
       const data = await parseApiResponse(response)
       return response.ok
         ? { success: true, data: data?.data || {} }
@@ -473,7 +506,7 @@ export const api = {
 
   async fetchMyTeam(token) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/hackathon/team/me'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/team/me'), {
         headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       })
@@ -492,7 +525,7 @@ export const api = {
 
   async createTeam(token, payload) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/hackathon/team'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/team'), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -512,7 +545,7 @@ export const api = {
 
   async verifyHackathonParticipant(token, email) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/hackathon/verify-participant?email=${encodeURIComponent(email)}`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/verify-participant?email=${encodeURIComponent(email)}`), {
         headers: { Authorization: `Bearer ${token}` },
         credentials: 'include',
       })
@@ -527,7 +560,7 @@ export const api = {
 
   async organizerFetchEvents() {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/organizer/events'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/organizer/events'), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -546,7 +579,7 @@ export const api = {
 
   async organizerCreateEvent(payload) {
     try {
-      const response = await fetch(resolveApiUrl('/api/v1/organizer/events'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/organizer/events'), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
@@ -567,7 +600,7 @@ export const api = {
 
   async organizerStartAttendanceSession(eventId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/start`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/start`), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
@@ -584,7 +617,7 @@ export const api = {
 
   async organizerStopAttendanceSession(eventId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/stop`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/stop`), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
@@ -601,7 +634,7 @@ export const api = {
 
   async organizerFetchQrToken(eventId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/token`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/token`), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -618,7 +651,7 @@ export const api = {
 
   async organizerFetchAttendanceData(eventId) {
     try {
-      const response = await fetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/data`), {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${eventId}/attendance/data`), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -636,7 +669,7 @@ export const api = {
   async markAttendance(attendanceToken) {
     try {
       const token = localStorage.getItem('qff_auth_token') || ''
-      const response = await fetch(resolveApiUrl('/api/v1/attendance/mark'), {
+      const response = await profileFetch(resolveApiUrl('/api/v1/attendance/mark'), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

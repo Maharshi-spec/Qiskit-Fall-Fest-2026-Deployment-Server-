@@ -2,6 +2,8 @@ const { DateTime } = require('luxon')
 const { pool } = require('../config/database')
 const { AppError } = require('../middleware/error.middleware')
 const { eventTimezone, eventReminderTime } = require('../config/env')
+const { getProfileEventDays } = require('../config/eventProfiles')
+const { getActiveEventProfile } = require('../middleware/profile.middleware')
 
 const EVENT_DAYS = [
   { dayNumber: 1, eventDate: '2026-09-07' },
@@ -9,6 +11,10 @@ const EVENT_DAYS = [
   { dayNumber: 3, eventDate: '2026-09-09' },
   { dayNumber: 4, eventDate: '2026-09-10' },
 ]
+
+const getActiveDays = (profile = getActiveEventProfile()) => {
+  return getProfileEventDays(profile) || EVENT_DAYS
+}
 
 const getReminderConfiguration = () => {
   if (!eventTimezone || !eventReminderTime) {
@@ -35,8 +41,9 @@ const getScheduledAt = (eventDate) => {
 const scheduleRegistrationReminders = async (registration) => {
   if (!pool) throw new AppError(503, 'DATABASE_UNAVAILABLE', 'Reminder storage is unavailable.')
 
+  const targetDays = getActiveDays()
   const values = []
-  const placeholders = EVENT_DAYS.map((day, index) => {
+  const placeholders = targetDays.map((day, index) => {
     const offset = index * 4
     values.push(registration.registrationId, day.dayNumber, day.eventDate, getScheduledAt(day.eventDate))
     return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, 'PENDING')`

@@ -3,6 +3,8 @@ import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from
 import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/Button'
 import { api } from '../../services/api'
+import ProfileSwitcher from '../../components/ProfileSwitcher'
+import { useEventProfile } from '../../context/EventProfileContext'
 
 const ORGANIZER_EMAIL = 'admin@qiskitfallfest.com'
 const ORGANIZER_PASSWORD = 'Admin@123'
@@ -39,6 +41,7 @@ const OrganizerLayout = ({ children }) => {
   const profileRef = useRef(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { getProfilePath } = useEventProfile()
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -58,7 +61,7 @@ const OrganizerLayout = ({ children }) => {
 
   const handleLogout = () => {
     api.clearOrganizerToken()
-    navigate('/organizer')
+    navigate(getProfilePath('organizer'))
   }
 
   const navItems = [
@@ -144,6 +147,7 @@ const OrganizerLayout = ({ children }) => {
 
         {/* TOP RIGHT NAVIGATION: Exactly [Profile Icon] [Logout] [Dashboard] */}
         <div className="organizer-navbar__actions">
+          <ProfileSwitcher compact />
           {/* 1. Profile Icon */}
           <div
             ref={profileRef}
@@ -188,7 +192,7 @@ const OrganizerLayout = ({ children }) => {
           </button>
 
           {/* 3. Dashboard */}
-          <Link to="/organizer" className="button button--secondary organizer-navbar__btn">
+          <Link to={getProfilePath('organizer')} className="button button--secondary organizer-navbar__btn">
             Dashboard
           </Link>
         </div>
@@ -236,6 +240,7 @@ const OrganizerLayout = ({ children }) => {
 
 const OrganizerLogin = () => {
   const navigate = useNavigate()
+  const { getProfilePath } = useEventProfile()
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -261,7 +266,7 @@ const OrganizerLogin = () => {
     setIsLoading(false)
 
     if (result.success) {
-      navigate('/organizer')
+      navigate(getProfilePath('organizer'))
       return
     }
 
@@ -317,6 +322,8 @@ const OrganizerPageHeading = ({ eyebrow, title, description, action }) => (
 )
 
 const OrganizerDashboardHome = () => {
+  const { getProfilePath } = useEventProfile()
+
   return (
     <div className="organizer-page-view organizer-dashboard-home">
       <OrganizerPageHeading eyebrow="Overview" title="Organizer dashboard" description="Use the left sidebar navigation to manage email communication, attendance sessions, participant records, reward certificates, and events." />
@@ -333,31 +340,31 @@ const OrganizerDashboardHome = () => {
         </div>
 
         <div className="organizer-dashboard-home__cards">
-        <Link to="/organizer/events" className="detail-card organizer-dashboard-home__card">
+        <Link to={getProfilePath('organizer/events')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">📅</span>
           <h3>Events</h3>
           <p>Browse and add festival events backed by the database.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Events →</span>
         </Link>
-        <Link to="/organizer/attendance" className="detail-card organizer-dashboard-home__card">
+        <Link to={getProfilePath('organizer/attendance')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">📱</span>
           <h3>Attendance</h3>
           <p>Run dynamic QR check-ins and review live attendance logs.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Attendance →</span>
         </Link>
-        <Link to="/organizer/participants" className="detail-card organizer-dashboard-home__card">
+        <Link to={getProfilePath('organizer/participants')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">👥</span>
           <h3>Participants</h3>
           <p>Filter, search, and inspect registered attendee records.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Participants →</span>
         </Link>
-        <Link to="/organizer/rewards" className="detail-card organizer-dashboard-home__card">
+        <Link to={getProfilePath('organizer/rewards')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">🏆</span>
           <h3>Rewards</h3>
           <p>Manage prize workflows and generate completion certificates.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Rewards →</span>
         </Link>
-        <Link to="/organizer/email" className="detail-card organizer-dashboard-home__card">
+        <Link to={getProfilePath('organizer/email')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">✉️</span>
           <h3>Send Email</h3>
           <p>Dispatch official updates and notices to event participants.</p>
@@ -1482,9 +1489,10 @@ const OrganizerEventsPage = () => {
 
 const OrganizerRoutes = () => {
   const location = useLocation()
+  const { getProfilePath } = useEventProfile()
 
   if (!isOrganizerAuthenticated()) {
-    return <Navigate to="/organizer" replace state={{ from: location }} />
+    return <Navigate to={getProfilePath('organizer')} replace state={{ from: location }} />
   }
 
   return (

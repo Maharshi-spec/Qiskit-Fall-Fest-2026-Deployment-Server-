@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { api } from '../services/api'
+import { useEventProfile } from './EventProfileContext'
 
 const AuthContext = createContext({
   isLoggedIn: false,
@@ -12,9 +13,26 @@ const AuthContext = createContext({
   logout: () => {},
 })
 
-const AUTH_TOKEN_KEY = 'qff_auth_token'
+const BASE_AUTH_TOKEN_KEY = 'qff_auth_token'
+
+const getProfileTokenKey = () => {
+  const profile = api.getEventProfile?.() || 'pre-qiskit'
+  return profile === 'pre-qiskit' ? BASE_AUTH_TOKEN_KEY : `${BASE_AUTH_TOKEN_KEY}_${profile}`
+}
+
+const getStoredToken = () => {
+  const key = getProfileTokenKey()
+  const token = localStorage.getItem(key)
+  if (token) return token
+  // Fallback for pre-qiskit legacy storage
+  if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
+    return localStorage.getItem(BASE_AUTH_TOKEN_KEY)
+  }
+  return null
+}
 
 export const AuthProvider = ({ children }) => {
+  const { activeProfile } = useEventProfile()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userRegistration, setUserRegistration] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -25,7 +43,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback((token, registrationData) => {
     if (token) {
-      localStorage.setItem(AUTH_TOKEN_KEY, token)
+      localStorage.setItem(getProfileTokenKey(), token)
+      if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
+        localStorage.setItem(BASE_AUTH_TOKEN_KEY, token)
+      }
     }
     setIsLoggedIn(true)
     setUserRegistration(registrationData)
@@ -33,13 +54,16 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_TOKEN_KEY)
+    localStorage.removeItem(getProfileTokenKey())
+    if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
+      localStorage.removeItem(BASE_AUTH_TOKEN_KEY)
+    }
     setIsLoggedIn(false)
     setUserRegistration(null)
   }, [])
 
   const verifySession = useCallback(async () => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY)
+    const token = getStoredToken()
 
     if (!token) {
       setIsLoggedIn(false)
@@ -61,7 +85,10 @@ export const AuthProvider = ({ children }) => {
           ['UNAUTHORIZED', 'INVALID_TOKEN', 'REGISTRATION_NOT_FOUND'].includes(result.error?.code)
 
         if (isAuthInvalid) {
-          localStorage.removeItem(AUTH_TOKEN_KEY)
+          localStorage.removeItem(getProfileTokenKey())
+          if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
+            localStorage.removeItem(BASE_AUTH_TOKEN_KEY)
+          }
           setIsLoggedIn(false)
           setUserRegistration(null)
         } else {
@@ -76,8 +103,9 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
+    setIsLoading(true)
     verifySession()
-  }, [verifySession])
+  }, [activeProfile, verifySession])
 
   return (
     <AuthContext.Provider

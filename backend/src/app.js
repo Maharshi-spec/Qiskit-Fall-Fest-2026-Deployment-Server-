@@ -14,6 +14,9 @@ const { errorMiddleware } = require('./middleware/error.middleware')
 const { validateRequest } = require('./middleware/validation.middleware')
 const { rateLimit } = require('./middleware/rateLimit.middleware')
 
+const { profileMiddleware } = require('./middleware/profile.middleware')
+const { getAllProfilesSummary } = require('./config/eventProfiles')
+
 const app = express()
 
 app.use(helmet())
@@ -23,6 +26,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')))
 app.use(rateLimit)
 app.use(validateRequest)
+app.use(profileMiddleware)
+
+app.get('/api/v1/profiles', (req, res) => {
+  res.json({
+    success: true,
+    data: getAllProfilesSummary(),
+  })
+})
 
 app.use('/api/v1', healthRoutes)
 app.use('/api/v1', registrationRoutes)
