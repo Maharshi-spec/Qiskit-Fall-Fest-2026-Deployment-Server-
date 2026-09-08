@@ -340,7 +340,12 @@ const validateDescription = (val) => {
   return desc
 }
 
-const getHackathonStats = async (eventId = 'day-3') => {
+const getHackathonStats = async (eventId = null) => {
+  const whereEvent = eventId ? 'WHERE hps.event_id = $1' : ''
+  const whereTeam = eventId ? 'WHERE event_id = $1' : ''
+  const whereSel = eventId ? 'WHERE event_id = $1' : ''
+  const params = eventId ? [eventId] : []
+
   const result = await pool.query(
     `WITH problem_counts AS (
        SELECT
@@ -350,14 +355,14 @@ const getHackathonStats = async (eventId = 'day-3') => {
          COUNT(hpsel.id)::int AS selected_teams
        FROM hackathon_problem_statements hps
        LEFT JOIN hackathon_problem_selections hpsel ON hpsel.problem_statement_id = hps.id
-       WHERE hps.event_id = $1
+       ${whereEvent}
        GROUP BY hps.id, hps.max_capacity, hps.is_active
      ),
      team_count AS (
-       SELECT COUNT(*)::int AS total_teams FROM teams WHERE event_id = $1
+       SELECT COUNT(*)::int AS total_teams FROM teams ${whereTeam}
      ),
      selection_count AS (
-       SELECT COUNT(*)::int AS total_selections FROM hackathon_problem_selections WHERE event_id = $1
+       SELECT COUNT(*)::int AS total_selections FROM hackathon_problem_selections ${whereSel}
      )
      SELECT
        (SELECT COUNT(*)::int FROM problem_counts) AS total_problems,
@@ -365,7 +370,7 @@ const getHackathonStats = async (eventId = 'day-3') => {
        (SELECT total_selections FROM selection_count) AS total_selections,
        (SELECT COUNT(*)::int FROM problem_counts WHERE is_active = true AND (max_capacity IS NULL OR (max_capacity > 0 AND selected_teams < max_capacity))) AS available_problems,
        (SELECT COUNT(*)::int FROM problem_counts WHERE max_capacity IS NOT NULL AND max_capacity > 0 AND selected_teams >= max_capacity) AS full_problems;`,
-    [eventId]
+    params
   )
 
   const row = result.rows[0] || {}
@@ -378,11 +383,20 @@ const getHackathonStats = async (eventId = 'day-3') => {
   }
 }
 
-const getProblemStatements = async (eventId = 'day-3', options = {}) => {
-  let activeFilter = ''
-  if (options.activeOnly) {
-    activeFilter = ' AND hps.is_active = true'
+const getProblemStatements = async (eventId = null, options = {}) => {
+  const conditions = []
+  const params = []
+
+  if (eventId) {
+    params.push(eventId)
+    conditions.push(`hps.event_id = $${params.length}`)
   }
+
+  if (options.activeOnly) {
+    conditions.push('hps.is_active = true')
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
   const result = await pool.query(
     `SELECT
@@ -400,10 +414,10 @@ const getProblemStatements = async (eventId = 'day-3', options = {}) => {
      FROM hackathon_problem_statements hps
      LEFT JOIN hackathon_problem_selections hpsel ON hpsel.problem_statement_id = hps.id
      LEFT JOIN team_members tm ON tm.team_id = hpsel.team_id
-     WHERE hps.event_id = $1${activeFilter}
+     ${whereClause}
      GROUP BY hps.id
      ORDER BY hps.id ASC;`,
-    [eventId]
+    params
   )
 
   const problemIds = result.rows.map((r) => r.id)
@@ -524,14 +538,43 @@ const createProblemStatement = async (user, payload = {}, files = []) => {
   const description = validateDescription(payload.description)
   const maxCapacity = validateCapacity(payload.maxCapacity)
   const isActive = payload.isActive === undefined ? true : Boolean(payload.isActive)
-  const eventId = typeof payload.eventId === 'string' && payload.eventId.trim() ? payload.eventId.trim() : 'day-3'
 
-  const eventCheck = await pool.query('SELECT event_id FROM events WHERE event_id = $1 LIMIT 1;', [eventId])
-  if (!eventCheck.rows[0]) {
-    throw new AppError(404, 'EVENT_NOT_FOUND', `Event '${eventId}' does not exist.`)
+  const rawEventId = payload.eventId || payload.event_id
+  const eventId = typeof rawEventId === 'string' ? rawEventId.trim() : ''
+  if (!eventId) {
+    throw new AppError(400, 'EVENT_REQUIRED', 'Hackathon event is required.')
   }
 
-  const organizerId = user?.organizerId || user?.organizer_id || user?.id || null
+  const eventCheck = await pool.query(
+    'SELECT event_id, event_name, event_type, status FROM events WHERE event_id = $1 LIMIT 1;',
+    [eventId]
+  )
+  if (!eventCheck.rows[0]) {
+    throw new AppError(404, 'EVENT_NOT_FOUND', `Hackathon event '${eventId}' does not exist. Please select a valid hackathon event.`)
+  }
+
+  const eventRow = eventCheck.rows[0]
+  const eventTypeUpper = String(eventRow.event_type || '').toUpperCase()
+  if (!eventTypeUpper.includes('HACKATHON')) {
+    throw new AppError(
+      400,
+      'INVALID_EVENT_TYPE',
+      `Event '${eventRow.event_name || eventId}' is not a hackathon event. Problem statements can only be created for hackathon events.`
+    )
+  }
+
+  let organizerId = user?.organizerId || user?.organizer_id || user?.id || null
+  if (organizerId) {
+    const orgCheck = await pool.query('SELECT organizer_id FROM organizers WHERE organizer_id = $1 LIMIT 1;', [organizerId])
+    if (!orgCheck.rows[0]) {
+      if (user?.email) {
+        const emailCheck = await pool.query('SELECT organizer_id FROM organizers WHERE LOWER(email) = LOWER($1) LIMIT 1;', [user.email])
+        organizerId = emailCheck.rows[0]?.organizer_id || null
+      } else {
+        organizerId = null
+      }
+    }
+  }
 
   const client = await pool.connect()
   const savedFiles = []
@@ -987,7 +1030,7 @@ const getHackathonInfo = async () => ({
 
 const getActiveHackathons = async () => {
   const result = await pool.query(
-    "SELECT * FROM events WHERE UPPER(event_type) = 'HACKATHON' AND UPPER(status) = 'ACTIVE' ORDER BY event_date ASC, created_at ASC;"
+    "SELECT * FROM events WHERE (UPPER(event_type) = 'HACKATHON' OR UPPER(event_type) LIKE '%HACKATHON%') AND UPPER(status) = 'ACTIVE' ORDER BY event_date ASC, created_at ASC;"
   )
   return result.rows.map((row) => {
     let dateStr = ''

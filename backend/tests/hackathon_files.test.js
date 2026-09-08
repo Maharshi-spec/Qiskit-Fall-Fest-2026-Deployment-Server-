@@ -14,6 +14,7 @@ let baseUrl
 let organizerToken
 let participantToken
 let participantRegId
+let originalFetch
 
 const TEST_PREFIX = 'QFILES_'
 
@@ -77,6 +78,22 @@ before(async () => {
     role: 'STUDENT',
   })
 
+  originalFetch = global.fetch
+  global.fetch = async (url, options = {}) => {
+    if (
+      typeof url === 'string' &&
+      url.includes('/api/v1/hackathon/problem-statements') &&
+      options.method === 'POST' &&
+      options.body &&
+      typeof options.body.append === 'function'
+    ) {
+      if (!options.body.has('eventId')) {
+        options.body.append('eventId', 'day-3')
+      }
+    }
+    return originalFetch(url, options)
+  }
+
   // Cleanup test data
   await pool.query(`DELETE FROM hackathon_problem_selections WHERE team_id IN (SELECT id FROM teams WHERE team_name LIKE '${TEST_PREFIX}%');`)
   await pool.query(`DELETE FROM hackathon_problem_statement_files WHERE original_filename LIKE '${TEST_PREFIX}%';`)
@@ -84,6 +101,9 @@ before(async () => {
 })
 
 after(async () => {
+  if (originalFetch) {
+    global.fetch = originalFetch
+  }
   // Cleanup test data and files
   const files = await pool.query(`SELECT storage_path FROM hackathon_problem_statement_files WHERE original_filename LIKE '${TEST_PREFIX}%';`)
   for (const f of files.rows) {

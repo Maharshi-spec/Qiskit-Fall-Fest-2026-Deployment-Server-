@@ -47,7 +47,7 @@ const verifyParticipant = async (req, res, next) => {
 
 const getHackathonStats = async (req, res, next) => {
   try {
-    const eventId = req.query.eventId || req.query.event_id || 'day-3'
+    const eventId = req.query.eventId || req.query.event_id || null
     const result = await hackathonService.getHackathonStats(eventId)
     return res.json({ success: true, data: result })
   } catch (error) {
@@ -66,7 +66,7 @@ const getMyTeamProblemSelection = async (req, res, next) => {
 
 const getProblemStatements = async (req, res, next) => {
   try {
-    const eventId = req.query.eventId || req.query.event_id || 'day-3'
+    const eventId = req.query.eventId || req.query.event_id || null
     const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'ORGANIZER'
     const activeOnly = req.query.activeOnly !== undefined ? req.query.activeOnly === 'true' : !isAdmin
     const result = await hackathonService.getProblemStatements(eventId, { activeOnly })

@@ -2212,6 +2212,10 @@ const OrganizerPostEventPage = () => {
 }
 
 const OrganizerHackathonPage = () => {
+  const [hackathonEvents, setHackathonEvents] = useState([])
+  const [selectedEventId, setSelectedEventId] = useState('')
+  const [loadingEvents, setLoadingEvents] = useState(true)
+
   const [stats, setStats] = useState({
     totalProblems: 0,
     totalTeams: 0,
@@ -2232,6 +2236,7 @@ const OrganizerHackathonPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProblem, setEditingProblem] = useState(null)
   const [modalForm, setModalForm] = useState({
+    eventId: '',
     title: '',
     description: '',
     isLimited: false,
@@ -2261,13 +2266,33 @@ const OrganizerHackathonPage = () => {
     error: '',
   })
 
-  const loadData = async () => {
+  const loadEvents = async () => {
+    setLoadingEvents(true)
+    try {
+      const res = await api.fetchActiveHackathons()
+      if (res.success && Array.isArray(res.data)) {
+        setHackathonEvents(res.data)
+        if (res.data.length > 0) {
+          const firstId = res.data[0].eventId || res.data[0].event_id
+          return firstId
+        }
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setLoadingEvents(false)
+    }
+    return ''
+  }
+
+  const loadData = async (targetEventId) => {
+    const eventIdToUse = targetEventId !== undefined ? targetEventId : selectedEventId
     setIsLoading(true)
     setError('')
     try {
       const [statsRes, problemsRes] = await Promise.all([
-        api.organizerFetchHackathonStats(),
-        api.organizerFetchProblemStatements(),
+        api.organizerFetchHackathonStats(eventIdToUse || null),
+        api.organizerFetchProblemStatements(eventIdToUse || null),
       ])
 
       if (statsRes.success) {
@@ -2289,12 +2314,27 @@ const OrganizerHackathonPage = () => {
   }
 
   useEffect(() => {
-    loadData()
+    const init = async () => {
+      const firstId = await loadEvents()
+      if (firstId) {
+        setSelectedEventId(firstId)
+        await loadData(firstId)
+      } else {
+        await loadData('')
+      }
+    }
+    init()
   }, [])
+
+  const handleEventChange = (newId) => {
+    setSelectedEventId(newId)
+    loadData(newId)
+  }
 
   const openCreateModal = () => {
     setEditingProblem(null)
     setModalForm({
+      eventId: selectedEventId || (hackathonEvents[0]?.eventId || hackathonEvents[0]?.event_id || ''),
       title: '',
       description: '',
       isLimited: false,
@@ -2310,6 +2350,7 @@ const OrganizerHackathonPage = () => {
   const openEditModal = (problem) => {
     setEditingProblem(problem)
     setModalForm({
+      eventId: problem.eventId || selectedEventId || '',
       title: problem.title || '',
       description: problem.description || '',
       isLimited: problem.maxCapacity !== null,
@@ -2416,7 +2457,11 @@ const OrganizerHackathonPage = () => {
 
   const handleModalSubmit = async (e) => {
     e.preventDefault()
-    setFormError('')
+    const selectedEvent = (modalForm.eventId || '').trim()
+    if (!selectedEvent && !editingProblem) {
+      setFormError('Please select a hackathon event.')
+      return
+    }
 
     const trimmedTitle = modalForm.title.trim()
     const trimmedDesc = modalForm.description.trim()
@@ -2459,7 +2504,7 @@ const OrganizerHackathonPage = () => {
         }
         payload.append('isActive', String(modalForm.isActive))
         if (!editingProblem) {
-          payload.append('eventId', 'day-3')
+          payload.append('eventId', selectedEvent)
         }
         modalForm.pendingFiles.forEach((item) => {
           payload.append('files', item.file)
@@ -2470,7 +2515,7 @@ const OrganizerHackathonPage = () => {
           description: trimmedDesc,
           maxCapacity: capacityVal,
           isActive: modalForm.isActive,
-          ...(!editingProblem ? { eventId: 'day-3' } : {}),
+          ...(!editingProblem ? { eventId: selectedEvent } : {}),
         }
       }
 
@@ -2496,7 +2541,12 @@ const OrganizerHackathonPage = () => {
       })
 
       setModalOpen(false)
-      await loadData()
+      if (selectedEvent && selectedEvent !== selectedEventId) {
+        setSelectedEventId(selectedEvent)
+        await loadData(selectedEvent)
+      } else {
+        await loadData()
+      }
     } catch (err) {
       setFormError('Network error while saving problem statement.')
     } finally {
@@ -2614,11 +2664,43 @@ const OrganizerHackathonPage = () => {
         title="Hackathon Management"
         description="Create and configure problem statements, manage team capacity limits, and monitor live problem selections in real time."
         action={
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label htmlFor="hackathon-event-filter" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#5c4779' }}>
+                Event:
+              </label>
+              <select
+                id="hackathon-event-filter"
+                value={selectedEventId}
+                onChange={(e) => handleEventChange(e.target.value)}
+                disabled={loadingEvents || hackathonEvents.length === 0}
+                style={{
+                  padding: '0.55rem 0.85rem',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 79, 163, 0.25)',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  color: '#2d253f',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  maxWidth: '280px',
+                }}
+              >
+                {hackathonEvents.length === 0 ? (
+                  <option value="">No hackathon events</option>
+                ) : (
+                  hackathonEvents.map((evt) => (
+                    <option key={evt.eventId || evt.event_id} value={evt.eventId || evt.event_id}>
+                      {evt.name || evt.event_name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
             <button
               type="button"
               className="button button--secondary"
-              onClick={loadData}
+              onClick={() => loadData()}
               disabled={isLoading}
               title="Refresh problem statements and statistics"
             >
@@ -3285,6 +3367,51 @@ const OrganizerHackathonPage = () => {
             )}
 
             <form onSubmit={handleModalSubmit} style={{ display: 'grid', gap: '1.25rem' }}>
+              {/* Select Hackathon Event */}
+              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
+                Select Hackathon Event *
+                {hackathonEvents.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '0.75rem 0.95rem',
+                      borderRadius: '12px',
+                      background: 'rgba(211, 47, 47, 0.08)',
+                      border: '1px solid rgba(211, 47, 47, 0.25)',
+                      color: '#c2185b',
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    No hackathon events available. Please create a hackathon event first.
+                  </div>
+                ) : (
+                  <select
+                    value={modalForm.eventId}
+                    onChange={(e) => setModalForm((prev) => ({ ...prev, eventId: e.target.value }))}
+                    required
+                    disabled={Boolean(editingProblem)}
+                    style={{
+                      padding: '0.75rem 0.95rem',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255, 79, 163, 0.22)',
+                      fontSize: '0.95rem',
+                      background: editingProblem ? '#f8f9fa' : '#ffffff',
+                      color: '#2d253f',
+                      cursor: editingProblem ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <option value="" disabled>
+                      -- Select Hackathon Event --
+                    </option>
+                    {hackathonEvents.map((evt) => (
+                      <option key={evt.eventId || evt.event_id} value={evt.eventId || evt.event_id}>
+                        {evt.name || evt.event_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </label>
+
               {/* Title */}
               <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
                 Problem Statement Title *
@@ -3664,7 +3791,11 @@ const OrganizerHackathonPage = () => {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="button button--primary" disabled={isSubmitting}>
+                <button
+                  type="submit"
+                  className="button button--primary"
+                  disabled={isSubmitting || (!editingProblem && hackathonEvents.length === 0)}
+                >
                   {isSubmitting ? (modalForm.pendingFiles.length > 0 ? 'Uploading files…' : 'Saving…') : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
                 </button>
               </div>

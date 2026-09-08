@@ -86,6 +86,7 @@ after(async () => {
   await pool.query(`DELETE FROM team_members WHERE registration_id LIKE '${TEST_PREFIX}%';`)
   await pool.query(`DELETE FROM teams WHERE team_name LIKE '${TEST_PREFIX}%';`)
   await pool.query(`DELETE FROM registrations WHERE registration_id LIKE '${TEST_PREFIX}%';`)
+  await pool.query("DELETE FROM events WHERE event_id = 'day-hack-alt';")
 
   if (server) {
     await new Promise((resolve) => server.close(resolve))
@@ -355,6 +356,13 @@ test('8. Organizer can view selections', async () => {
 
 // 9. Event isolation works
 test('9. Event isolation works', async () => {
+  // Ensure day-2 is a hackathon event or create test hackathon event
+  await pool.query(`
+    INSERT INTO events (event_id, event_name, description, event_date, status, event_type)
+    VALUES ('day-hack-alt', 'Alternative Hackathon', 'Alt Hackathon', '2026-09-11', 'ACTIVE', 'HACKATHON')
+    ON CONFLICT (event_id) DO UPDATE SET event_type = 'HACKATHON', status = 'ACTIVE';
+  `)
+
   // Problem on day-3
   const pDay3Res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
     method: 'POST',
@@ -371,21 +379,21 @@ test('9. Event isolation works', async () => {
   })
   const pDay3 = (await pDay3Res.json()).data
 
-  // Problem on day-1
-  const pDay1Res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
+  // Problem on day-hack-alt
+  const pDayAltRes = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${organizerToken}`,
     },
     body: JSON.stringify({
-      title: 'Test Problem: Day 1 Only',
-      description: 'This problem is for Day 1.',
+      title: 'Test Problem: Alt Hackathon Only',
+      description: 'This problem is for Alt Hackathon.',
       maxCapacity: 10,
-      eventId: 'day-1',
+      eventId: 'day-hack-alt',
     }),
   })
-  const pDay1 = (await pDay1Res.json()).data
+  const pDayAlt = (await pDayAltRes.json()).data
 
   // Fetch problems for day-3
   const listDay3Res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements?eventId=day-3`)
@@ -393,15 +401,71 @@ test('9. Event isolation works', async () => {
   const day3Ids = listDay3.map((p) => p.id)
 
   assert.ok(day3Ids.includes(pDay3.id))
-  assert.ok(!day3Ids.includes(pDay1.id))
+  assert.ok(!day3Ids.includes(pDayAlt.id))
 
-  // Fetch problems for day-1
-  const listDay1Res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements?eventId=day-1`)
-  const listDay1 = (await listDay1Res.json()).data
-  const day1Ids = listDay1.map((p) => p.id)
+  // Fetch problems for day-hack-alt
+  const listAltRes = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements?eventId=day-hack-alt`)
+  const listAlt = (await listAltRes.json()).data
+  const altIds = listAlt.map((p) => p.id)
 
-  assert.ok(day1Ids.includes(pDay1.id))
-  assert.ok(!day1Ids.includes(pDay3.id))
+  assert.ok(altIds.includes(pDayAlt.id))
+  assert.ok(!altIds.includes(pDay3.id))
+})
+
+// 9b. Validations for hackathon event selection
+test('9b. Validations: eventId required, existence, and hackathon event_type', async () => {
+  // Missing eventId
+  const missingEventRes = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${organizerToken}`,
+    },
+    body: JSON.stringify({
+      title: 'Test Problem: Missing Event',
+      description: 'This problem statement has no eventId.',
+      maxCapacity: 10,
+    }),
+  })
+  assert.equal(missingEventRes.status, 400)
+  const missingBody = await missingEventRes.json()
+  assert.equal(missingBody.error?.code, 'EVENT_REQUIRED')
+
+  // Non-existent event
+  const nonExistentRes = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${organizerToken}`,
+    },
+    body: JSON.stringify({
+      title: 'Test Problem: Non-existent Event',
+      description: 'This problem statement specifies non-existent event.',
+      maxCapacity: 10,
+      eventId: 'does-not-exist-xyz',
+    }),
+  })
+  assert.equal(nonExistentRes.status, 404)
+  const nonExistentBody = await nonExistentRes.json()
+  assert.equal(nonExistentBody.error?.code, 'EVENT_NOT_FOUND')
+
+  // Non-hackathon event (e.g. day-1 is GENERAL)
+  const nonHackathonRes = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${organizerToken}`,
+    },
+    body: JSON.stringify({
+      title: 'Test Problem: Non-hackathon Event',
+      description: 'This problem statement targets day-1 which is GENERAL.',
+      maxCapacity: 10,
+      eventId: 'day-1',
+    }),
+  })
+  assert.equal(nonHackathonRes.status, 400)
+  const nonHackathonBody = await nonHackathonRes.json()
+  assert.equal(nonHackathonBody.error?.code, 'INVALID_EVENT_TYPE')
 })
 
 // 10. Capacity cannot be exceeded

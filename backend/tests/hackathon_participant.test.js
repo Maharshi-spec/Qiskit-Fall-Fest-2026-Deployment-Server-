@@ -88,6 +88,7 @@ after(async () => {
   await pool.query(`DELETE FROM team_members WHERE registration_id LIKE '${TEST_PREFIX}%';`)
   await pool.query(`DELETE FROM teams WHERE team_name LIKE '${TEST_PREFIX}%';`)
   await pool.query(`DELETE FROM registrations WHERE registration_id LIKE '${TEST_PREFIX}%';`)
+  await pool.query("DELETE FROM events WHERE event_id = 'day-hack-part-alt';")
 
   if (server) {
     await new Promise((resolve) => server.close(resolve))
@@ -346,26 +347,32 @@ test('13. Organizer counts update correctly', async () => {
 })
 
 test('14. Event isolation works (cannot select problem from another event)', async () => {
-  // Problem in day-1
+  await pool.query(`
+    INSERT INTO events (event_id, event_name, description, event_date, status, event_type)
+    VALUES ('day-hack-part-alt', 'Part Alt Hackathon', 'Alt Hackathon', '2026-09-11', 'ACTIVE', 'HACKATHON')
+    ON CONFLICT (event_id) DO UPDATE SET event_type = 'HACKATHON', status = 'ACTIVE';
+  `)
+
+  // Problem in day-hack-part-alt
   const pres = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${organizerToken}` },
     body: JSON.stringify({
-      title: 'PartTest Problem: Day 1 Only Problem',
-      description: 'Day 1 event problem',
+      title: 'PartTest Problem: Alt Only Problem',
+      description: 'Alt event problem',
       maxCapacity: 10,
       isActive: true,
-      eventId: 'day-1',
+      eventId: 'day-hack-part-alt',
     }),
   })
   const pdata = await pres.json()
-  const day1ProblemId = pdata.data.id
+  const altProblemId = pdata.data.id
 
   // Team in day-3
   const pLeadDay3 = await createParticipant('ISO_DAY3')
   await createTeamWithMembers('ISO_DAY3', [pLeadDay3], 'day-3')
 
-  const res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements/${day1ProblemId}/select`, {
+  const res = await fetch(`${baseUrl}/api/v1/hackathon/problem-statements/${altProblemId}/select`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${pLeadDay3.token}` },
   })

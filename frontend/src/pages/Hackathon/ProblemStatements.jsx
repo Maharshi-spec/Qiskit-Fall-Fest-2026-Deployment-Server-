@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Button from '../../components/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -107,6 +107,8 @@ const ExternalLink = ({ className = '', style = {} }) => (
 
 const ProblemStatements = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const queryEventId = searchParams.get('eventId') || searchParams.get('event_id') || ''
   const { isLoggedIn, openLoginModal } = useAuth()
   const { getProfilePath } = useEventProfile()
 
@@ -129,26 +131,29 @@ const ProblemStatements = () => {
     const token = localStorage.getItem('qff_auth_token')
 
     try {
-      const [problemsRes, teamRes] = await Promise.all([
-        api.fetchParticipantProblemStatements(token),
-        token ? api.fetchMyTeam(token) : Promise.resolve({ success: true, data: null }),
-      ])
+      let teamData = null
+      if (token) {
+        const teamRes = await api.fetchMyTeam(token)
+        if (teamRes?.success) {
+          teamData = teamRes.data || null
+          setTeam(teamData)
+        }
+      }
+
+      const eventIdToUse = queryEventId || teamData?.eventId || teamData?.event_id || null
+      const problemsRes = await api.fetchParticipantProblemStatements(token, eventIdToUse)
 
       if (problemsRes.success) {
         setProblems(problemsRes.data || [])
       } else {
         setError(problemsRes.error?.message || 'Unable to load problem statements.')
       }
-
-      if (teamRes.success) {
-        setTeam(teamRes.data || null)
-      }
     } catch (err) {
       setError('Unable to connect to the server. Please check your connection.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [queryEventId])
 
   useEffect(() => {
     loadData()

@@ -558,9 +558,10 @@ export const api = {
     }
   },
 
-  async organizerFetchHackathonStats(eventId = 'day-3') {
+  async organizerFetchHackathonStats(eventId = null) {
     try {
-      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/stats?eventId=${encodeURIComponent(eventId)}`), {
+      const query = eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/stats${query}`), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -576,9 +577,10 @@ export const api = {
     }
   },
 
-  async organizerFetchProblemStatements(eventId = 'day-3') {
+  async organizerFetchProblemStatements(eventId = null) {
     try {
-      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements?eventId=${encodeURIComponent(eventId)}`), {
+      const query = eventId ? `?eventId=${encodeURIComponent(eventId)}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements${query}`), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -697,13 +699,14 @@ export const api = {
     }
   },
 
-  async fetchParticipantProblemStatements(token = null) {
+  async fetchParticipantProblemStatements(token = null, eventId = null) {
     try {
       const headers = { ...buildJsonHeaders() }
       if (token) {
         headers.Authorization = `Bearer ${token}`
       }
-      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/problem-statements?activeOnly=true'), {
+      const eventQuery = eventId ? `&eventId=${encodeURIComponent(eventId)}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements?activeOnly=true${eventQuery}`), {
         headers,
         credentials: 'include',
       })
