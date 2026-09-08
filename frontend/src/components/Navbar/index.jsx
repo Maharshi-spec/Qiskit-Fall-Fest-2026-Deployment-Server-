@@ -19,35 +19,123 @@ const rawNavItems = [
   { label: 'Certificates', subpath: 'certificates' },
 ]
 
+const getUserName = (userRegistration) => String(userRegistration?.fullName || '').trim()
+
+const getInitials = (name) => name
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0].toUpperCase())
+  .join('') || '?'
+
+const getProfileImage = (userRegistration) => (
+  userRegistration?.profileImage ||
+  userRegistration?.profile_image ||
+  userRegistration?.avatarUrl ||
+  userRegistration?.avatar_url ||
+  userRegistration?.photoUrl ||
+  userRegistration?.photo_url ||
+  ''
+)
+
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const prefersReducedMotion = useReducedMotion()
   const location = useLocation()
   const logoRef = useRef(null)
   const animatedLogoRef = useRef(null)
-  const { isLoggedIn, openLoginModal, logout } = useAuth()
+  const profileRef = useRef(null)
+  const { isLoggedIn, userRegistration, openLoginModal, logout } = useAuth()
   const { getProfilePath } = useEventProfile()
 
-  const navItems = rawNavItems.map((item) => ({
+  const accountName = getUserName(userRegistration)
+  const initials = getInitials(accountName)
+  const profileImage = getProfileImage(userRegistration)
+
+  const navItems = rawNavItems
+    .filter((item) => !isLoggedIn || item.subpath !== 'register')
+    .map((item) => ({
     ...item,
     to: getProfilePath(item.subpath),
-  }))
+    }))
 
   const dayNavItems = navItems.filter((item) => item.isDay)
   const primaryNavItems = navItems.filter((item) => !item.isDay)
 
   const authActions = (
     <div className="topbar__actions">
-      <button
-        type="button"
-        className="topbar__action topbar__action--login"
-        onClick={isLoggedIn ? logout : openLoginModal}
-      >
-        {isLoggedIn ? 'Logout' : 'Login'}
-      </button>
-      <NavLink to={getProfilePath('register')} className="topbar__action topbar__action--register">
-        Register
-      </NavLink>
+      {isLoggedIn ? (
+        <>
+          <div
+            ref={profileRef}
+            className="topbar__profile-wrap"
+          >
+            <button
+              type="button"
+              className="topbar__profile-btn"
+              onClick={() => setIsProfileOpen((open) => !open)}
+              aria-expanded={isProfileOpen}
+              aria-haspopup="dialog"
+              aria-label={`Open profile for ${accountName}`}
+            >
+              {profileImage ? (
+                <img src={profileImage} alt="" />
+              ) : (
+                <span>{initials}</span>
+              )}
+              <span className="topbar__profile-tooltip" role="tooltip">{accountName}</span>
+            </button>
+
+            <AnimatePresence>
+              {isProfileOpen && (
+                <motion.div
+                  className="topbar__profile-popover"
+                  role="dialog"
+                  aria-label={`${accountName} profile`}
+                  initial={{ opacity: 0, y: -5, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -5, scale: 0.97 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: 'easeOut' }}
+                >
+                  <div className="topbar__profile-summary">
+                    <div className="topbar__profile-avatar topbar__profile-avatar--large">
+                      {profileImage ? <img src={profileImage} alt="" /> : <span>{initials}</span>}
+                    </div>
+                    <strong>{accountName}</strong>
+                    <span>Participant</span>
+                  </div>
+                  <div className="topbar__profile-links">
+                    <NavLink to={getProfilePath('profile')} onClick={() => setIsProfileOpen(false)}>
+                      Account / Profile
+                    </NavLink>
+                    <button type="button" onClick={logout}>Logout</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="topbar__action topbar__action--login"
+            onClick={openLoginModal}
+          >
+            Login
+          </button>
+          <NavLink to={getProfilePath('register')} className="topbar__action topbar__action--register">
+            Register
+          </NavLink>
+        </>
+      )}
+
+      {isLoggedIn && (
+        <button type="button" className="topbar__action topbar__action--login" onClick={logout}>
+          Logout
+        </button>
+      )}
     </div>
   )
 
@@ -91,6 +179,29 @@ const Navbar = () => {
       ))}
     </motion.nav>
   )
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsProfileOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  useEffect(() => {
+    setIsProfileOpen(false)
+  }, [isLoggedIn, location.pathname])
 
   useEffect(() => {
     const logo = logoRef.current
