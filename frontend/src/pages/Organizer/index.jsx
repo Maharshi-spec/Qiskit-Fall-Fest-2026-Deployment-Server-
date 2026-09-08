@@ -516,7 +516,7 @@ const OrganizerAttendancePage = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       setIsLoading(true)
-      const res = await api.organizerFetchEvents()
+      const res = await api.fetchActiveEvents()
       setIsLoading(false)
       if (res.success && res.data) {
         setEvents(res.data)
@@ -1206,15 +1206,25 @@ const OrganizerEventsPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [formData, setFormData] = useState({
+  const [editingEvent, setEditingEvent] = useState(null)
+  const [deleteModalEvent, setDeleteModalEvent] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [actionLoadingId, setActionLoadingId] = useState(null)
+
+  const initialFormData = {
+    event_type: 'HACKATHON',
     event_name: '',
     description: '',
     event_date: '',
     start_time: '',
     end_time: '',
     location: '',
-    status: 'active',
-  })
+    status: 'ACTIVE',
+    max_participants: '',
+    registration_info: '',
+  }
+
+  const [formData, setFormData] = useState(initialFormData)
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
@@ -1241,45 +1251,103 @@ const OrganizerEventsPage = () => {
     if (formError) setFormError('')
   }
 
-  const handleAddEventSubmit = async (e) => {
+  const handleOpenCreateModal = () => {
+    setEditingEvent(null)
+    setFormData(initialFormData)
+    setFormError('')
+    setFormSuccess('')
+    setModalOpen(true)
+  }
+
+  const handleOpenEditModal = (evt) => {
+    setEditingEvent(evt)
+    setFormData({
+      event_type: String(evt.eventType || evt.event_type || 'HACKATHON').toUpperCase(),
+      event_name: evt.name || evt.event_name || '',
+      description: evt.description || '',
+      event_date: (evt.date || evt.event_date || '').slice(0, 10),
+      start_time: evt.startTime || evt.start_time || '',
+      end_time: evt.endTime || evt.end_time || '',
+      location: evt.venue || evt.location || '',
+      status: String(evt.status || 'ACTIVE').toUpperCase(),
+      max_participants: evt.maxParticipants !== null && evt.maxParticipants !== undefined ? String(evt.maxParticipants) : '',
+      registration_info: evt.registrationInfo || evt.registration_info || '',
+    })
+    setFormError('')
+    setFormSuccess('')
+    setModalOpen(true)
+  }
+
+  const handleEventFormSubmit = async (e) => {
     e.preventDefault()
     setFormLoading(true)
     setFormError('')
     setFormSuccess('')
 
     const payload = {
+      event_type: formData.event_type,
       event_name: formData.event_name.trim(),
       description: formData.description.trim(),
       event_date: formData.event_date,
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
       location: formData.location.trim(),
-      status: formData.status || 'active',
+      status: formData.status || 'ACTIVE',
+      max_participants: formData.max_participants ? Number(formData.max_participants) : null,
+      registration_info: formData.registration_info.trim() || null,
     }
 
-    const res = await api.organizerCreateEvent(payload)
+    const eventId = editingEvent ? (editingEvent.eventId || editingEvent.event_id) : null
+    const res = editingEvent
+      ? await api.organizerUpdateEvent(eventId, payload)
+      : await api.organizerCreateEvent(payload)
+
     setFormLoading(false)
 
     if (!res.success) {
-      setFormError(res.error?.message || 'Unable to create event. Please verify your inputs.')
+      setFormError(res.error?.message || 'Unable to save event. Please verify your inputs.')
       return
     }
 
-    setFormSuccess('Event successfully created and saved to database!')
-    setFormData({
-      event_name: '',
-      description: '',
-      event_date: '',
-      start_time: '',
-      end_time: '',
-      location: '',
-      status: 'active',
-    })
+    setFormSuccess(editingEvent ? 'Event updated successfully!' : 'Event successfully created and saved to database!')
     await loadEvents()
     setTimeout(() => {
       setModalOpen(false)
+      setEditingEvent(null)
+      setFormData(initialFormData)
       setFormSuccess('')
-    }, 1100)
+    }, 1000)
+  }
+
+  const handleToggleStatus = async (evt) => {
+    const eventId = evt.eventId || evt.event_id
+    const currentStatus = String(evt.status || 'ACTIVE').toUpperCase()
+    const nextStatus = currentStatus === 'ACTIVE' ? 'CLOSED' : 'ACTIVE'
+
+    setActionLoadingId(eventId)
+    const res = await api.organizerUpdateEventStatus(eventId, nextStatus)
+    setActionLoadingId(null)
+
+    if (res.success) {
+      await loadEvents()
+    } else {
+      alert(res.error?.message || `Failed to change status to ${nextStatus}.`)
+    }
+  }
+
+  const handleDeleteEventConfirm = async () => {
+    if (!deleteModalEvent) return
+    const eventId = deleteModalEvent.eventId || deleteModalEvent.event_id
+    setIsDeleting(true)
+    const res = await api.organizerDeleteEvent(eventId)
+    setIsDeleting(false)
+
+    if (res.success) {
+      setDeleteModalEvent(null)
+      await loadEvents()
+    } else {
+      alert(res.error?.message || 'Failed to delete event.')
+    }
   }
 
   const formatEventDate = (dateVal) => {
@@ -1303,100 +1371,205 @@ const OrganizerEventsPage = () => {
     return `Until ${end.slice(0, 5)}`
   }
 
+  const getEventTypeBadgeColor = (type) => {
+    switch (String(type || '').toUpperCase()) {
+      case 'HACKATHON':
+        return { bg: 'rgba(255, 79, 163, 0.12)', color: '#c2348a', border: 'rgba(255, 79, 163, 0.3)' }
+      case 'WORKSHOP':
+        return { bg: 'rgba(77, 47, 116, 0.1)', color: '#4d2f74', border: 'rgba(77, 47, 116, 0.25)' }
+      case 'WEBINAR':
+        return { bg: 'rgba(20, 184, 166, 0.1)', color: '#0d9488', border: 'rgba(20, 184, 166, 0.25)' }
+      case 'BOOTCAMP':
+        return { bg: 'rgba(249, 115, 22, 0.1)', color: '#ea580c', border: 'rgba(249, 115, 22, 0.25)' }
+      default:
+        return { bg: 'rgba(100, 116, 139, 0.1)', color: '#475569', border: 'rgba(100, 116, 139, 0.25)' }
+    }
+  }
+
   return (
     <div className="organizer-page-view organizer-events-page">
-      <OrganizerPageHeading eyebrow="Events Management" title="Events" description="Monitor all scheduled sessions and manage events stored in the database." action={<button
-          type="button"
-          className="button button--primary organizer-events__add-btn"
-          onClick={() => {
-            setModalOpen(true)
-            setFormError('')
-            setFormSuccess('')
-          }}
-        >
-          <span aria-hidden="true" style={{ fontSize: '1.1rem', marginRight: '0.35rem' }}>＋</span>
-          Add Event
-        </button>} />
+      <OrganizerPageHeading
+        eyebrow="Events Management"
+        title="Events"
+        description="Monitor all scheduled sessions and manage events stored in the database."
+        action={
+          <button
+            type="button"
+            className="button button--primary organizer-events__add-btn"
+            onClick={handleOpenCreateModal}
+          >
+            <span aria-hidden="true" style={{ fontSize: '1.1rem', marginRight: '0.35rem' }}>＋</span>
+            Create New Event
+          </button>
+        }
+      />
 
       <div className="organizer-page-content-panel">
-      {isLoading ? (
-        <div className="detail-info-item">
-          <span>Loading</span>
-          <strong>Fetching events from database…</strong>
-        </div>
-      ) : error ? (
-        <div className="organizer-events__alert organizer-events__alert--error">
-          <p>{error}</p>
-          <button type="button" className="button button--secondary" onClick={loadEvents} style={{ marginTop: '0.5rem' }}>
-            Retry
-          </button>
-        </div>
-      ) : events.length === 0 ? (
-        <div className="detail-info-item">
-          <span>Empty State</span>
-          <strong>No events exist in the database yet. Click "Add Event" to create the first one.</strong>
-        </div>
-      ) : (
-        <div className="organizer-events__grid">
-          {events.map((evt) => {
-            const timeDisplay = formatTimeRange(evt.startTime || evt.start_time, evt.endTime || evt.end_time)
-            const dateDisplay = formatEventDate(evt.date || evt.event_date)
-            const statusVal = evt.status || 'active'
-            const isConfirmed = statusVal.toLowerCase() === 'active' || statusVal.toLowerCase() === 'confirmed'
+        {isLoading ? (
+          <div className="detail-info-item">
+            <span>Loading</span>
+            <strong>Fetching events from database…</strong>
+          </div>
+        ) : error ? (
+          <div className="organizer-events__alert organizer-events__alert--error">
+            <p>{error}</p>
+            <button type="button" className="button button--secondary" onClick={loadEvents} style={{ marginTop: '0.5rem' }}>
+              Retry
+            </button>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="detail-info-item">
+            <span>Empty State</span>
+            <strong>No events exist in the database yet. Click "Create New Event" to create the first one.</strong>
+          </div>
+        ) : (
+          <div className="organizer-events__grid">
+            {events.map((evt) => {
+              const eventId = evt.eventId || evt.event_id
+              const timeDisplay = formatTimeRange(evt.startTime || evt.start_time, evt.endTime || evt.end_time)
+              const dateDisplay = formatEventDate(evt.date || evt.event_date)
+              const statusVal = String(evt.status || 'ACTIVE').toUpperCase()
+              const isActive = statusVal === 'ACTIVE'
+              const eventType = String(evt.eventType || evt.event_type || 'GENERAL').toUpperCase()
+              const typeColors = getEventTypeBadgeColor(eventType)
+              const isBusy = actionLoadingId === eventId
 
-            return (
-              <div key={evt.eventId || evt.event_id} className="organizer-event-card">
-                <div className="organizer-event-card__top">
-                  <span className="organizer-event-card__date">{dateDisplay}</span>
-                  <span className={`organizer-event-card__status ${isConfirmed ? 'is-active' : ''}`}>
-                    {statusVal}
-                  </span>
+              return (
+                <div key={eventId} className={`organizer-event-card ${!isActive ? 'organizer-event-card--closed' : ''}`}>
+                  <div className="organizer-event-card__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          letterSpacing: '0.06em',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '8px',
+                          background: typeColors.bg,
+                          color: typeColors.color,
+                          border: `1px solid ${typeColors.border}`,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {eventType}
+                      </span>
+                      <span className="organizer-event-card__date">{dateDisplay}</span>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.06em',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '999px',
+                        background: isActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(100, 116, 139, 0.15)',
+                        color: isActive ? '#15803d' : '#475569',
+                        border: `1px solid ${isActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
+                      }}
+                    >
+                      {isActive ? '● ACTIVE' : '○ CLOSED'}
+                    </span>
+                  </div>
+
+                  <h3 className="organizer-event-card__title" style={{ marginTop: '0.85rem' }}>
+                    {evt.name || evt.event_name}
+                  </h3>
+
+                  {evt.description && (
+                    <p className="organizer-event-card__desc">{evt.description}</p>
+                  )}
+
+                  <div className="organizer-event-card__meta">
+                    {(evt.venue || evt.location) && (
+                      <span className="organizer-event-card__meta-item">
+                        <span aria-hidden="true">📍</span> {evt.venue || evt.location}
+                      </span>
+                    )}
+                    {timeDisplay && (
+                      <span className="organizer-event-card__meta-item">
+                        <span aria-hidden="true">⏰</span> {timeDisplay}
+                      </span>
+                    )}
+                    {evt.maxParticipants && (
+                      <span className="organizer-event-card__meta-item">
+                        <span aria-hidden="true">👥</span> Max: {evt.maxParticipants}
+                      </span>
+                    )}
+                    {eventId && (
+                      <span className="organizer-event-card__meta-item organizer-event-card__id">
+                        ID: <code>{eventId}</code>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Actions per requirements */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.06)', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
+                      onClick={() => handleOpenEditModal(evt)}
+                      disabled={isBusy}
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        fontSize: '0.85rem',
+                        color: isActive ? '#c2348a' : '#15803d',
+                        borderColor: isActive ? 'rgba(255, 79, 163, 0.3)' : 'rgba(34, 197, 94, 0.3)',
+                      }}
+                      onClick={() => handleToggleStatus(evt)}
+                      disabled={isBusy}
+                    >
+                      {isBusy ? 'Updating…' : isActive ? 'Close Event' : 'Reopen Event'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="button"
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        fontSize: '0.85rem',
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        color: '#dc2626',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        marginLeft: 'auto',
+                      }}
+                      onClick={() => setDeleteModalEvent(evt)}
+                      disabled={isBusy}
+                    >
+                      Delete Event
+                    </button>
+                  </div>
                 </div>
-
-                <h3 className="organizer-event-card__title">{evt.name || evt.event_name}</h3>
-
-                {evt.description && (
-                  <p className="organizer-event-card__desc">{evt.description}</p>
-                )}
-
-                <div className="organizer-event-card__meta">
-                  {(evt.venue || evt.location) && (
-                    <span className="organizer-event-card__meta-item">
-                      <span aria-hidden="true">📍</span> {evt.venue || evt.location}
-                    </span>
-                  )}
-                  {timeDisplay && (
-                    <span className="organizer-event-card__meta-item">
-                      <span aria-hidden="true">⏰</span> {timeDisplay}
-                    </span>
-                  )}
-                  {(evt.eventId || evt.event_id) && (
-                    <span className="organizer-event-card__meta-item organizer-event-card__id">
-                      ID: <code>{evt.eventId || evt.event_id}</code>
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {/* ADD EVENT MODAL */}
+      {/* CREATE / EDIT EVENT MODAL */}
       {modalOpen && (
         <div
           className="organizer-modal__backdrop"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="add-event-title"
+          aria-labelledby="event-modal-title"
           onClick={() => setModalOpen(false)}
         >
-          <div className="organizer-modal__dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="organizer-modal__dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
             <div className="organizer-modal__header">
               <div>
                 <p className="page-shell__eyebrow">Database Operation</p>
-                <h3 id="add-event-title" style={{ margin: 0 }}>Add Event</h3>
+                <h3 id="event-modal-title" style={{ margin: 0 }}>
+                  {editingEvent ? 'Edit Event' : 'Create New Event'}
+                </h3>
               </div>
               <button
                 type="button"
@@ -1408,7 +1581,7 @@ const OrganizerEventsPage = () => {
               </button>
             </div>
 
-            <form className="detail-form organizer-modal__form" onSubmit={handleAddEventSubmit}>
+            <form className="detail-form organizer-modal__form" onSubmit={handleEventFormSubmit}>
               {formError && (
                 <div className="organizer-events__alert organizer-events__alert--error">
                   {formError}
@@ -1420,6 +1593,34 @@ const OrganizerEventsPage = () => {
                 </div>
               )}
 
+              {/* Requirement #1: The first field MUST be Event Type */}
+              <label>
+                <span style={{ fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+                  Event Type *
+                </span>
+                <select
+                  name="event_type"
+                  value={formData.event_type}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: '12px',
+                    border: '1.5px solid rgba(255, 79, 163, 0.35)',
+                    background: '#fff',
+                    fontSize: '0.98rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <option value="HACKATHON">Hackathon</option>
+                  <option value="WORKSHOP">Workshop</option>
+                  <option value="WEBINAR">Webinar</option>
+                  <option value="BOOTCAMP">Bootcamp</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+
               <label>
                 Event Name *
                 <input
@@ -1427,7 +1628,7 @@ const OrganizerEventsPage = () => {
                   name="event_name"
                   value={formData.event_name}
                   onChange={handleInputChange}
-                  placeholder="e.g. Quantum Computing Workshop"
+                  placeholder="e.g. Qiskit Quantum Hackathon"
                   required
                 />
               </label>
@@ -1458,9 +1659,8 @@ const OrganizerEventsPage = () => {
                 <label>
                   Status
                   <select name="status" value={formData.status} onChange={handleInputChange}>
-                    <option value="active">Active</option>
-                    <option value="upcoming">Upcoming</option>
-                    <option value="completed">Completed</option>
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="CLOSED">CLOSED</option>
                   </select>
                 </label>
               </div>
@@ -1487,7 +1687,7 @@ const OrganizerEventsPage = () => {
               </div>
 
               <label>
-                Location / Venue
+                Venue / Location
                 <input
                   type="text"
                   name="location"
@@ -1496,6 +1696,30 @@ const OrganizerEventsPage = () => {
                   placeholder="e.g. CUTM-AP Campus Auditorium or Virtual"
                 />
               </label>
+
+              <div className="organizer-modal__form-row">
+                <label>
+                  Maximum Participants (Optional)
+                  <input
+                    type="number"
+                    name="max_participants"
+                    min="1"
+                    value={formData.max_participants}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 100"
+                  />
+                </label>
+                <label>
+                  Registration Information (Optional)
+                  <input
+                    type="text"
+                    name="registration_info"
+                    value={formData.registration_info}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Open to all registered students"
+                  />
+                </label>
+              </div>
 
               <div className="organizer-modal__actions">
                 <button
@@ -1507,10 +1731,79 @@ const OrganizerEventsPage = () => {
                   Cancel
                 </button>
                 <Button type="submit" kind="primary" disabled={formLoading}>
-                  {formLoading ? 'Saving to Database…' : 'Save Event'}
+                  {formLoading ? 'Saving to Database…' : editingEvent ? 'Update Event' : 'Create Event'}
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE EVENT CONFIRMATION DIALOG (Requirement #4) */}
+      {deleteModalEvent && (
+        <div
+          className="organizer-modal__backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-event-dialog-title"
+          onClick={() => !isDeleting && setDeleteModalEvent(null)}
+        >
+          <div
+            className="organizer-modal__dialog"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '480px', textAlign: 'left' }}
+          >
+            <div className="organizer-modal__header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <div>
+                <p className="page-shell__eyebrow" style={{ color: '#dc2626' }}>Destructive Action</p>
+                <h3 id="delete-event-dialog-title" style={{ margin: 0, color: '#991b1b' }}>
+                  Delete this event?
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="organizer-modal__close-btn"
+                onClick={() => setDeleteModalEvent(null)}
+                disabled={isDeleting}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: '1.25rem 0' }}>
+              <p style={{ margin: '0 0 1rem', fontSize: '0.98rem', color: '#1f2937', fontWeight: 600 }}>
+                {deleteModalEvent.name || deleteModalEvent.event_name}
+              </p>
+              <p style={{ margin: 0, fontSize: '0.92rem', color: '#4b5563', lineHeight: 1.5 }}>
+                Deleting this event will permanently remove the event and its associated data. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="organizer-modal__actions" style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => setDeleteModalEvent(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button"
+                style={{
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  borderColor: '#dc2626',
+                  fontWeight: 700,
+                }}
+                onClick={handleDeleteEventConfirm}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete Event'}
+              </button>
+            </div>
           </div>
         </div>
       )}

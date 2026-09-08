@@ -2,7 +2,34 @@ const attendanceService = require('../services/attendance.service')
 
 const getEventsList = async (req, res, next) => {
   try {
-    const events = await attendanceService.getEventsList()
+    const activeOnly = req.query.active === 'true' || req.query.status === 'ACTIVE'
+    const eventType = req.query.eventType || req.query.event_type || req.query.type || null
+    const events = await attendanceService.getEventsList({ activeOnly, eventType })
+    return res.status(200).json({
+      success: true,
+      data: events,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getActiveEventsList = async (req, res, next) => {
+  try {
+    const eventType = req.query.eventType || req.query.event_type || req.query.type || null
+    const events = await attendanceService.getEventsList({ activeOnly: true, eventType })
+    return res.status(200).json({
+      success: true,
+      data: events,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getActiveHackathonsList = async (req, res, next) => {
+  try {
+    const events = await attendanceService.getEventsList({ activeOnly: true, eventType: 'HACKATHON' })
     return res.status(200).json({
       success: true,
       data: events,
@@ -18,6 +45,47 @@ const createEvent = async (req, res, next) => {
     return res.status(201).json({
       success: true,
       data: event,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const updateEventStatus = async (req, res, next) => {
+  try {
+    const { eventId } = req.params
+    const { status } = req.body || {}
+    const event = await attendanceService.updateEventStatus(eventId, status)
+    return res.status(200).json({
+      success: true,
+      data: event,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const updateEvent = async (req, res, next) => {
+  try {
+    const { eventId } = req.params
+    const event = await attendanceService.updateEvent(eventId, req.body)
+    return res.status(200).json({
+      success: true,
+      data: event,
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const deleteEvent = async (req, res, next) => {
+  try {
+    const { eventId } = req.params
+    const result = await attendanceService.deleteEvent(eventId)
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Event and associated records deleted successfully.',
     })
   } catch (error) {
     return next(error)
@@ -97,7 +165,12 @@ const markAttendance = async (req, res, next) => {
 
 module.exports = {
   getEventsList,
+  getActiveEventsList,
+  getActiveHackathonsList,
   createEvent,
+  updateEventStatus,
+  updateEvent,
+  deleteEvent,
   startSession,
   stopSession,
   getLiveQrToken,

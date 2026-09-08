@@ -212,15 +212,52 @@ const createTeam = async (user, payload = {}) => {
     teamMembers.push({ registrationId: reg.registration_id })
   }
 
+  let eventId = (payload.eventId || payload.event_id || '').trim()
+
+  if (!eventId) {
+    // If not passed (e.g. legacy test runs), resolve to default active hackathon
+    const defaultHackathon = await pool.query(
+      "SELECT event_id FROM events WHERE UPPER(event_type) = 'HACKATHON' AND UPPER(status) = 'ACTIVE' ORDER BY event_date ASC LIMIT 1;"
+    )
+    if (defaultHackathon.rows[0]) {
+      eventId = defaultHackathon.rows[0].event_id
+    } else {
+      throw new AppError(400, 'EVENT_ID_REQUIRED', 'Please select an active hackathon.')
+    }
+  }
+
+  // 1. Check that the event exists
+  const eventCheck = await pool.query(
+    'SELECT event_id, event_name, event_type, status FROM events WHERE event_id = $1 LIMIT 1;',
+    [eventId]
+  )
+  if (!eventCheck.rows[0]) {
+    throw new AppError(404, 'EVENT_NOT_FOUND', 'Selected hackathon does not exist.')
+  }
+  const eventRow = eventCheck.rows[0]
+
+  // 2. Check that the event type is HACKATHON
+  if (String(eventRow.event_type).toUpperCase() !== 'HACKATHON') {
+    throw new AppError(400, 'INVALID_EVENT_TYPE', 'Selected event is not a hackathon.')
+  }
+
+  // 3. Check that the event status is ACTIVE
+  if (String(eventRow.status).toUpperCase() === 'CLOSED') {
+    throw new AppError(400, 'EVENT_CLOSED', 'This hackathon is currently closed.')
+  }
+  if (String(eventRow.status).toUpperCase() !== 'ACTIVE') {
+    throw new AppError(400, 'EVENT_NOT_ACTIVE', 'This hackathon is not currently active.')
+  }
+
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
 
     const teamRes = await client.query(
       `INSERT INTO teams (event_id, team_name, team_lead_registration_id)
-       VALUES ('day-3', $1, $2)
+       VALUES ($1, $2, $3)
        RETURNING id`,
-      [teamName, userRegistration.registration_id],
+      [eventId, teamName, userRegistration.registration_id],
     )
     const teamId = teamRes.rows[0].id
 
@@ -948,6 +985,49 @@ const getHackathonInfo = async () => ({
   entries: [],
 })
 
+const getActiveHackathons = async () => {
+  const result = await pool.query(
+    "SELECT * FROM events WHERE UPPER(event_type) = 'HACKATHON' AND UPPER(status) = 'ACTIVE' ORDER BY event_date ASC, created_at ASC;"
+  )
+  return result.rows.map((row) => {
+    let dateStr = ''
+    if (row.event_date) {
+      if (typeof row.event_date === 'string') dateStr = row.event_date.slice(0, 10)
+      else if (row.event_date instanceof Date) {
+        const y = row.event_date.getFullYear()
+        const m = String(row.event_date.getMonth() + 1).padStart(2, '0')
+        const d = String(row.event_date.getDate()).padStart(2, '0')
+        dateStr = `${y}-${m}-${d}`
+      } else {
+        dateStr = String(row.event_date).slice(0, 10)
+      }
+    }
+    return {
+      id: row.event_id,
+      eventId: row.event_id,
+      event_id: row.event_id,
+      name: row.event_name,
+      event_name: row.event_name,
+      description: row.description || '',
+      date: dateStr,
+      event_date: dateStr,
+      startTime: row.start_time || null,
+      start_time: row.start_time || null,
+      endTime: row.end_time || null,
+      end_time: row.end_time || null,
+      location: row.location || '',
+      venue: row.location || '',
+      status: 'ACTIVE',
+      eventType: 'HACKATHON',
+      event_type: 'HACKATHON',
+      maxParticipants: row.max_participants !== null && row.max_participants !== undefined ? Number(row.max_participants) : null,
+      max_participants: row.max_participants !== null && row.max_participants !== undefined ? Number(row.max_participants) : null,
+      registrationInfo: row.registration_info || null,
+      registration_info: row.registration_info || null,
+    }
+  })
+}
+
 module.exports = {
   getHackathonInfo,
   getMyTeam,
@@ -965,5 +1045,6 @@ module.exports = {
   getProblemSelections,
   selectProblemForTeam,
   selectProblemStatement,
+  getActiveHackathons,
 }
 

@@ -6,6 +6,7 @@ const {
   getMyTeam,
   getMyTeamProblemSelection,
   createTeam,
+  getActiveHackathonEvents,
   verifyParticipant,
   getHackathonStats,
   getProblemStatements,
@@ -23,6 +24,7 @@ const {
 const router = express.Router()
 
 router.get('/', getHackathonInfo)
+router.get('/active-events', getActiveHackathonEvents)
 router.get('/team/me', requireAuth, getMyTeam)
 router.get('/my-team/problem-selection', requireAuth, getMyTeamProblemSelection)
 router.get('/team/me/problem-selection', requireAuth, getMyTeamProblemSelection)

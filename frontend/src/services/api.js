@@ -753,6 +753,37 @@ export const api = {
     }
   },
 
+  async fetchActiveEvents(eventType = '') {
+    try {
+      const query = eventType ? `?eventType=${encodeURIComponent(eventType)}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/events/active${query}`), {
+        headers: buildJsonHeaders(),
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Unable to load active events.' } }
+      }
+      return { success: true, data: data?.data || [] }
+    } catch (err) {
+      return { success: false, error: { message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async fetchActiveHackathons() {
+    try {
+      const response = await profileFetch(resolveApiUrl('/api/v1/events/hackathons/active'), {
+        headers: buildJsonHeaders(),
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Unable to load active hackathons.' } }
+      }
+      return { success: true, data: data?.data || [] }
+    } catch (err) {
+      return { success: false, error: { message: 'Unable to connect to server.' } }
+    }
+  },
+
   async organizerFetchEvents() {
     try {
       const response = await profileFetch(resolveApiUrl('/api/v1/organizer/events'), {
@@ -786,6 +817,68 @@ export const api = {
       const data = await parseApiResponse(response)
       if (!response.ok) {
         return { success: false, error: data?.error || { message: 'Unable to create event.' } }
+      }
+      return { success: true, data: data?.data }
+    } catch (err) {
+      return { success: false, error: { message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerUpdateEventStatus(eventId, status) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${encodeURIComponent(eventId)}/status`), {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Unable to update event status.' } }
+      }
+      return { success: true, data: data?.data }
+    } catch (err) {
+      return { success: false, error: { message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerUpdateEvent(eventId, payload) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${encodeURIComponent(eventId)}`), {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Unable to update event.' } }
+      }
+      return { success: true, data: data?.data }
+    } catch (err) {
+      return { success: false, error: { message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerDeleteEvent(eventId) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/organizer/events/${encodeURIComponent(eventId)}`), {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Unable to delete event.' } }
       }
       return { success: true, data: data?.data }
     } catch (err) {

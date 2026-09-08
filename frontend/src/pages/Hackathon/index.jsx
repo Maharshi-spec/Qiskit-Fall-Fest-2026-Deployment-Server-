@@ -78,11 +78,41 @@ const Hackathon = () => {
   const [submitError, setSubmitError] = useState(null)
 
   const [teamName, setTeamName] = useState('')
+  const [activeHackathons, setActiveHackathons] = useState([])
+  const [selectedHackathonId, setSelectedHackathonId] = useState('')
+  const [loadingHackathons, setLoadingHackathons] = useState(false)
 
   const initialMemberState = { email: '', fullName: '', collegeName: '', status: 'idle', error: '' }
   const [member2, setMember2] = useState(initialMemberState)
   const [member3, setMember3] = useState(initialMemberState)
   const [member4, setMember4] = useState(initialMemberState)
+
+  const loadActiveHackathons = useCallback(async () => {
+    setLoadingHackathons(true)
+    try {
+      const res = await api.fetchActiveHackathons()
+      if (res.success && Array.isArray(res.data)) {
+        setActiveHackathons(res.data)
+        if (res.data.length > 0) {
+          setSelectedHackathonId(res.data[0].eventId || res.data[0].event_id)
+        } else {
+          setSelectedHackathonId('')
+        }
+      } else {
+        setActiveHackathons([])
+        setSelectedHackathonId('')
+      }
+    } catch {
+      setActiveHackathons([])
+      setSelectedHackathonId('')
+    } finally {
+      setLoadingHackathons(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadActiveHackathons()
+  }, [loadActiveHackathons])
 
   const loadTeam = useCallback(async () => {
     const token = localStorage.getItem('qff_auth_token')
@@ -280,9 +310,14 @@ const Hackathon = () => {
     if (member4.email.trim() && member4.status === 'verified') {
       members.push({ email: member4.email.trim() })
     }
+    if (!selectedHackathonId) {
+      setSubmitError('Please select an active hackathon.')
+      setIsSubmitting(false)
+      return
+    }
 
     try {
-      const res = await api.createTeam(token, { teamName: teamName.trim(), members })
+      const res = await api.createTeam(token, { teamName: teamName.trim(), members, eventId: selectedHackathonId })
       if (res.success && res.data) {
         setTeam(res.data)
         setIsCreateOpen(false)
@@ -751,26 +786,81 @@ const Hackathon = () => {
                     </span>
                   </div>
 
+                  {/* SELECT HACKATHON FIELD */}
                   <div style={{ marginBottom: '1.75rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
-                      Team Name <span style={{ color: 'red' }}>*</span>
+                      Select Hackathon <span style={{ color: 'red' }}>*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                      placeholder="e.g. Quantum Explorers"
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 1rem',
-                        borderRadius: 'var(--radius-sm)',
-                        border: '1px solid var(--color-border)',
-                        background: '#fff',
-                        fontSize: '1rem',
-                      }}
-                    />
+                    {loadingHackathons ? (
+                      <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Loading active hackathons…</p>
+                    ) : activeHackathons.length === 0 ? (
+                      <div
+                        style={{
+                          background: '#fff9db',
+                          border: '1px solid #ffe066',
+                          color: '#856404',
+                          padding: '0.85rem 1rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.92rem',
+                          fontWeight: 500,
+                        }}
+                      >
+                        No active hackathons available.
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          required
+                          value={selectedHackathonId}
+                          onChange={(e) => setSelectedHackathonId(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem 1rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)',
+                            background: '#fff',
+                            fontSize: '1rem',
+                            color: '#2d253f',
+                          }}
+                        >
+                          {activeHackathons.map((h) => {
+                            const hid = h.eventId || h.event_id
+                            return (
+                              <option key={hid} value={hid}>
+                                {h.name || h.title} ({h.date || 'TBD'})
+                              </option>
+                            )
+                          })}
+                        </select>
+                        <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+                          Your team will be registered specifically for this hackathon event.
+                        </p>
+                      </>
+                    )}
                   </div>
+
+                  {activeHackathons.length > 0 && (
+                    <>
+                      <div style={{ marginBottom: '1.75rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                          Team Name <span style={{ color: 'red' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={teamName}
+                          onChange={(e) => setTeamName(e.target.value)}
+                          placeholder="e.g. Quantum Explorers"
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem 1rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border)',
+                            background: '#fff',
+                            fontSize: '1rem',
+                          }}
+                        />
+                      </div>
 
                   {/* MEMBER 1 — TEAM LEAD */}
                   <div style={{ marginBottom: '1.75rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
@@ -871,6 +961,23 @@ const Hackathon = () => {
                       Cancel
                     </Button>
                   </div>
+                    </>
+                  )}
+
+                  {activeHackathons.length === 0 && !loadingHackathons && (
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <Button
+                        kind="secondary"
+                        type="button"
+                        onClick={() => {
+                          setIsCreateOpen(false)
+                          setSubmitError(null)
+                        }}
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  )}
                 </form>
               )}
             </div>

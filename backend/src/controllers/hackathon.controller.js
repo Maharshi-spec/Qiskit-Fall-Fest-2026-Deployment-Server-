@@ -27,6 +27,15 @@ const createTeam = async (req, res, next) => {
   }
 }
 
+const getActiveHackathonEvents = async (req, res, next) => {
+  try {
+    const result = await hackathonService.getActiveHackathons()
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 const verifyParticipant = async (req, res, next) => {
   try {
     const result = await hackathonService.verifyParticipant(req.user, req.query.email)
@@ -170,6 +179,7 @@ module.exports = {
   getMyTeam,
   getMyTeamProblemSelection,
   createTeam,
+  getActiveHackathonEvents,
   verifyParticipant,
   getHackathonStats,
   getProblemStatements,

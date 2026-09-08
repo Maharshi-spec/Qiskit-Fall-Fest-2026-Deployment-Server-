@@ -43,6 +43,7 @@ const postQiskitSchemaMigration = '013_create_post_qiskit_schema.sql'
 const postQiskitConfigMigration = '014_create_post_qiskit_config.sql'
 const hackathonProblemStatementsMigration = '015_create_hackathon_problem_statements.sql'
 const hackathonProblemStatementFilesMigration = '016_create_hackathon_problem_statement_files.sql'
+const eventsSchemaUpdateMigration = '017_update_events_schema.sql'
 
 const getMissingTables = async (client, tables) => {
   const result = await client.query(
@@ -91,6 +92,7 @@ const initializeDatabase = async () => {
       updates.push(postQiskitConfigMigration)
       updates.push(hackathonProblemStatementsMigration)
       updates.push(hackathonProblemStatementFilesMigration)
+      updates.push(eventsSchemaUpdateMigration)
       filesToApply = updates
     }
 
