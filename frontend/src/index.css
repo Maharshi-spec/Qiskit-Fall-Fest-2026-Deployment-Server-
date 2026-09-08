@@ -2715,6 +2715,7 @@ a:focus-visible {
 .hero__title {
   margin-top: 1rem;
   position: relative;
+  z-index: 2;
   top: -0.75rem;
   width: max-content;
   max-width: 100%;
@@ -2732,6 +2733,133 @@ a:focus-visible {
 .hero__title span {
   display: block;
   color: #c2348a;
+}
+
+/* =========================================================
+   HERO BLOCH ORBITAL (LARGE TILTED ELLIPTICAL ORBIT)
+   ========================================================= */
+
+.hero-bloch-orbital {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: clamp(340px, 38vw, 500px);
+  pointer-events: none;
+  overflow: visible;
+  will-change: z-index;
+}
+
+.hero-bloch-orbital__mover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  will-change: transform, opacity, z-index;
+}
+
+.hero-bloch-orbital__sphere-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 58px;
+  height: 58px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-bloch-orbital__sphere-spin {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  animation: heroBlochSelfSpin 9s linear infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-bloch-orbital__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 4px 14px rgba(255, 79, 163, 0.32));
+}
+
+/* Independent sphere self-rotation around its own center axis */
+@keyframes heroBlochSelfSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .hero-bloch-orbital {
+    z-index: 1 !important;
+  }
+
+  .hero-bloch-orbital__mover {
+    transform: translate3d(18.9%, 70.0%, 0) scale(1) !important;
+    opacity: 0.95 !important;
+    z-index: 1 !important;
+  }
+
+  .hero-bloch-orbital__sphere-spin {
+    animation: none !important;
+    transform: rotate(-12deg) !important;
+  }
+}
+
+.hero-bloch-orbital--reduced-motion {
+  z-index: 1 !important;
+}
+
+.hero-bloch-orbital--reduced-motion .hero-bloch-orbital__mover {
+  transform: translate3d(18.9%, 70.0%, 0) scale(1) !important;
+  opacity: 0.95 !important;
+  z-index: 1 !important;
+}
+
+.hero-bloch-orbital--reduced-motion .hero-bloch-orbital__sphere-spin {
+  animation: none !important;
+  transform: rotate(-12deg) !important;
+}
+
+/* Responsive adjustments for tablet and mobile screens */
+@media (max-width: 1024px) {
+  .hero-bloch-orbital__sphere-wrapper {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-bloch-orbital {
+    height: clamp(260px, 46vw, 360px);
+  }
+
+  .hero-bloch-orbital__sphere-wrapper {
+    width: 42px;
+    height: 42px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-bloch-orbital {
+    height: clamp(230px, 55vw, 300px);
+  }
+
+  .hero-bloch-orbital__sphere-wrapper {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .hero__meta {
@@ -3183,28 +3311,28 @@ a:focus-visible {
 }
 
 .quantum-education-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: 1.5rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
   margin-top: 1.5rem;
-  align-items: start;
 }
 
 .quantum-visual-panel {
   display: grid;
   gap: 1.25rem;
-  padding: clamp(1.5rem, 2vw, 2rem);
+  padding: clamp(1.5rem, 2.5vw, 2.25rem);
   border: 1px solid rgba(255, 79, 163, 0.14);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(245, 239, 255, 0.7) 100%);
   box-shadow: 0 22px 44px rgba(119, 82, 154, 0.08);
-  min-height: 100%;
+  width: 100%;
+  max-width: 860px;
 }
 
 .quantum-lab-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .quantum-lab__label {
@@ -3216,301 +3344,38 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
-.bit-toggle-wrap {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 0.45rem;
-  border: 1px solid rgba(110, 84, 166, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.bit-toggle {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  min-height: 3.5rem;
-  padding: 1rem 1.25rem;
-  background: transparent;
-  color: #5c3d7f;
-  font-size: 0.96rem;
-  font-weight: 700;
-  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
-}
-
-.bit-toggle:hover,
-.bit-toggle:focus-visible {
-  border-color: rgba(255, 79, 163, 0.28);
-  transform: translateY(-1px);
-}
-
-.bit-toggle--active {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-strong) 100%);
-  border-color: rgba(255, 79, 163, 0.15);
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(255, 79, 163, 0.18);
-}
-
-.bit-visual {
-  display: block;
-  min-height: 180px;
-  border: 1px solid rgba(110, 84, 166, 0.12);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  overflow: hidden;
-}
-
-.bit-visual__title {
+.bloch-sphere-panel__title {
   margin: 0;
-  color: #3b2f59;
-  font-size: 1.5rem;
-  font-weight: 700;
+  color: #3b1b4f;
+  font-size: clamp(1.6rem, 2.5vw, 1.95rem);
+  font-weight: 800;
   line-height: 1.15;
   letter-spacing: -0.03em;
   text-align: center;
 }
 
-.bit-visual--classical {
-  padding: 1.25rem;
-}
-
-.classical-bit-experience {
-  display: grid;
-  justify-items: center;
-  gap: 1.15rem;
-  width: 100%;
-}
-
-.classical-bit-display {
-  display: grid;
-  place-items: center;
-  width: min(100%, 360px);
-  min-height: 190px;
-  padding: 1.25rem;
-  border: 2px solid rgba(255, 79, 163, 0.25);
-  border-radius: 24px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(245, 239, 255, 0.9));
-  box-shadow: 0 16px 32px rgba(119, 82, 154, 0.1);
-  transition: border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.classical-bit-display__value {
-  color: var(--color-primary-strong);
-  font-size: clamp(4.5rem, 8vw, 6rem);
-  font-weight: 800;
-  line-height: 0.9;
-}
-
-.classical-bit-display__label {
+.bloch-sphere-panel__subtitle {
+  margin: 0.35rem auto 0;
+  max-width: 560px;
   color: #4d2f74;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  line-height: 1.4;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
   text-align: center;
 }
 
-.classical-bit-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 1rem 1.5rem;
-  width: 100%;
-}
-
-.classical-bit-toggle {
-  border: 1px solid rgba(255, 79, 163, 0.2);
-  border-radius: 999px;
-  padding: 0.75rem 1.25rem;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-strong) 100%);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 800;
-  box-shadow: 0 10px 22px rgba(255, 79, 163, 0.18);
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.classical-bit-toggle:hover,
-.classical-bit-toggle:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 13px 26px rgba(255, 79, 163, 0.24);
-}
-
-.classical-bit-current {
-  display: grid;
-  gap: 0.1rem;
-  color: #4d2f74;
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.classical-bit-current strong {
-  color: #3b2f59;
-  font-size: 1.1rem;
-}
-
-.classical-bit-probabilities {
-  display: grid;
-  gap: 0.7rem;
-  width: min(100%, 460px);
-  padding: 1rem 1.15rem;
-  border: 1px solid rgba(255, 79, 163, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.classical-bit-probabilities p {
-  margin-bottom: 0.1rem;
-  color: #4d2f74;
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.classical-bit-probability-row {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) 3.5rem;
-  align-items: center;
-  gap: 0.65rem;
-  color: #4d2f74;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.classical-bit-probability-row strong {
-  text-align: right;
-}
-
-.classical-bit-bar-track {
-  height: 13px;
-  border-radius: 999px;
-  background: rgba(120, 89, 202, 0.1);
-  overflow: hidden;
-}
-
-.classical-bit-bar {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transition: width 220ms ease;
-}
-
-.classical-bit-bar--zero {
-  background: linear-gradient(90deg, #ff4fa3, #f6a4d2);
-}
-
-.classical-bit-bar--one {
-  background: linear-gradient(90deg, #7b5ad8, #b59bef);
-}
-
-.classical-bit-comparison {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  width: min(100%, 460px);
-}
-
-.classical-bit-comparison > div {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.8rem;
-  border: 1px solid rgba(120, 89, 202, 0.13);
-  border-radius: 14px;
-  background: rgba(245, 239, 255, 0.48);
-  color: #4d2f74;
-  font-size: 0.76rem;
-}
-
-.classical-bit-comparison strong {
-  color: var(--color-primary-strong);
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-}
-
-.classical-bit-comparison b {
-  color: #3b2f59;
-  font-size: 0.86rem;
-}
-
-.bit-visual__classical,
-.bit-visual__qubit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  width: 100%;
-  padding: 1rem;
-}
-
-.bit-visual__classical {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  width: min(100%, 380px);
-  min-height: 220px;
-  padding: 1.5rem;
-}
-
-.bit-state {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 50%;
-  font-size: 1.45rem;
-  font-weight: 700;
-}
-
-.bit-state--inactive {
-  background: rgba(255, 79, 163, 0.08);
-  color: #5c3d7f;
-}
-
-.bit-state--active {
-  background: rgba(120, 89, 202, 0.12);
-  color: #3b2f59;
-}
-
-.classical-bit-track {
-  position: relative;
-  width: 100%;
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(255, 79, 163, 0.4), rgba(120, 89, 202, 0.5));
-}
-
-.classical-bit-track::before,
-.classical-bit-track::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 79, 163, 0.9);
-  transform: translateY(-50%);
-}
-
-.classical-bit-track::before { left: 16%; }
-.classical-bit-track::after { right: 16%; }
-
-.bit-visual__qubit {
-  display: block;
-  width: 100%;
-  padding: 0.5rem;
-}
-
-.bit-visual--qubit {
-  padding: 1rem;
+.bloch-sphere-panel__supporting {
+  margin: 0.35rem auto 0.75rem;
+  max-width: 600px;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .bloch-sphere {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
   width: 100%;
   min-height: 0;
@@ -3521,9 +3386,9 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 520px;
+  max-width: 580px;
   margin: 0 auto;
-  min-height: clamp(360px, 34vw, 500px);
+  min-height: clamp(380px, 42vw, 480px);
   border: 1px solid rgba(120, 89, 202, 0.12);
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(244, 239, 255, 0.8) 100%);
@@ -3533,7 +3398,7 @@ a:focus-visible {
 .bloch-sphere__canvas {
   display: block;
   width: 100%;
-  height: clamp(360px, 34vw, 500px);
+  height: clamp(380px, 42vw, 480px);
   max-width: 100%;
   cursor: grab;
   touch-action: none;
@@ -3544,57 +3409,175 @@ a:focus-visible {
 }
 
 .bloch-sphere__readout {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem 1.25rem;
-  padding: 1.25rem;
-  border: 1px solid rgba(255, 79, 163, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid rgba(255, 79, 163, 0.14);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 8px 24px rgba(77, 47, 116, 0.04);
 }
 
-.bloch-sphere__stat {
+.bloch-sphere__readout-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 79, 163, 0.1);
+}
+
+.bloch-sphere__stat--state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 220px;
+}
+
+.bloch-sphere__state-formula {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #2e1a47;
+  letter-spacing: -0.01em;
+}
+
+.bloch-sphere__stat--camera {
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
-  color: #4d2f74;
-  min-height: 2.3rem;
-  font-size: 0.94rem;
-  font-weight: 700;
 }
 
 .bloch-sphere__toggle {
   appearance: none;
-  border: 1px solid rgba(255, 79, 163, 0.18);
+  border: 1px solid rgba(255, 79, 163, 0.25);
   border-radius: 999px;
   background: rgba(255, 79, 163, 0.08);
   color: var(--color-primary-strong);
   font: inherit;
-  min-width: 4.4rem;
-  font-size: 0.82rem;
+  min-width: 4.6rem;
+  font-size: 0.85rem;
   font-weight: 800;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 1rem;
   cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.bloch-sphere__toggle:hover {
+  background: rgba(255, 79, 163, 0.16);
+  border-color: var(--color-primary-strong);
+}
+
+.bloch-sphere__readout-angles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.bloch-sphere__stat--angle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(120, 89, 202, 0.05);
+  border: 1px solid rgba(120, 89, 202, 0.1);
+}
+
+.bloch-sphere__stat-label {
+  color: #5c3d7f;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.bloch-sphere__angle-val {
+  color: #2e1a47;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.bloch-sphere__presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+
+.bloch-sphere__presets-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #4d2f74;
+  margin-right: 0.25rem;
+}
+
+.bloch-sphere__preset-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.bloch-sphere__preset-btn {
+  appearance: none;
+  border: 1.5px solid rgba(120, 89, 202, 0.2);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4d2f74;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0.38rem 0.82rem;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.bloch-sphere__preset-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-strong);
+  background: #fff4f8;
+  transform: translateY(-1px);
+}
+
+.bloch-sphere__preset-btn--active {
+  background: linear-gradient(90deg, #ff4fa3 0%, #ea2f8a 100%);
+  border-color: #ea2f8a;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(234, 47, 138, 0.28);
 }
 
 .bloch-sphere__probabilities {
-  grid-column: 1 / -1;
   display: grid;
   gap: 0.8rem;
-  margin-top: 0.35rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid rgba(255, 79, 163, 0.12);
+  margin-top: 0.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 79, 163, 0.1);
 }
 
 .bloch-sphere__probability-row {
   display: grid;
-  grid-template-columns: 3.1rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.8rem minmax(0, 1fr) 3.2rem;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.8rem;
   color: #4d2f74;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   font-weight: 700;
+}
+
+.bloch-sphere__prob-label {
+  font-weight: 800;
+  color: #3b1b4f;
+  font-size: 0.95rem;
+}
+
+.bloch-sphere__prob-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 0.95rem;
 }
 
 .bloch-sphere__bar-track {
@@ -3620,32 +3603,62 @@ a:focus-visible {
   background: linear-gradient(90deg, #7b5ad8 0%, #b59bef 100%);
 }
 
-.quantum-grid {
-  margin-top: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
+/* =========================================================
+   QUANTUM CONCEPTS (4 CARDS)
+   ========================================================= */
+
+.quantum-concepts-section {
+  max-width: 860px;
+  margin: 2.5rem auto 0;
+  width: 100%;
 }
 
-.info-card {
-  min-height: 220px;
-  padding: 1.5rem 1.25rem;
+.quantum-concepts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.quantum-concept-card {
+  padding: 1.75rem 1.6rem;
+  border: 1px solid rgba(255, 79, 163, 0.16);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 30px rgba(77, 47, 116, 0.05);
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: 0.8rem;
+  gap: 0.65rem;
+  min-height: 155px;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-.info-card h3 {
-  margin-bottom: 0;
-  font-size: clamp(1.45rem, 2vw, 1.75rem);
+.quantum-concept-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 79, 163, 0.35);
+  box-shadow: 0 18px 36px rgba(255, 79, 163, 0.10);
+}
+
+.quantum-concept-card h4 {
+  margin: 0;
+  color: #3b1b4f;
+  font-size: 1.25rem;
   font-weight: 700;
-  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
-.info-card p {
-  margin-bottom: 0;
-  font-size: 1.05rem;
-  line-height: 1.6;
+.quantum-concept-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 720px) {
+  .quantum-concepts-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 }
 
 .timeline {
@@ -5008,37 +5021,19 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .quantum-education-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .bit-toggle-wrap {
-    grid-template-columns: 1fr;
-    border-radius: 18px;
-  }
-
-  .bit-visual {
-    min-height: 150px;
-  }
-
-  .bloch-sphere {
-    grid-template-columns: 1fr;
-  }
-
   .bloch-sphere__canvas-shell,
   .bloch-sphere__canvas {
-    min-height: min(82vw, 360px);
-    height: min(82vw, 360px);
+    min-height: min(85vw, 400px);
+    height: min(85vw, 400px);
   }
 
   .bloch-sphere__readout {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    padding: 1rem;
+    padding: 1.1rem;
+    gap: 0.85rem;
   }
 
-  .bloch-sphere__probabilities {
-    grid-column: auto;
+  .bloch-sphere__readout-angles {
+    grid-template-columns: 1fr;
   }
 
   .journey-steps {

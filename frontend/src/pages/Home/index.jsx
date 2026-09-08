@@ -53,22 +53,22 @@ const featureItems = [
   },
 ]
 
-const quantumCards = [
+const quantumConcepts = [
   {
     title: 'Qubits',
-    description: 'Quantum bits are the basic units of quantum information. Unlike classical bits, qubits can represent quantum states that enable fundamentally different ways of processing information.',
+    text: 'A qubit is the basic unit of quantum information. Unlike a classical bit, it can exist in a quantum state described by probability amplitudes.',
   },
   {
     title: 'Superposition',
-    description: 'A qubit can exist in a combination of possible states until it is measured. This property allows quantum algorithms to work with multiple probability amplitudes.',
+    text: 'A qubit can exist in a combination of basis states until it is measured. This allows quantum algorithms to manipulate multiple probability amplitudes.',
   },
   {
     title: 'Entanglement',
-    description: 'Entanglement creates correlations between quantum systems that cannot be described independently. It is one of the key resources used in quantum algorithms and communication.',
+    text: 'Entanglement creates quantum correlations between systems that cannot be described independently. It is a key resource in many quantum algorithms and communication protocols.',
   },
   {
-    title: 'Quantum circuits',
-    description: 'Quantum circuits combine qubits with quantum gates to transform and measure quantum states. They provide the practical structure used to execute quantum algorithms.',
+    title: 'Quantum Circuits',
+    text: 'Quantum circuits combine qubits with quantum gates to transform quantum states. They provide the structure used to implement quantum algorithms.',
   },
 ]
 
@@ -179,8 +179,6 @@ const StickerAccent = ({ src, alt = '', className = '', rotate = 0, delay = 0 })
 
 const Home = () => {
   const shouldReduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const [bitMode, setBitMode] = useState('classical')
-  const [classicalBit, setClassicalBit] = useState(0)
   const [selectedQuantumStep, setSelectedQuantumStep] = useState(quantumSteps[0].id)
   const [selectedDay, setSelectedDay] = useState(programDays[0]?.id || 'day-1')
   const [expandedWorkshop, setExpandedWorkshop] = useState(workshops[0]?.id || null)
@@ -279,7 +277,7 @@ const Home = () => {
               <SectionHeader
                 label="Quantum Computing"
                 title="Why Quantum Computing?"
-                description="Quantum computing introduces a different way of modeling problems through qubits, superposition, entanglement, circuits, and algorithms."
+                description="Quantum computing uses quantum states to represent and process information in ways that differ fundamentally from classical computation. Qubits can occupy superpositions, interact through entanglement, and be manipulated by quantum circuits."
               />
               <StickerAccent src={stickerQuantum} alt="" className="sticker--quantum" rotate={-10} delay={0.25} />
             </div>
@@ -289,92 +287,23 @@ const Home = () => {
                 <div className="quantum-lab-header">
                   <p className="quantum-lab__label">Quantum Lab</p>
                 </div>
-
-                <div className="bit-toggle-wrap" role="tablist" aria-label="Select a bit model">
-                  <button
-                    type="button"
-                    className={`bit-toggle ${bitMode === 'classical' ? 'bit-toggle--active' : ''}`}
-                    onClick={() => setBitMode('classical')}
-                    aria-pressed={bitMode === 'classical'}
-                  >
-                    Classical Bit
-                  </button>
-                  <button
-                    type="button"
-                    className={`bit-toggle ${bitMode === 'qubit' ? 'bit-toggle--active' : ''}`}
-                    onClick={() => setBitMode('qubit')}
-                    aria-pressed={bitMode === 'qubit'}
-                  >
-                    Qubit
-                  </button>
-                </div>
-
-                <div className={`bit-visual bit-visual--${bitMode}`} aria-live="polite">
-                  {bitMode === 'classical' ? (
-                    <div className="classical-bit-experience" aria-label="Classical bit representation">
-                      <h3 className="bit-visual__title">Classical Bit</h3>
-
-                      <div className="classical-bit-display" aria-live="polite">
-                        <span className="classical-bit-display__value">{classicalBit}</span>
-                        <span className="classical-bit-display__label">CLASSICAL<br />BIT</span>
-                      </div>
-
-                      <div className="classical-bit-controls">
-                        <button
-                          type="button"
-                          className="classical-bit-toggle"
-                          onClick={() => setClassicalBit((value) => (value === 0 ? 1 : 0))}
-                        >
-                          Toggle Bit
-                        </button>
-                        <div className="classical-bit-current">
-                          <span>Current State</span>
-                          <strong>|{classicalBit}⟩</strong>
-                        </div>
-                      </div>
-
-                      <div className="classical-bit-probabilities" aria-label="Deterministic measurement probabilities">
-                        <p>Measurement Probabilities</p>
-                        <div className="classical-bit-probability-row">
-                          <span>|0⟩</span>
-                          <div className="classical-bit-bar-track"><span className={`classical-bit-bar ${classicalBit === 0 ? 'classical-bit-bar--zero' : ''}`} style={{ width: `${classicalBit === 0 ? 100 : 0}%` }} /></div>
-                          <strong>{classicalBit === 0 ? '100%' : '0%'}</strong>
-                        </div>
-                        <div className="classical-bit-probability-row">
-                          <span>|1⟩</span>
-                          <div className="classical-bit-bar-track"><span className={`classical-bit-bar ${classicalBit === 1 ? 'classical-bit-bar--one' : ''}`} style={{ width: `${classicalBit === 1 ? 100 : 0}%` }} /></div>
-                          <strong>{classicalBit === 1 ? '100%' : '0%'}</strong>
-                        </div>
-                      </div>
-
-                      <div className="classical-bit-comparison" aria-label="Classical and quantum bit comparison">
-                        <div>
-                          <strong>CLASSICAL BIT</strong>
-                          <span>Definite state</span>
-                          <b>0 OR 1</b>
-                        </div>
-                        <div>
-                          <strong>QUANTUM BIT</strong>
-                          <span>Can exist in superposition</span>
-                          <b>α|0⟩ + β|1⟩</b>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bit-visual__qubit" aria-label="Qubit representation">
-                      <h3 className="bit-visual__title">Qubit</h3>
-                      <BlochSphere reducedMotion={shouldReduceMotion} />
-                    </div>
-                  )}
-                </div>
-
+                <h3 className="bloch-sphere-panel__title">Bloch Sphere</h3>
+                <p className="bloch-sphere-panel__subtitle">
+                  Explore the state of a single qubit in real time.
+                </p>
+                <p className="bloch-sphere-panel__supporting">
+                  The Bloch sphere represents every pure single-qubit state as a point on a unit sphere. Drag to rotate the view, use the presets to explore basis states, or evolve the state dynamically.
+                </p>
+                <BlochSphere reducedMotion={shouldReduceMotion} />
               </div>
+            </div>
 
-              <div className="feature-grid feature-grid--four quantum-grid">
-                {quantumCards.map((item) => (
-                  <div key={item.title} className="info-card">
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
+            <div className="quantum-concepts-section">
+              <div className="quantum-concepts-grid">
+                {quantumConcepts.map((item) => (
+                  <div key={item.title} className="quantum-concept-card">
+                    <h4>{item.title}</h4>
+                    <p>{item.text}</p>
                   </div>
                 ))}
               </div>

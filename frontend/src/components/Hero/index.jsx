@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { gsap } from 'gsap'
 import { useAuth } from '../../context/AuthContext'
 import heroArtwork from '../../assets/qiskit/hero-1-without-title.png.png'
+import HeroBlochOrbital from '../HeroBlochOrbital'
 
 const Hero = () => {
   const sectionRef = useRef(null)
@@ -94,6 +95,7 @@ const Hero = () => {
 
       <div className="container hero__inner">
         <div className="hero__content" ref={contentRef}>
+          <HeroBlochOrbital />
           <span className="hero__badge" ref={badgeRef}>Qiskit Fall Fest 2026</span>
           <h1 className="hero__title">
             Qiskit Fall Fest <span>2026</span>
