@@ -247,17 +247,13 @@ const HeroBlochOrbital = ({
     // Mobile:  rx = 35.0%, ry = 29.0%
     const getDimensions = () => {
       const w = typeof window !== 'undefined' ? window.innerWidth : 1200
-      if (w < 720) return { rx: 35.0, ry: 29.0, cy: 43.0 }
+      if (w < 480) return { rx: 32.0, ry: 26.0, cy: 42.0 }
+      if (w < 768) return { rx: 35.0, ry: 28.0, cy: 43.0 }
       if (w < 1024) return { rx: 39.0, ry: 32.0, cy: 44.0 }
       return { rx: 43.0, ry: 34.0, cy: 44.0 }
     }
 
     let dims = getDimensions()
-
-    const handleResize = () => {
-      dims = getDimensions()
-    }
-    window.addEventListener('resize', handleResize)
 
     // Ellipse position function (parametric tilted ellipse)
     const getEllipsePos = (angle) => {
@@ -268,6 +264,21 @@ const HeroBlochOrbital = ({
         y: (dims.cy ?? cy) + u * sinR + v * cosR,
       }
     }
+
+    const handleResize = () => {
+      dims = getDimensions()
+      if (shouldReduce) {
+        const p1 = getEllipsePos(meetingAngle)
+        const p2 = getEllipsePos(meetingAngle + Math.PI)
+        if (moverRefA.current) {
+          moverRefA.current.style.transform = `translate3d(${p1.x.toFixed(2)}%, ${p1.y.toFixed(2)}%, 0) scale(1)`
+        }
+        if (moverRefB.current) {
+          moverRefB.current.style.transform = `translate3d(${p2.x.toFixed(2)}%, ${p2.y.toFixed(2)}%, 0) scale(1)`
+        }
+      }
+    }
+    window.addEventListener('resize', handleResize)
 
     if (shouldReduce) {
       // Place spheres statically at the two meeting points (Meeting Point 1 & Meeting Point 2)
