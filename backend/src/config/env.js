@@ -47,5 +47,6 @@ module.exports = {
   eventReminderTime: normalizeMailValue(process.env.EVENT_REMINDER_TIME),
   reminderProcessorToken: normalizeMailValue(process.env.REMINDER_PROCESSOR_TOKEN),
   publicApiUrl: process.env.PUBLIC_API_URL || `http://localhost:${process.env.PORT || 5000}`,
+  maxHackathonFileSizeMb: Number(process.env.MAX_HACKATHON_FILE_SIZE_MB || 10),
 }
 

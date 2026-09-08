@@ -69,4 +69,25 @@ router.get('/admin/email/logs', requireAdmin, async (req, res, next) => {
   }
 })
 
+router.post('/organizer/registrations/bulk-import', requireAdmin, async (req, res, next) => {
+  try {
+    const { students, dryRun } = req.body || {}
+    const result = await registrationService.bulkImportStudents(students, { dryRun })
+    return res.status(200).json(result)
+  } catch (error) {
+    return next(error)
+  }
+})
+
+// Alias route for admin prefix consistency
+router.post('/admin/registrations/bulk-import', requireAdmin, async (req, res, next) => {
+  try {
+    const { students, dryRun } = req.body || {}
+    const result = await registrationService.bulkImportStudents(students, { dryRun })
+    return res.status(200).json(result)
+  } catch (error) {
+    return next(error)
+  }
+})
+
 module.exports = router

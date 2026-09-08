@@ -10,3 +10,5 @@ coverage/
 uploads/
 backend/uploads/
 *.pdf
+backend/scripts/*.xlsx
+backend/scripts/import-results.csv

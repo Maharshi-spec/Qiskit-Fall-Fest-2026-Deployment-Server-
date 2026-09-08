@@ -29,11 +29,13 @@ const errorMiddleware = (err, req, res, next) => {
   }
 
   if (err?.code === 'LIMIT_FILE_SIZE') {
+    const isHackathon = Boolean(req?.originalUrl?.includes('/hackathon') || req?.baseUrl?.includes('/hackathon') || req?.path?.includes('/hackathon'))
+    const maxMb = Number(process.env.MAX_HACKATHON_FILE_SIZE_MB) || 10
     return res.status(400).json({
       success: false,
       error: {
         code: 'FILE_TOO_LARGE',
-        message: 'ID card file size must not exceed 500 KB.',
+        message: isHackathon ? `File size must not exceed ${maxMb} MB.` : 'ID card file size must not exceed 500 KB.',
       },
     })
   }

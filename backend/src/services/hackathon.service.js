@@ -1,5 +1,20 @@
+const fs = require('fs')
+const path = require('path')
 const { pool } = require('../config/database')
+const { publicApiUrl } = require('../config/env')
 const { AppError } = require('../middleware/error.middleware')
+const { saveFile, removeFile, uploadRoot } = require('../utils/file-storage')
+
+const formatAttachment = (fileRow) => ({
+  id: String(fileRow.id),
+  problemStatementId: String(fileRow.problem_statement_id),
+  originalFilename: fileRow.original_filename,
+  mimeType: fileRow.mime_type,
+  fileSize: Number(fileRow.file_size),
+  createdAt: fileRow.created_at,
+  viewUrl: `${publicApiUrl}/api/v1/hackathon/problem-statements/${fileRow.problem_statement_id}/files/${fileRow.id}/view`,
+  downloadUrl: `${publicApiUrl}/api/v1/hackathon/problem-statements/${fileRow.problem_statement_id}/files/${fileRow.id}/download`,
+})
 
 const normalizeEmail = (email) => (typeof email === 'string' ? email.trim().toLowerCase() : '')
 
@@ -55,6 +70,17 @@ const getTeamDetailsById = async (teamId) => {
     [teamId, team.event_id]
   )
 
+  let attachments = []
+  if (selRes.rows[0]) {
+    const filesRes = await pool.query(
+      `SELECT * FROM hackathon_problem_statement_files
+       WHERE problem_statement_id = $1
+       ORDER BY created_at ASC;`,
+      [selRes.rows[0].problem_statement_id],
+    )
+    attachments = filesRes.rows.map(formatAttachment)
+  }
+
   const problemSelection = selRes.rows[0]
     ? {
         selectionId: String(selRes.rows[0].selection_id),
@@ -64,6 +90,7 @@ const getTeamDetailsById = async (teamId) => {
         maxCapacity: selRes.rows[0].max_capacity,
         isUnlimited: selRes.rows[0].max_capacity === null,
         selectedAt: selRes.rows[0].selected_at,
+        attachments,
       }
     : null
 
@@ -342,6 +369,25 @@ const getProblemStatements = async (eventId = 'day-3', options = {}) => {
     [eventId]
   )
 
+  const problemIds = result.rows.map((r) => r.id)
+  const filesByProblem = new Map()
+
+  if (problemIds.length > 0) {
+    const filesRes = await pool.query(
+      `SELECT id, problem_statement_id, event_id, original_filename, storage_path, mime_type, file_size, created_at, updated_at
+       FROM hackathon_problem_statement_files
+       WHERE problem_statement_id = ANY($1::bigint[])
+       ORDER BY id ASC;`,
+      [problemIds]
+    )
+    for (const f of filesRes.rows) {
+      const pid = String(f.problem_statement_id)
+      const list = filesByProblem.get(pid) || []
+      list.push(formatAttachment(f))
+      filesByProblem.set(pid, list)
+    }
+  }
+
   return result.rows.map((row, idx) => {
     const selectedTeams = Number(row.selected_teams || 0)
     const selectedParticipants = Number(row.selected_participants || 0)
@@ -365,6 +411,7 @@ const getProblemStatements = async (eventId = 'day-3', options = {}) => {
       remainingCapacity,
       isFull,
       isUnavailable,
+      attachments: filesByProblem.get(String(row.id)) || [],
       createdBy: row.created_by ? String(row.created_by) : null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -407,6 +454,14 @@ const getProblemStatementById = async (id, eventId = null) => {
   const remainingCapacity = isUnlimited ? null : Math.max(0, maxCapacity - selectedTeams)
   const isFull = !isUnlimited && maxCapacity > 0 && selectedTeams >= maxCapacity
 
+  const filesRes = await pool.query(
+    `SELECT id, problem_statement_id, event_id, original_filename, storage_path, mime_type, file_size, created_at, updated_at
+     FROM hackathon_problem_statement_files
+     WHERE problem_statement_id = $1
+     ORDER BY id ASC;`,
+    [row.id]
+  )
+
   return {
     id: String(row.id),
     eventId: row.event_id,
@@ -420,13 +475,14 @@ const getProblemStatementById = async (id, eventId = null) => {
     remainingCapacity,
     isFull,
     isUnavailable: !row.is_active || maxCapacity === 0,
+    attachments: filesRes.rows.map(formatAttachment),
     createdBy: row.created_by ? String(row.created_by) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-const createProblemStatement = async (user, payload = {}) => {
+const createProblemStatement = async (user, payload = {}, files = []) => {
   const title = validateTitle(payload.title)
   const description = validateDescription(payload.description)
   const maxCapacity = validateCapacity(payload.maxCapacity)
@@ -440,17 +496,58 @@ const createProblemStatement = async (user, payload = {}) => {
 
   const organizerId = user?.organizerId || user?.organizer_id || user?.id || null
 
-  const result = await pool.query(
-    `INSERT INTO hackathon_problem_statements (event_id, title, description, max_capacity, is_active, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id;`,
-    [eventId, title, description, maxCapacity, isActive, organizerId]
-  )
+  const client = await pool.connect()
+  const savedFiles = []
+  let createdProblemId = null
 
-  return getProblemStatementById(result.rows[0].id)
+  try {
+    await client.query('BEGIN')
+
+    const result = await client.query(
+      `INSERT INTO hackathon_problem_statements (event_id, title, description, max_capacity, is_active, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id;`,
+      [eventId, title, description, maxCapacity, isActive, organizerId]
+    )
+    createdProblemId = result.rows[0].id
+
+    if (Array.isArray(files) && files.length > 0) {
+      for (const file of files) {
+        const ext = path.extname(file.originalname || '').toLowerCase() || (file.mimetype === 'application/pdf' ? '.pdf' : '.jpg')
+        const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`
+        const storagePath = `hackathon/problem-statements/${eventId}/${createdProblemId}/${uniqueName}`
+
+        await saveFile(storagePath, file.buffer)
+        savedFiles.push(storagePath)
+
+        await client.query(
+          `INSERT INTO hackathon_problem_statement_files (
+             problem_statement_id, event_id, original_filename, storage_path, mime_type, file_size
+           ) VALUES ($1, $2, $3, $4, $5, $6);`,
+          [createdProblemId, eventId, file.originalname, storagePath, file.mimetype, file.size || file.buffer?.length || 0]
+        )
+      }
+    }
+
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    for (const p of savedFiles) {
+      try {
+        await removeFile(p)
+      } catch (cleanErr) {
+        console.error('[STORAGE_CLEANUP_ERROR]', p, cleanErr)
+      }
+    }
+    throw error
+  } finally {
+    client.release()
+  }
+
+  return getProblemStatementById(createdProblemId)
 }
 
-const updateProblemStatement = async (id, user, payload = {}) => {
+const updateProblemStatement = async (id, user, payload = {}, files = []) => {
   const existing = await pool.query(
     'SELECT id, event_id, title, description, max_capacity, is_active FROM hackathon_problem_statements WHERE id = $1 LIMIT 1;',
     [id]
@@ -485,12 +582,51 @@ const updateProblemStatement = async (id, user, payload = {}) => {
     }
   }
 
-  await pool.query(
-    `UPDATE hackathon_problem_statements
-     SET title = $1, description = $2, max_capacity = $3, is_active = $4, updated_at = NOW()
-     WHERE id = $5;`,
-    [title, description, maxCapacity, isActive, id]
-  )
+  const client = await pool.connect()
+  const savedFiles = []
+
+  try {
+    await client.query('BEGIN')
+
+    await client.query(
+      `UPDATE hackathon_problem_statements
+       SET title = $1, description = $2, max_capacity = $3, is_active = $4, updated_at = NOW()
+       WHERE id = $5;`,
+      [title, description, maxCapacity, isActive, id]
+    )
+
+    if (Array.isArray(files) && files.length > 0) {
+      for (const file of files) {
+        const ext = path.extname(file.originalname || '').toLowerCase() || (file.mimetype === 'application/pdf' ? '.pdf' : '.jpg')
+        const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`
+        const storagePath = `hackathon/problem-statements/${prev.event_id}/${id}/${uniqueName}`
+
+        await saveFile(storagePath, file.buffer)
+        savedFiles.push(storagePath)
+
+        await client.query(
+          `INSERT INTO hackathon_problem_statement_files (
+             problem_statement_id, event_id, original_filename, storage_path, mime_type, file_size
+           ) VALUES ($1, $2, $3, $4, $5, $6);`,
+          [id, prev.event_id, file.originalname, storagePath, file.mimetype, file.size || file.buffer?.length || 0]
+        )
+      }
+    }
+
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    for (const p of savedFiles) {
+      try {
+        await removeFile(p)
+      } catch (cleanErr) {
+        console.error('[STORAGE_CLEANUP_ERROR]', p, cleanErr)
+      }
+    }
+    throw error
+  } finally {
+    client.release()
+  }
 
   return getProblemStatementById(id)
 }
@@ -515,8 +651,95 @@ const deleteProblemStatement = async (id) => {
     )
   }
 
+  // Delete all associated files from storage
+  const filesRes = await pool.query('SELECT storage_path FROM hackathon_problem_statement_files WHERE problem_statement_id = $1;', [id])
+  for (const f of filesRes.rows) {
+    try {
+      await removeFile(f.storage_path)
+    } catch (cleanErr) {
+      console.error('[STORAGE_CLEANUP_ERROR]', f.storage_path, cleanErr)
+    }
+  }
+
   await pool.query('DELETE FROM hackathon_problem_statements WHERE id = $1;', [id])
   return { success: true, message: 'Problem statement deleted successfully.' }
+}
+
+const deleteProblemStatementFile = async (problemStatementId, fileId, user) => {
+  const problemRes = await pool.query(
+    'SELECT id, event_id FROM hackathon_problem_statements WHERE id = $1 LIMIT 1;',
+    [problemStatementId]
+  )
+  if (!problemRes.rows[0]) {
+    throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+  }
+
+  const fileRes = await pool.query(
+    'SELECT id, problem_statement_id, event_id, storage_path, original_filename FROM hackathon_problem_statement_files WHERE id = $1 LIMIT 1;',
+    [fileId]
+  )
+  if (!fileRes.rows[0]) {
+    throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found.')
+  }
+
+  const fileRow = fileRes.rows[0]
+  if (String(fileRow.problem_statement_id) !== String(problemStatementId)) {
+    throw new AppError(400, 'ATTACHMENT_MISMATCH', 'Attachment does not belong to the specified problem statement.')
+  }
+
+  if (fileRow.event_id !== problemRes.rows[0].event_id) {
+    throw new AppError(400, 'EVENT_MISMATCH', 'Attachment event does not match problem statement event.')
+  }
+
+  try {
+    await removeFile(fileRow.storage_path)
+  } catch (storageErr) {
+    console.error('[STORAGE_DELETE_ERROR] Failed to delete file from storage:', fileRow.storage_path, storageErr)
+  }
+
+  await pool.query('DELETE FROM hackathon_problem_statement_files WHERE id = $1;', [fileId])
+  return { success: true, message: 'Attachment deleted successfully.' }
+}
+
+const getFileForViewOrDownload = async (problemStatementId, fileId, user) => {
+  const fileRes = await pool.query(
+    `SELECT f.id, f.problem_statement_id, f.event_id, f.original_filename, f.storage_path, f.mime_type, f.file_size,
+            ps.is_active, ps.event_id AS problem_event_id
+     FROM hackathon_problem_statement_files f
+     JOIN hackathon_problem_statements ps ON ps.id = f.problem_statement_id
+     WHERE f.id = $1 AND f.problem_statement_id = $2
+     LIMIT 1;`,
+    [fileId, problemStatementId]
+  )
+
+  if (!fileRes.rows[0]) {
+    throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Attachment not found.')
+  }
+
+  const fileRow = fileRes.rows[0]
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ORGANIZER'
+  if (!isAdmin && !fileRow.is_active) {
+    throw new AppError(404, 'ATTACHMENT_NOT_FOUND', 'Problem statement is inactive.')
+  }
+
+  const normalizedPath = fileRow.storage_path.split('/').join(path.sep)
+  const absolutePath = path.resolve(uploadRoot, normalizedPath)
+
+  if (!fs.existsSync(absolutePath)) {
+    throw new AppError(404, 'FILE_NOT_FOUND', 'File not found on storage server.')
+  }
+
+  return {
+    file: {
+      id: String(fileRow.id),
+      problemStatementId: String(fileRow.problem_statement_id),
+      originalFilename: fileRow.original_filename,
+      mimeType: fileRow.mime_type,
+      fileSize: Number(fileRow.file_size),
+      storagePath: fileRow.storage_path,
+    },
+    absolutePath,
+  }
 }
 
 const getProblemSelections = async (problemStatementId) => {
@@ -737,6 +960,8 @@ module.exports = {
   createProblemStatement,
   updateProblemStatement,
   deleteProblemStatement,
+  deleteProblemStatementFile,
+  getFileForViewOrDownload,
   getProblemSelections,
   selectProblemForTeam,
   selectProblemStatement,

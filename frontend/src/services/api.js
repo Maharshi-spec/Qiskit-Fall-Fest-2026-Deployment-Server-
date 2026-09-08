@@ -596,14 +596,16 @@ export const api = {
 
   async organizerCreateProblemStatement(payload) {
     try {
+      const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData
+      const headers = {
+        Authorization: `Bearer ${readOrganizerToken()}`,
+        ...(isFormData ? {} : buildJsonHeaders()),
+      }
       const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/problem-statements'), {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${readOrganizerToken()}`,
-          ...buildJsonHeaders(),
-        },
+        headers,
         credentials: 'include',
-        body: JSON.stringify(payload),
+        body: isFormData ? payload : JSON.stringify(payload),
       })
       const data = await parseApiResponse(response)
       return response.ok
@@ -616,19 +618,43 @@ export const api = {
 
   async organizerUpdateProblemStatement(id, payload) {
     try {
+      const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData
+      const headers = {
+        Authorization: `Bearer ${readOrganizerToken()}`,
+        ...(isFormData ? {} : buildJsonHeaders()),
+      }
       const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(id)}`), {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${readOrganizerToken()}`,
-          ...buildJsonHeaders(),
-        },
+        headers,
         credentials: 'include',
-        body: JSON.stringify(payload),
+        body: isFormData ? payload : JSON.stringify(payload),
       })
       const data = await parseApiResponse(response)
       return response.ok
         ? { success: true, data: data?.data }
         : { success: false, error: data?.error || { message: 'Unable to update problem statement.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerDeleteProblemStatementFile(problemStatementId, fileId) {
+    try {
+      const response = await profileFetch(
+        resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(problemStatementId)}/files/${encodeURIComponent(fileId)}`),
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${readOrganizerToken()}`,
+            ...buildJsonHeaders(),
+          },
+          credentials: 'include',
+        }
+      )
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data }
+        : { success: false, error: data?.error || { message: 'Unable to delete attachment.' } }
     } catch (err) {
       return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
     }

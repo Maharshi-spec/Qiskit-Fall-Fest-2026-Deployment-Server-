@@ -47,9 +47,20 @@ const loginOrganizer = async (req, res, next) => {
   }
 }
 
+const bulkImportRegistrations = async (req, res, next) => {
+  try {
+    const { students, dryRun } = req.body || {}
+    const result = await registrationService.bulkImportStudents(students, { dryRun })
+    return res.status(200).json(result)
+  } catch (error) {
+    return next(error)
+  }
+}
+
 module.exports = {
   createRegistration,
   loginParticipant,
   getCurrentParticipant,
   loginOrganizer,
+  bulkImportRegistrations,
 }

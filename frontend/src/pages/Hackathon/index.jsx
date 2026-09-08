@@ -523,6 +523,27 @@ const Hackathon = () => {
                     {team.problemSelection.problemDescription}
                   </p>
 
+                  {Array.isArray(team.problemSelection.attachments) && team.problemSelection.attachments.length > 0 && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <span
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          color: '#1976d2',
+                          background: 'rgba(33, 150, 243, 0.08)',
+                          border: '1px solid rgba(33, 150, 243, 0.22)',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        📎 {team.problemSelection.attachments.length} supporting {team.problemSelection.attachments.length === 1 ? 'file' : 'files'} attached
+                      </span>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(214, 51, 132, 0.2)' }}>
                     <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Lock className="w-4 h-4" />

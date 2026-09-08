@@ -23,11 +23,15 @@ const validateRequest = (req, res, next) => {
 const parseToken = (req) => {
   const authHeader = req.headers.authorization || ''
 
-  if (!authHeader.startsWith('Bearer ')) {
-    return null
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7).trim()
   }
 
-  return authHeader.slice(7).trim()
+  if (req.query?.token) {
+    return String(req.query.token).trim()
+  }
+
+  return null
 }
 
 const getCurrentUser = (req) => {

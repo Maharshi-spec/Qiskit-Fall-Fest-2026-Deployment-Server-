@@ -18,6 +18,7 @@ const requiredPreQiskitTables = [
   'hackathon_results',
   'hackathon_problem_statements',
   'hackathon_problem_selections',
+  'hackathon_problem_statement_files',
 ]
 
 const requiredPostQiskitTables = [
@@ -34,12 +35,14 @@ const requiredPostQiskitTables = [
   'post_qiskit_config',
   'post_qiskit_hackathon_problem_statements',
   'post_qiskit_hackathon_problem_selections',
+  'post_qiskit_hackathon_problem_statement_files',
 ]
 
 const organizerDetailsMigration = '012_add_organizers_details.sql'
 const postQiskitSchemaMigration = '013_create_post_qiskit_schema.sql'
 const postQiskitConfigMigration = '014_create_post_qiskit_config.sql'
 const hackathonProblemStatementsMigration = '015_create_hackathon_problem_statements.sql'
+const hackathonProblemStatementFilesMigration = '016_create_hackathon_problem_statement_files.sql'
 
 const getMissingTables = async (client, tables) => {
   const result = await client.query(
@@ -87,6 +90,7 @@ const initializeDatabase = async () => {
       }
       updates.push(postQiskitConfigMigration)
       updates.push(hackathonProblemStatementsMigration)
+      updates.push(hackathonProblemStatementFilesMigration)
       filesToApply = updates
     }
 
@@ -95,7 +99,8 @@ const initializeDatabase = async () => {
     for (const migrationFile of filesToApply) {
       const migrationPath = path.join(schemaDirectory, migrationFile)
       const migrationSql = await fs.readFile(migrationPath, 'utf8')
-      await client.query(migrationSql)
+      const cleanSql = migrationSql.replace(/^\uFEFF/, '')
+      await client.query(cleanSql)
       console.log(`Applied database migration: ${migrationFile}`)
     }
 

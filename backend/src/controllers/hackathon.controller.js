@@ -79,7 +79,7 @@ const getProblemStatementById = async (req, res, next) => {
 
 const createProblemStatement = async (req, res, next) => {
   try {
-    const result = await hackathonService.createProblemStatement(req.user, req.body || {})
+    const result = await hackathonService.createProblemStatement(req.user, req.body || {}, req.files || [])
     return res.status(201).json({ success: true, data: result })
   } catch (error) {
     return next(error)
@@ -88,7 +88,7 @@ const createProblemStatement = async (req, res, next) => {
 
 const updateProblemStatement = async (req, res, next) => {
   try {
-    const result = await hackathonService.updateProblemStatement(req.params.id, req.user, req.body || {})
+    const result = await hackathonService.updateProblemStatement(req.params.id, req.user, req.body || {}, req.files || [])
     return res.json({ success: true, data: result })
   } catch (error) {
     return next(error)
@@ -99,6 +99,49 @@ const deleteProblemStatement = async (req, res, next) => {
   try {
     const result = await hackathonService.deleteProblemStatement(req.params.id)
     return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const deleteProblemStatementFile = async (req, res, next) => {
+  try {
+    const result = await hackathonService.deleteProblemStatementFile(
+      req.params.id || req.params.problemStatementId,
+      req.params.fileId,
+      req.user
+    )
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const viewProblemStatementFile = async (req, res, next) => {
+  try {
+    const { file, absolutePath } = await hackathonService.getFileForViewOrDownload(
+      req.params.id || req.params.problemStatementId,
+      req.params.fileId,
+      req.user
+    )
+    res.setHeader('Content-Type', file.mimeType)
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.originalFilename)}"`)
+    return res.sendFile(absolutePath)
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const downloadProblemStatementFile = async (req, res, next) => {
+  try {
+    const { file, absolutePath } = await hackathonService.getFileForViewOrDownload(
+      req.params.id || req.params.problemStatementId,
+      req.params.fileId,
+      req.user
+    )
+    res.setHeader('Content-Type', file.mimeType)
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.originalFilename)}"`)
+    return res.download(absolutePath, file.originalFilename)
   } catch (error) {
     return next(error)
   }
@@ -134,6 +177,9 @@ module.exports = {
   createProblemStatement,
   updateProblemStatement,
   deleteProblemStatement,
+  deleteProblemStatementFile,
+  viewProblemStatementFile,
+  downloadProblemStatementFile,
   getProblemSelections,
   selectProblemStatement,
 }

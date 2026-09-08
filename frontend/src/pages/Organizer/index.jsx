@@ -1944,7 +1944,10 @@ const OrganizerHackathonPage = () => {
     isLimited: false,
     maxCapacity: '10',
     isActive: true,
+    pendingFiles: [],
+    existingAttachments: [],
   })
+  const [deletingFileId, setDeletingFileId] = useState(null)
   const [formError, setFormError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -2004,6 +2007,8 @@ const OrganizerHackathonPage = () => {
       isLimited: false,
       maxCapacity: '10',
       isActive: true,
+      pendingFiles: [],
+      existingAttachments: [],
     })
     setFormError('')
     setModalOpen(true)
@@ -2017,9 +2022,103 @@ const OrganizerHackathonPage = () => {
       isLimited: problem.maxCapacity !== null,
       maxCapacity: problem.maxCapacity !== null ? String(problem.maxCapacity) : '10',
       isActive: problem.isActive !== false,
+      pendingFiles: [],
+      existingAttachments: Array.isArray(problem.attachments) ? problem.attachments : [],
     })
     setFormError('')
     setModalOpen(true)
+  }
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf']
+    const maxSizeBytes = 10 * 1024 * 1024 // 10 MB
+
+    const validNewFiles = []
+    let errorMsg = ''
+
+    for (const file of files) {
+      const ext = '.' + file.name.split('.').pop().toLowerCase()
+      if (!allowedExtensions.includes(ext)) {
+        errorMsg = `File "${file.name}" has an unsupported format. Only JPG, PNG, and PDF files are allowed.`
+        break
+      }
+      if (file.size > maxSizeBytes) {
+        errorMsg = `File "${file.name}" exceeds the maximum allowed size of 10 MB.`
+        break
+      }
+      // Create preview object
+      const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+      validNewFiles.push({
+        file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        previewUrl,
+      })
+    }
+
+    if (errorMsg) {
+      setFormError(errorMsg)
+      e.target.value = ''
+      return
+    }
+
+    setFormError('')
+    setModalForm((prev) => ({
+      ...prev,
+      pendingFiles: [...prev.pendingFiles, ...validNewFiles],
+    }))
+    e.target.value = ''
+  }
+
+  const removePendingFile = (indexToRemove) => {
+    setModalForm((prev) => {
+      const target = prev.pendingFiles[indexToRemove]
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl)
+      }
+      return {
+        ...prev,
+        pendingFiles: prev.pendingFiles.filter((_, idx) => idx !== indexToRemove),
+      }
+    })
+  }
+
+  const handleDeleteExistingAttachment = async (fileId) => {
+    if (!editingProblem) return
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return
+
+    setDeletingFileId(fileId)
+    try {
+      const res = await api.organizerDeleteProblemStatementFile(editingProblem.id, fileId)
+      if (res.success) {
+        setModalForm((prev) => ({
+          ...prev,
+          existingAttachments: prev.existingAttachments.filter((f) => String(f.id) !== String(fileId)),
+        }))
+        // Also update the problem in the problems list in real time
+        setProblems((prev) =>
+          prev.map((p) => {
+            if (String(p.id) === String(editingProblem.id)) {
+              return {
+                ...p,
+                attachments: (p.attachments || []).filter((f) => String(f.id) !== String(fileId)),
+              }
+            }
+            return p
+          })
+        )
+      } else {
+        setFormError(res.error?.message || 'Failed to delete attachment.')
+      }
+    } catch (err) {
+      setFormError('Network error while deleting attachment.')
+    } finally {
+      setDeletingFileId(null)
+    }
   }
 
   const handleModalSubmit = async (e) => {
@@ -2054,32 +2153,54 @@ const OrganizerHackathonPage = () => {
 
     setIsSubmitting(true)
     try {
-      if (editingProblem) {
-        const res = await api.organizerUpdateProblemStatement(editingProblem.id, {
+      let payload
+      const hasFiles = modalForm.pendingFiles.length > 0
+      if (hasFiles) {
+        payload = new FormData()
+        payload.append('title', trimmedTitle)
+        payload.append('description', trimmedDesc)
+        if (capacityVal !== null) {
+          payload.append('maxCapacity', String(capacityVal))
+        } else {
+          payload.append('maxCapacity', '')
+        }
+        payload.append('isActive', String(modalForm.isActive))
+        if (!editingProblem) {
+          payload.append('eventId', 'day-3')
+        }
+        modalForm.pendingFiles.forEach((item) => {
+          payload.append('files', item.file)
+        })
+      } else {
+        payload = {
           title: trimmedTitle,
           description: trimmedDesc,
           maxCapacity: capacityVal,
           isActive: modalForm.isActive,
-        })
+          ...(!editingProblem ? { eventId: 'day-3' } : {}),
+        }
+      }
+
+      if (editingProblem) {
+        const res = await api.organizerUpdateProblemStatement(editingProblem.id, payload)
         if (!res.success) {
           setFormError(res.error?.message || 'Failed to update problem statement.')
           return
         }
         setSuccess(`Problem statement "${trimmedTitle}" updated successfully!`)
       } else {
-        const res = await api.organizerCreateProblemStatement({
-          title: trimmedTitle,
-          description: trimmedDesc,
-          maxCapacity: capacityVal,
-          isActive: modalForm.isActive,
-          eventId: 'day-3',
-        })
+        const res = await api.organizerCreateProblemStatement(payload)
         if (!res.success) {
           setFormError(res.error?.message || 'Failed to create problem statement.')
           return
         }
         setSuccess(`Problem statement "${trimmedTitle}" created successfully!`)
       }
+
+      // Revoke any created object URLs
+      modalForm.pendingFiles.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+      })
 
       setModalOpen(false)
       await loadData()
@@ -2590,6 +2711,26 @@ const OrganizerHackathonPage = () => {
                             {problem.remainingCapacity} Left
                           </span>
                         )}
+                        {/* Attachments Count Badge */}
+                        {Array.isArray(problem.attachments) && problem.attachments.length > 0 && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              background: 'rgba(33, 150, 243, 0.09)',
+                              color: '#1976d2',
+                              border: '1px solid rgba(33, 150, 243, 0.25)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                            }}
+                            title={`${problem.attachments.length} attached file(s)`}
+                          >
+                            📎 {problem.attachments.length} {problem.attachments.length === 1 ? 'file' : 'files'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -3006,6 +3147,220 @@ const OrganizerHackathonPage = () => {
                 </div>
               </div>
 
+              {/* Supporting File Attachments */}
+              <div style={{ display: 'grid', gap: '0.65rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
+                    Supporting Attachments
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>
+                    JPG, PNG, PDF (max 10 MB per file)
+                  </span>
+                </div>
+
+                {/* Existing Attachments in Edit Mode */}
+                {editingProblem && modalForm.existingAttachments.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5c4779' }}>
+                      Current Attachments ({modalForm.existingAttachments.length}):
+                    </span>
+                    <div style={{ display: 'grid', gap: '0.4rem' }}>
+                      {modalForm.existingAttachments.map((file) => {
+                        const isPdf = file.mimeType === 'application/pdf' || file.originalFilename?.toLowerCase().endsWith('.pdf')
+                        const sizeKb = Math.round((file.fileSize || 0) / 1024)
+                        const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
+                        const isDeleting = deletingFileId === file.id
+
+                        return (
+                          <div
+                            key={file.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '0.55rem 0.8rem',
+                              background: '#fbf9fd',
+                              border: '1px solid rgba(255, 79, 163, 0.16)',
+                              borderRadius: '10px',
+                              fontSize: '0.85rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, overflow: 'hidden' }}>
+                              <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>
+                                {isPdf ? '📄' : '🖼️'}
+                              </span>
+                              <div style={{ minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    color: '#2d253f',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    maxWidth: '260px',
+                                  }}
+                                  title={file.originalFilename}
+                                >
+                                  {file.originalFilename}
+                                </div>
+                                <span style={{ fontSize: '0.75rem', color: '#8d7ba8' }}>
+                                  {sizeStr}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                              <a
+                                href={file.viewUrl ? `${file.viewUrl}?token=${api.getOrganizerToken()}` : '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: '#ff4fa3',
+                                  textDecoration: 'none',
+                                  fontWeight: 600,
+                                  padding: '0.2rem 0.5rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255, 79, 163, 0.08)',
+                                }}
+                              >
+                                View
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExistingAttachment(file.id)}
+                                disabled={isDeleting}
+                                style={{
+                                  background: 'rgba(211, 47, 47, 0.08)',
+                                  border: 'none',
+                                  color: '#d32f2f',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '6px',
+                                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                }}
+                                title="Delete this file"
+                              >
+                                {isDeleting ? 'Deleting...' : '✕ Remove'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload Area / Dropzone */}
+                <label
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '1.25rem 1rem',
+                    borderRadius: '14px',
+                    border: '2px dashed rgba(255, 79, 163, 0.35)',
+                    background: 'rgba(255, 79, 163, 0.03)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center',
+                  }}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                  <span style={{ fontSize: '1.6rem', marginBottom: '0.35rem' }}>📎</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d253f' }}>
+                    Click to select files to attach
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#8d7ba8', marginTop: '0.2rem' }}>
+                    Support for diagrams, sample datasets, problem briefs (JPG, PNG, PDF)
+                  </span>
+                </label>
+
+                {/* Pending New Files to Upload */}
+                {modalForm.pendingFiles.length > 0 && (
+                  <div style={{ display: 'grid', gap: '0.45rem', marginTop: '0.35rem' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2e7d32' }}>
+                      Ready to upload ({modalForm.pendingFiles.length}):
+                    </span>
+                    {modalForm.pendingFiles.map((item, idx) => {
+                      const isPdf = item.type === 'application/pdf' || item.name.toLowerCase().endsWith('.pdf')
+                      const sizeKb = Math.round(item.size / 1024)
+                      const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.45rem 0.75rem',
+                            background: 'rgba(46, 125, 50, 0.05)',
+                            border: '1px solid rgba(46, 125, 50, 0.2)',
+                            borderRadius: '10px',
+                            fontSize: '0.85rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, overflow: 'hidden' }}>
+                            {item.previewUrl ? (
+                              <img
+                                src={item.previewUrl}
+                                alt="Preview"
+                                style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '1.2rem' }}>{isPdf ? '📄' : '🖼️'}</span>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontWeight: 600,
+                                  color: '#2d253f',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  maxWidth: '280px',
+                                }}
+                                title={item.name}
+                              >
+                                {item.name}
+                              </div>
+                              <span style={{ fontSize: '0.75rem', color: '#685c79' }}>
+                                {sizeStr} • New
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removePendingFile(idx)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#d32f2f',
+                              cursor: 'pointer',
+                              fontSize: '1.1rem',
+                              padding: '0.2rem 0.4rem',
+                            }}
+                            title="Remove file"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Modal Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
                 <button
@@ -3017,7 +3372,7 @@ const OrganizerHackathonPage = () => {
                   Cancel
                 </button>
                 <button type="submit" className="button button--primary" disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving…' : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
+                  {isSubmitting ? (modalForm.pendingFiles.length > 0 ? 'Uploading files…' : 'Saving…') : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
                 </button>
               </div>
             </form>

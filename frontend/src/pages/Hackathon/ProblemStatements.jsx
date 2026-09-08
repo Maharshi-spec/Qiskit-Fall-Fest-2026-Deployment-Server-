@@ -79,6 +79,32 @@ const Loader2 = ({ className = '', style = {} }) => (
   </svg>
 )
 
+const FileText = ({ className = '', style = {} }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const DownloadIcon = ({ className = '', style = {} }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+)
+
+const ExternalLink = ({ className = '', style = {} }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
+  </svg>
+)
+
 const ProblemStatements = () => {
   const navigate = useNavigate()
   const { isLoggedIn, openLoginModal } = useAuth()
@@ -95,6 +121,7 @@ const ProblemStatements = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [selectionSuccess, setSelectionSuccess] = useState(null)
+  const [lightboxImage, setLightboxImage] = useState(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -127,16 +154,20 @@ const ProblemStatements = () => {
     loadData()
   }, [loadData])
 
-  // ESC key handler for modal
+  // ESC key handler for modal & lightbox
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && activeModalProblem && !isSubmitting) {
-        closeModal()
+      if (e.key === 'Escape') {
+        if (lightboxImage) {
+          setLightboxImage(null)
+        } else if (activeModalProblem && !isSubmitting) {
+          closeModal()
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeModalProblem, isSubmitting])
+  }, [lightboxImage, activeModalProblem, isSubmitting])
 
   const openProblemModal = (problem) => {
     setActiveModalProblem(problem)
@@ -527,16 +558,37 @@ const ProblemStatements = () => {
                 >
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                      <span
-                        style={{
-                          fontSize: '0.8rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.08em',
-                          color: 'var(--color-primary-strong)',
-                        }}
-                      >
-                        PROBLEM {problemNumStr}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span
+                          style={{
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.08em',
+                            color: 'var(--color-primary-strong)',
+                          }}
+                        >
+                          PROBLEM {problemNumStr}
+                        </span>
+                        {Array.isArray(prob.attachments) && prob.attachments.length > 0 && (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              color: '#1976d2',
+                              background: 'rgba(33, 150, 243, 0.08)',
+                              border: '1px solid rgba(33, 150, 243, 0.22)',
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: '10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.2rem',
+                            }}
+                            title={`${prob.attachments.length} attached file(s)`}
+                          >
+                            📎 {prob.attachments.length} {prob.attachments.length === 1 ? 'file' : 'files'}
+                          </span>
+                        )}
+                      </div>
                       <span
                         style={{
                           fontSize: '0.72rem',
@@ -985,6 +1037,182 @@ const ProblemStatements = () => {
                     </p>
                   </div>
 
+                  {/* PROBLEM SUPPORTING FILES */}
+                  {Array.isArray(activeModalProblem.attachments) && activeModalProblem.attachments.length > 0 && (
+                    <div style={{ marginBottom: '2rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--color-text)' }}>
+                          Supporting Files & Resources
+                        </h4>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+                          {activeModalProblem.attachments.length} {activeModalProblem.attachments.length === 1 ? 'attachment' : 'attachments'}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gap: '0.75rem' }}>
+                        {activeModalProblem.attachments.map((file) => {
+                          const isPdf = file.mimeType === 'application/pdf' || file.originalFilename?.toLowerCase().endsWith('.pdf')
+                          const isImage = file.mimeType?.startsWith('image/') || !isPdf
+                          const sizeKb = Math.round((file.fileSize || 0) / 1024)
+                          const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
+                          const userToken = localStorage.getItem('qff_auth_token') || ''
+                          const fileViewUrl = file.viewUrl ? `${file.viewUrl}?token=${encodeURIComponent(userToken)}` : '#'
+                          const fileDownloadUrl = file.downloadUrl ? `${file.downloadUrl}?token=${encodeURIComponent(userToken)}` : '#'
+
+                          return (
+                            <div
+                              key={file.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.85rem 1rem',
+                                background: 'var(--color-surface-alt)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-sm)',
+                                flexWrap: 'wrap',
+                                gap: '0.75rem',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: '1 1 200px' }}>
+                                {isImage ? (
+                                  <div
+                                    style={{
+                                      width: '42px',
+                                      height: '42px',
+                                      borderRadius: '8px',
+                                      overflow: 'hidden',
+                                      background: '#f1f3f5',
+                                      flexShrink: 0,
+                                      cursor: 'pointer',
+                                      border: '1px solid rgba(0,0,0,0.08)',
+                                    }}
+                                    onClick={() => setLightboxImage({ url: fileViewUrl, filename: file.originalFilename, downloadUrl: fileDownloadUrl })}
+                                    title="Click to zoom image"
+                                  >
+                                    <img
+                                      src={fileViewUrl}
+                                      alt={file.originalFilename}
+                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                      onError={(e) => {
+                                        e.target.style.display = 'none'
+                                        e.target.parentNode.textContent = '🖼️'
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: '42px',
+                                      height: '42px',
+                                      borderRadius: '8px',
+                                      background: 'rgba(214, 51, 132, 0.08)',
+                                      color: 'var(--color-primary-strong)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    <FileText className="w-5 h-5" />
+                                  </div>
+                                )}
+
+                                <div style={{ minWidth: 0 }}>
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      color: 'var(--color-text)',
+                                      fontSize: '0.92rem',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                    title={file.originalFilename}
+                                  >
+                                    {file.originalFilename}
+                                  </div>
+                                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                                    {isPdf ? 'PDF Document' : 'Image Asset'} • {sizeStr}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action buttons */}
+                              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {isImage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setLightboxImage({ url: fileViewUrl, filename: file.originalFilename, downloadUrl: fileDownloadUrl })}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      background: '#fff',
+                                      border: '1px solid var(--color-border)',
+                                      borderRadius: '8px',
+                                      padding: '0.35rem 0.65rem',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 600,
+                                      color: 'var(--color-text)',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    🔍 Preview
+                                  </button>
+                                ) : (
+                                  <a
+                                    href={fileViewUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '0.35rem',
+                                      background: '#fff',
+                                      border: '1px solid var(--color-border)',
+                                      borderRadius: '8px',
+                                      padding: '0.35rem 0.65rem',
+                                      fontSize: '0.82rem',
+                                      fontWeight: 600,
+                                      color: 'var(--color-text)',
+                                      textDecoration: 'none',
+                                    }}
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    View PDF
+                                  </a>
+                                )}
+
+                                <a
+                                  href={fileDownloadUrl}
+                                  download={file.originalFilename}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    background: 'var(--color-primary-soft, rgba(214, 51, 132, 0.08))',
+                                    border: '1px solid rgba(214, 51, 132, 0.25)',
+                                    borderRadius: '8px',
+                                    padding: '0.35rem 0.65rem',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    color: 'var(--color-primary-strong)',
+                                    textDecoration: 'none',
+                                  }}
+                                  title={`Download ${file.originalFilename}`}
+                                >
+                                  <DownloadIcon className="w-3.5 h-3.5" />
+                                  Download
+                                </a>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Permanence Alert Callout */}
                   <div
                     style={{
@@ -1086,6 +1314,141 @@ const ProblemStatements = () => {
                   </div>
                 </div>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* IMAGE LIGHTBOX MODAL */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 110,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1.5rem',
+            }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setLightboxImage(null)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(15, 10, 25, 0.88)',
+                backdropFilter: 'blur(8px)',
+              }}
+            />
+
+            {/* Lightbox Container */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              style={{
+                position: 'relative',
+                zIndex: 111,
+                maxWidth: '90vw',
+                maxHeight: '88vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                background: '#1a1424',
+                borderRadius: '16px',
+                padding: '1.25rem',
+                border: '1px solid rgba(255, 79, 163, 0.3)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Lightbox Header Bar */}
+              <div
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem',
+                  gap: '1rem',
+                }}
+              >
+                <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {lightboxImage.filename}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                  <a
+                    href={lightboxImage.downloadUrl}
+                    download={lightboxImage.filename}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      background: 'rgba(255, 79, 163, 0.2)',
+                      border: '1px solid rgba(255, 79, 163, 0.4)',
+                      borderRadius: '8px',
+                      padding: '0.35rem 0.75rem',
+                      color: '#ff80bf',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <DownloadIcon className="w-3.5 h-3.5" />
+                    Download
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage(null)}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.12)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '1.2rem',
+                    }}
+                    title="Close preview (Esc)"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              {/* Lightbox Image View */}
+              <div
+                style={{
+                  width: '100%',
+                  maxHeight: 'calc(88vh - 80px)',
+                  overflow: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <img
+                  src={lightboxImage.url}
+                  alt={lightboxImage.filename}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: 'calc(88vh - 90px)',
+                    objectFit: 'contain',
+                    borderRadius: '8px',
+                  }}
+                />
+              </div>
             </motion.div>
           </div>
         )}

@@ -1455,6 +1455,203 @@ const getAdminEmailLogs = async () => ({
   data: notificationRepository.notifications,
 })
 
+const bulkImportStudents = async (students = [], options = {}) => {
+  const dryRun = Boolean(options.dryRun)
+  if (!Array.isArray(students)) {
+    throw new AppError(400, 'VALIDATION_ERROR', 'Students must be an array.')
+  }
+
+  const results = []
+  let totalProcessed = 0
+  let newlyRegisteredCount = 0
+  let alreadyRegisteredCount = 0
+  let invalidCount = 0
+  let emailSentCount = 0
+  let emailFailedCount = 0
+
+  for (const item of students) {
+    totalProcessed++
+    const rawName = String(item.name || item.fullName || '').trim()
+    const rawCollege = String(item.college || item.instituteName || '').trim()
+    const rawPhone = String(item.phone || item.mobileNumber || '').trim()
+    const rawEmail = normalizeEmail(item.email)
+
+    // Validation
+    if (!rawName || rawName.length < 2) {
+      invalidCount++
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'FAILED',
+        registrationId: null,
+        emailStatus: 'SKIPPED',
+        error: 'Name must be at least 2 characters long.',
+      })
+      continue
+    }
+
+    if (!rawEmail || !isValidEmail(rawEmail)) {
+      invalidCount++
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'FAILED',
+        registrationId: null,
+        emailStatus: 'SKIPPED',
+        error: 'Invalid or missing email format.',
+      })
+      continue
+    }
+
+    if (!rawPhone) {
+      invalidCount++
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'FAILED',
+        registrationId: null,
+        emailStatus: 'SKIPPED',
+        error: 'Contact/phone number is required.',
+      })
+      continue
+    }
+
+    // Duplicate check in Pre-Qiskit registrations
+    const existing = await registrationRepository.findByEmail(rawEmail)
+    if (existing) {
+      alreadyRegisteredCount++
+      results.push({
+        name: rawName,
+        college: rawCollege || existing.instituteName,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'ALREADY_REGISTERED',
+        registrationId: existing.registrationId,
+        emailStatus: 'NOT_SENT',
+        error: null,
+      })
+      continue
+    }
+
+    if (dryRun) {
+      newlyRegisteredCount++
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'WOULD_REGISTER',
+        registrationId: null,
+        emailStatus: 'WOULD_SEND',
+        error: null,
+      })
+      continue
+    }
+
+    // Real run: create registration using existing ID generation mechanism
+    try {
+      const generatedId = await generateRegistrationId()
+      const registrationRecord = {
+        id: generatedId.id,
+        registrationId: generatedId.registrationId,
+        status: 'CONFIRMED',
+        fullName: rawName,
+        email: rawEmail,
+        mobileNumber: rawPhone,
+        role: 'STUDENT',
+        instituteName: rawCollege || 'Not Specified',
+        department: 'Not Specified',
+        knowsPython: false,
+        aicteQuantumCourse: false,
+        knowsQuantumBasics: false,
+        usedQiskitBefore: false,
+        idCardUrl: 'bulk-import://pre-qiskit/student-id',
+        createdAt: new Date().toISOString(),
+      }
+
+      await registrationRepository.createRegistration(registrationRecord, registrationRecord.idCardUrl)
+
+      // Schedule event reminders for Pre-Qiskit
+      try {
+        await reminderService.scheduleRegistrationReminders(registrationRecord)
+      } catch (remErr) {
+        console.warn('[BULK_IMPORT_REMINDER_WARN]', {
+          registrationId: registrationRecord.registrationId,
+          error: remErr.message,
+        })
+      }
+
+      // Send confirmation email via existing Nodemailer service
+      let mailResultStatus = 'SENT'
+      let mailErrorMsg = null
+
+      try {
+        await sendRegistrationConfirmationEmail(registrationRecord)
+        emailSentCount++
+      } catch (mailErr) {
+        mailResultStatus = 'FAILED'
+        emailFailedCount++
+        mailErrorMsg = mailErr?.message || 'Email delivery failed'
+        console.error('[BULK_IMPORT_EMAIL_ERROR]', {
+          registrationId: registrationRecord.registrationId,
+          email: rawEmail,
+          error: mailErrorMsg,
+        })
+      }
+
+      newlyRegisteredCount++
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: mailResultStatus === 'SENT' ? 'SUCCESS' : 'REGISTERED_EMAIL_FAILED',
+        registrationId: registrationRecord.registrationId,
+        emailStatus: mailResultStatus,
+        error: mailErrorMsg,
+      })
+    } catch (createErr) {
+      console.error('[BULK_IMPORT_INSERT_ERROR]', {
+        email: rawEmail,
+        error: createErr.message,
+      })
+      results.push({
+        name: rawName,
+        college: rawCollege,
+        phone: rawPhone,
+        email: rawEmail,
+        status: 'FAILED',
+        registrationId: null,
+        emailStatus: 'NOT_SENT',
+        error: createErr.message || 'Failed to insert registration.',
+      })
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      dryRun,
+      summary: {
+        totalRecords: totalProcessed,
+        validRecords: newlyRegisteredCount + alreadyRegisteredCount,
+        invalidRecords: invalidCount,
+        alreadyRegistered: alreadyRegisteredCount,
+        newlyRegistered: newlyRegisteredCount,
+        emailSent: emailSentCount,
+        emailFailed: emailFailedCount,
+      },
+      results,
+    },
+  }
+}
+
 module.exports = {
   registerUser,
   loginParticipant,
@@ -1462,6 +1659,7 @@ module.exports = {
   loginOrganizer,
   registerAuthUser,
   loginUser,
+  bulkImportStudents,
 
   refreshAuthToken,
   logoutUser,
