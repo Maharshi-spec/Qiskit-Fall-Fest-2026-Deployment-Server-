@@ -6036,10 +6036,19 @@ a:focus-visible {
   text-align: center;
 }
 
+.profile-selection-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
 .profile-selection-logo {
   width: 72px;
   height: 72px;
   object-fit: contain;
+  margin-inline: auto;
   margin-bottom: 1.25rem;
   filter: drop-shadow(0 8px 16px rgba(255, 79, 163, 0.25));
 }
