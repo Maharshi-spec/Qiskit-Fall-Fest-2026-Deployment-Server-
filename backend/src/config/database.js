@@ -27,8 +27,12 @@ const POST_QISKIT_REPLACEMENTS = [
   ['attendance_sessions_id_seq', 'post_qiskit_attendance_sessions_id_seq'],
   ['attendance_tokens_id_seq', 'post_qiskit_attendance_tokens_id_seq'],
   ['hackathon_results_id_seq', 'post_qiskit_hackathon_results_id_seq'],
+  ['hackathon_problem_statements_id_seq', 'post_qiskit_hackathon_problem_statements_id_seq'],
+  ['hackathon_problem_selections_id_seq', 'post_qiskit_hackathon_problem_selections_id_seq'],
   ['event_reminders_id_seq', 'post_qiskit_event_reminders_id_seq'],
   // Tables next (longer names first)
+  ['hackathon_problem_statements', 'post_qiskit_hackathon_problem_statements'],
+  ['hackathon_problem_selections', 'post_qiskit_hackathon_problem_selections'],
   ['attendance_sessions', 'post_qiskit_attendance_sessions'],
   ['attendance_tokens', 'post_qiskit_attendance_tokens'],
   ['attendance', 'post_qiskit_attendance'],

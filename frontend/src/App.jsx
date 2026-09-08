@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import Registration from './pages/Registration'
 import Attendance from './pages/Attendance'
 import Hackathon from './pages/Hackathon'
+import HackathonProblemStatements from './pages/Hackathon/ProblemStatements'
 import Workshops from './pages/Workshops'
 import Day1 from './pages/Day1'
 import Day2 from './pages/Day2'
@@ -55,6 +56,7 @@ function App() {
           <Route path="/register" element={<Navigate to="/pre-qiskit/register" replace />} />
           <Route path="/attendance" element={<Navigate to="/pre-qiskit/attendance" replace />} />
           <Route path="/hackathon" element={<Navigate to="/pre-qiskit/hackathon" replace />} />
+          <Route path="/hackathon/problem-statements" element={<Navigate to="/pre-qiskit/hackathon/problem-statements" replace />} />
           <Route path="/workshops" element={<Navigate to="/pre-qiskit/workshops" replace />} />
           <Route path="/day-1" element={<Navigate to="/pre-qiskit/day-1" replace />} />
           <Route path="/day-2" element={<Navigate to="/pre-qiskit/day-2" replace />} />
@@ -67,6 +69,7 @@ function App() {
           <Route path="/:profile/register" element={<ProfilePage><Registration /></ProfilePage>} />
           <Route path="/:profile/attendance" element={<ProfilePage><Attendance /></ProfilePage>} />
           <Route path="/:profile/hackathon" element={<ProfilePage><Hackathon /></ProfilePage>} />
+          <Route path="/:profile/hackathon/problem-statements" element={<ProfilePage><HackathonProblemStatements /></ProfilePage>} />
           <Route path="/:profile/workshops" element={<ProfilePage><Workshops /></ProfilePage>} />
           <Route path="/:profile/day-1" element={<ProfilePage><Day1 /></ProfilePage>} />
           <Route path="/:profile/day-2" element={<ProfilePage><Day2 /></ProfilePage>} />

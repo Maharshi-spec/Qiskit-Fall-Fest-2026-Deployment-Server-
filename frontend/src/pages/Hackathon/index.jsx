@@ -1,11 +1,50 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Button from '../../components/Button'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { api } from '../../services/api'
 import { hackathon } from '../../data/hackathon'
 import sticker03 from '../../assets/qiskit/Sticker 03.svg'
 import sticker04 from '../../assets/qiskit/Sticker 04.svg'
+
+const CheckCircle2 = ({ className = '', style = {} }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+)
+
+const ArrowRight = ({ className = '', style = {} }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <polyline points="12 5 19 12 12 19" />
+  </svg>
+)
+
+const ShieldAlert = ({ className = '', style = {} }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+)
+
+const Lock = ({ className = '', style = {} }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+)
+
+const AlertTriangle = ({ className = '', style = {} }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+)
 
 const hackathonSteps = [
   {
@@ -28,6 +67,7 @@ const hackathonSteps = [
 
 const Hackathon = () => {
   const { isLoggedIn, userRegistration, isLoading: authLoading, openLoginModal } = useAuth()
+  const { getProfilePath } = useEventProfile()
   const [team, setTeam] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -431,6 +471,128 @@ const Hackathon = () => {
                 </div>
               </div>
 
+              {/* PROBLEM STATEMENT SELECTION / STATUS CARD */}
+              {team.problemSelection ? (
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(214, 51, 132, 0.04) 0%, rgba(214, 51, 132, 0.12) 100%)',
+                    border: '2px solid var(--color-primary)',
+                    borderRadius: 'var(--radius)',
+                    padding: '1.5rem 1.75rem',
+                    marginBottom: '2rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                    <span
+                      style={{
+                        background: '#2b8a3e',
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      PROBLEM STATEMENT SELECTED
+                    </span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                      Selected on {new Date(team.problemSelection.selectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.35rem', margin: '0 0 0.5rem 0', color: 'var(--color-text)' }}>
+                    {team.problemSelection.problemTitle}
+                  </h3>
+
+                  <p
+                    style={{
+                      fontSize: '0.95rem',
+                      color: 'var(--color-text-muted)',
+                      margin: '0 0 1rem 0',
+                      lineHeight: 1.5,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {team.problemSelection.problemDescription}
+                  </p>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(214, 51, 132, 0.2)' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Lock className="w-4 h-4" />
+                      This selection is final and cannot be changed.
+                    </span>
+                    <Link
+                      to={getProfilePath('hackathon/problem-statements')}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        color: 'var(--color-primary-strong)',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      View Problem Statement Details <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    background: 'rgba(214, 51, 132, 0.05)',
+                    border: '1px dashed var(--color-primary)',
+                    borderRadius: 'var(--radius)',
+                    padding: '1.5rem 1.75rem',
+                    marginBottom: '2rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '1.25rem',
+                  }}
+                >
+                  <div style={{ maxWidth: '580px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <ShieldAlert className="w-5 h-5" style={{ color: 'var(--color-primary-strong)' }} />
+                      <h3 style={{ fontSize: '1.15rem', margin: 0, color: 'var(--color-primary-strong)' }}>
+                        Select Problem Statement
+                      </h3>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.92rem', color: 'var(--color-text)', lineHeight: 1.5 }}>
+                      Your team has been formed! You can now browse challenges and select your hackathon challenge.
+                      <strong> Note: You can select only ONE problem statement. Once selected, it cannot be changed.</strong>
+                    </p>
+                  </div>
+                  <Link
+                    to={getProfilePath('hackathon/problem-statements')}
+                    style={{
+                      background: 'var(--color-primary)',
+                      color: '#fff',
+                      padding: '0.75rem 1.35rem',
+                      borderRadius: 'var(--radius-sm)',
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 4px 12px rgba(214, 51, 132, 0.25)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Select Problem Statement <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', marginTop: '1.5rem' }}>
                 <h3 style={{ fontSize: '1.25rem', margin: 0 }}>TEAM MEMBERS</h3>
                 <Button
@@ -496,7 +658,7 @@ const Hackathon = () => {
               </p>
               <p style={{ margin: '0 0 0.75rem 0' }}>Create your team with up to 4 members.</p>
 
-              {/* Informational notice per requirement #1 */}
+              {/* Informational notice per requirement #1 & #2 */}
               <div
                 style={{
                   background: 'rgba(214, 51, 132, 0.06)',
@@ -512,8 +674,8 @@ const Hackathon = () => {
                 <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--color-primary-strong)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <span>ℹ</span> All team members must be registered.
                 </p>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 500 }}>
-                  Team size: 1–4 members
+                <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--color-text)', fontWeight: 500 }}>
+                  Create or join a team before selecting a problem statement. (Team size: 1–4 members)
                 </p>
               </div>
 

@@ -558,6 +558,175 @@ export const api = {
     }
   },
 
+  async organizerFetchHackathonStats(eventId = 'day-3') {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/stats?eventId=${encodeURIComponent(eventId)}`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || {} }
+        : { success: false, error: data?.error || { message: 'Unable to load hackathon statistics.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerFetchProblemStatements(eventId = 'day-3') {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements?eventId=${encodeURIComponent(eventId)}`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || [] }
+        : { success: false, error: data?.error || { message: 'Unable to load problem statements.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerCreateProblemStatement(payload) {
+    try {
+      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/problem-statements'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data }
+        : { success: false, error: data?.error || { message: 'Unable to create problem statement.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerUpdateProblemStatement(id, payload) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(id)}`), {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data }
+        : { success: false, error: data?.error || { message: 'Unable to update problem statement.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerDeleteProblemStatement(id) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data }
+        : { success: false, error: data?.error || { message: 'Unable to delete problem statement.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async organizerFetchProblemSelections(id) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(id)}/selections`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || {} }
+        : { success: false, error: data?.error || { message: 'Unable to load selections.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async fetchParticipantProblemStatements(token = null) {
+    try {
+      const headers = { ...buildJsonHeaders() }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/problem-statements?activeOnly=true'), {
+        headers,
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || [] }
+        : { success: false, error: data?.error || { message: 'Unable to load problem statements.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async fetchMyTeamProblemSelection(token) {
+    try {
+      const response = await profileFetch(resolveApiUrl('/api/v1/hackathon/my-team/problem-selection'), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data || { hasSelection: false, selection: null } }
+        : { success: false, error: data?.error || { message: 'Unable to load team problem selection.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
+  async selectProblemStatement(token, problemStatementId) {
+    try {
+      const response = await profileFetch(resolveApiUrl(`/api/v1/hackathon/problem-statements/${encodeURIComponent(problemStatementId)}/select`), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      return response.ok
+        ? { success: true, data: data?.data }
+        : { success: false, error: data?.error || { message: 'Unable to select problem statement.' } }
+    } catch (err) {
+      return { success: false, error: { code: 'NETWORK_ERROR', message: 'Unable to connect to server.' } }
+    }
+  },
+
   async organizerFetchEvents() {
     try {
       const response = await profileFetch(resolveApiUrl('/api/v1/organizer/events'), {

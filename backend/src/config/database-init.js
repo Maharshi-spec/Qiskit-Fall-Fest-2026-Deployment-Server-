@@ -16,6 +16,8 @@ const requiredPreQiskitTables = [
   'certificates',
   'event_reminders',
   'hackathon_results',
+  'hackathon_problem_statements',
+  'hackathon_problem_selections',
 ]
 
 const requiredPostQiskitTables = [
@@ -30,11 +32,14 @@ const requiredPostQiskitTables = [
   'post_qiskit_event_reminders',
   'post_qiskit_hackathon_results',
   'post_qiskit_config',
+  'post_qiskit_hackathon_problem_statements',
+  'post_qiskit_hackathon_problem_selections',
 ]
 
 const organizerDetailsMigration = '012_add_organizers_details.sql'
 const postQiskitSchemaMigration = '013_create_post_qiskit_schema.sql'
 const postQiskitConfigMigration = '014_create_post_qiskit_config.sql'
+const hackathonProblemStatementsMigration = '015_create_hackathon_problem_statements.sql'
 
 const getMissingTables = async (client, tables) => {
   const result = await client.query(
@@ -81,6 +86,7 @@ const initializeDatabase = async () => {
         updates.push(postQiskitSchemaMigration)
       }
       updates.push(postQiskitConfigMigration)
+      updates.push(hackathonProblemStatementsMigration)
       filesToApply = updates
     }
 

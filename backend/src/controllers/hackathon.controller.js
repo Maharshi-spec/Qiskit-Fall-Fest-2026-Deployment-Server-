@@ -36,9 +36,105 @@ const verifyParticipant = async (req, res, next) => {
   }
 }
 
+const getHackathonStats = async (req, res, next) => {
+  try {
+    const eventId = req.query.eventId || req.query.event_id || 'day-3'
+    const result = await hackathonService.getHackathonStats(eventId)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getMyTeamProblemSelection = async (req, res, next) => {
+  try {
+    const result = await hackathonService.getMyTeamProblemSelection(req.user)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getProblemStatements = async (req, res, next) => {
+  try {
+    const eventId = req.query.eventId || req.query.event_id || 'day-3'
+    const isAdmin = req.user?.role === 'ADMIN' || req.user?.role === 'ORGANIZER'
+    const activeOnly = req.query.activeOnly !== undefined ? req.query.activeOnly === 'true' : !isAdmin
+    const result = await hackathonService.getProblemStatements(eventId, { activeOnly })
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getProblemStatementById = async (req, res, next) => {
+  try {
+    const eventId = req.query.eventId || req.query.event_id || null
+    const result = await hackathonService.getProblemStatementById(req.params.id, eventId)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const createProblemStatement = async (req, res, next) => {
+  try {
+    const result = await hackathonService.createProblemStatement(req.user, req.body || {})
+    return res.status(201).json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const updateProblemStatement = async (req, res, next) => {
+  try {
+    const result = await hackathonService.updateProblemStatement(req.params.id, req.user, req.body || {})
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const deleteProblemStatement = async (req, res, next) => {
+  try {
+    const result = await hackathonService.deleteProblemStatement(req.params.id)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const getProblemSelections = async (req, res, next) => {
+  try {
+    const result = await hackathonService.getProblemSelections(req.params.id)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+const selectProblemStatement = async (req, res, next) => {
+  try {
+    const result = await hackathonService.selectProblemStatement(req.user, req.params.id)
+    return res.status(201).json({ success: true, data: result })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 module.exports = {
   getHackathonInfo,
   getMyTeam,
+  getMyTeamProblemSelection,
   createTeam,
   verifyParticipant,
+  getHackathonStats,
+  getProblemStatements,
+  getProblemStatementById,
+  createProblemStatement,
+  updateProblemStatement,
+  deleteProblemStatement,
+  getProblemSelections,
+  selectProblemStatement,
 }
+

@@ -100,6 +100,16 @@ const OrganizerLayout = ({ children }) => {
       ),
     },
     {
+      label: 'Hackathon',
+      to: getProfilePath('organizer/hackathon'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </svg>
+      ),
+    },
+    {
       label: 'Rewards',
       to: getProfilePath('organizer/rewards'),
       icon: (
@@ -340,7 +350,7 @@ const OrganizerDashboardHome = () => {
         <div className="detail-page__info-stack">
         <div className="detail-info-item">
           <span>Operations</span>
-          <strong>6 sections</strong>
+          <strong>7 sections</strong>
         </div>
         <div className="detail-info-item">
           <span>Access</span>
@@ -366,6 +376,12 @@ const OrganizerDashboardHome = () => {
           <h3>Participants</h3>
           <p>Filter, search, and inspect registered attendee records.</p>
           <span className="organizer-dashboard-home__card-arrow">Open Participants →</span>
+        </Link>
+        <Link to={getProfilePath('organizer/hackathon')} className="detail-card organizer-dashboard-home__card">
+          <span className="organizer-dashboard-home__card-icon" aria-hidden="true">💻</span>
+          <h3>Hackathon</h3>
+          <p>Create problem statements, manage capacity limits, and view team selections.</p>
+          <span className="organizer-dashboard-home__card-arrow">Open Hackathon →</span>
         </Link>
         <Link to={getProfilePath('organizer/rewards')} className="detail-card organizer-dashboard-home__card">
           <span className="organizer-dashboard-home__card-icon" aria-hidden="true">🏆</span>
@@ -1902,6 +1918,1420 @@ const OrganizerPostEventPage = () => {
   )
 }
 
+const OrganizerHackathonPage = () => {
+  const [stats, setStats] = useState({
+    totalProblems: 0,
+    totalTeams: 0,
+    totalSelections: 0,
+    availableProblems: 0,
+    fullProblems: 0,
+  })
+  const [problems, setProblems] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterTab, setFilterTab] = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE', 'AVAILABLE', 'FULL'
+
+  // Create / Edit Modal
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingProblem, setEditingProblem] = useState(null)
+  const [modalForm, setModalForm] = useState({
+    title: '',
+    description: '',
+    isLimited: false,
+    maxCapacity: '10',
+    isActive: true,
+  })
+  const [formError, setFormError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // View Selections Modal
+  const [selectionsModal, setSelectionsModal] = useState({
+    isOpen: false,
+    problem: null,
+    loading: false,
+    data: null,
+    error: '',
+  })
+
+  // Delete Confirmation Modal
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    problem: null,
+    isDeleting: false,
+    error: '',
+  })
+
+  const loadData = async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const [statsRes, problemsRes] = await Promise.all([
+        api.organizerFetchHackathonStats(),
+        api.organizerFetchProblemStatements(),
+      ])
+
+      if (statsRes.success) {
+        setStats(statsRes.data || {})
+      } else {
+        setError(statsRes.error?.message || 'Unable to load hackathon statistics.')
+      }
+
+      if (problemsRes.success) {
+        setProblems(problemsRes.data || [])
+      } else {
+        setError(problemsRes.error?.message || 'Unable to load problem statements.')
+      }
+    } catch (err) {
+      setError('A network error occurred while connecting to the server.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const openCreateModal = () => {
+    setEditingProblem(null)
+    setModalForm({
+      title: '',
+      description: '',
+      isLimited: false,
+      maxCapacity: '10',
+      isActive: true,
+    })
+    setFormError('')
+    setModalOpen(true)
+  }
+
+  const openEditModal = (problem) => {
+    setEditingProblem(problem)
+    setModalForm({
+      title: problem.title || '',
+      description: problem.description || '',
+      isLimited: problem.maxCapacity !== null,
+      maxCapacity: problem.maxCapacity !== null ? String(problem.maxCapacity) : '10',
+      isActive: problem.isActive !== false,
+    })
+    setFormError('')
+    setModalOpen(true)
+  }
+
+  const handleModalSubmit = async (e) => {
+    e.preventDefault()
+    setFormError('')
+
+    const trimmedTitle = modalForm.title.trim()
+    const trimmedDesc = modalForm.description.trim()
+
+    if (!trimmedTitle || trimmedTitle.length < 3) {
+      setFormError('Title must be at least 3 characters long.')
+      return
+    }
+    if (trimmedTitle.length > 255) {
+      setFormError('Title must be under 255 characters.')
+      return
+    }
+    if (!trimmedDesc || trimmedDesc.length < 5) {
+      setFormError('Description must be at least 5 characters long.')
+      return
+    }
+
+    let capacityVal = null
+    if (modalForm.isLimited) {
+      const parsed = parseInt(modalForm.maxCapacity, 10)
+      if (isNaN(parsed) || parsed < 0) {
+        setFormError('Capacity must be a non-negative integer.')
+        return
+      }
+      capacityVal = parsed
+    }
+
+    setIsSubmitting(true)
+    try {
+      if (editingProblem) {
+        const res = await api.organizerUpdateProblemStatement(editingProblem.id, {
+          title: trimmedTitle,
+          description: trimmedDesc,
+          maxCapacity: capacityVal,
+          isActive: modalForm.isActive,
+        })
+        if (!res.success) {
+          setFormError(res.error?.message || 'Failed to update problem statement.')
+          return
+        }
+        setSuccess(`Problem statement "${trimmedTitle}" updated successfully!`)
+      } else {
+        const res = await api.organizerCreateProblemStatement({
+          title: trimmedTitle,
+          description: trimmedDesc,
+          maxCapacity: capacityVal,
+          isActive: modalForm.isActive,
+          eventId: 'day-3',
+        })
+        if (!res.success) {
+          setFormError(res.error?.message || 'Failed to create problem statement.')
+          return
+        }
+        setSuccess(`Problem statement "${trimmedTitle}" created successfully!`)
+      }
+
+      setModalOpen(false)
+      await loadData()
+    } catch (err) {
+      setFormError('Network error while saving problem statement.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleToggleActive = async (problem) => {
+    setError('')
+    try {
+      const res = await api.organizerUpdateProblemStatement(problem.id, {
+        isActive: !problem.isActive,
+      })
+      if (res.success) {
+        setSuccess(`Problem statement ${!problem.isActive ? 'activated' : 'deactivated'} successfully.`)
+        await loadData()
+      } else {
+        setError(res.error?.message || 'Failed to toggle status.')
+      }
+    } catch (err) {
+      setError('Network error while updating problem statement status.')
+    }
+  }
+
+  const openSelectionsModal = async (problem) => {
+    setSelectionsModal({
+      isOpen: true,
+      problem,
+      loading: true,
+      data: null,
+      error: '',
+    })
+
+    try {
+      const res = await api.organizerFetchProblemSelections(problem.id)
+      if (res.success) {
+        setSelectionsModal((prev) => ({ ...prev, loading: false, data: res.data }))
+      } else {
+        setSelectionsModal((prev) => ({
+          ...prev,
+          loading: false,
+          error: res.error?.message || 'Unable to load selections.',
+        }))
+      }
+    } catch (err) {
+      setSelectionsModal((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Network error while loading team selections.',
+      }))
+    }
+  }
+
+  const openDeleteModal = (problem) => {
+    setDeleteModal({
+      isOpen: true,
+      problem,
+      isDeleting: false,
+      error: '',
+    })
+  }
+
+  const handleDeleteConfirm = async () => {
+    const { problem } = deleteModal
+    if (!problem) return
+
+    setDeleteModal((prev) => ({ ...prev, isDeleting: true, error: '' }))
+    try {
+      const res = await api.organizerDeleteProblemStatement(problem.id)
+      if (res.success) {
+        setSuccess(`Problem statement "${problem.title}" deleted successfully.`)
+        setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })
+        await loadData()
+      } else {
+        setDeleteModal((prev) => ({
+          ...prev,
+          isDeleting: false,
+          error: res.error?.message || 'Failed to delete problem statement.',
+        }))
+      }
+    } catch (err) {
+      setDeleteModal((prev) => ({
+        ...prev,
+        isDeleting: false,
+        error: 'Network error while deleting problem statement.',
+      }))
+    }
+  }
+
+  // Filtered problems
+  const filteredProblems = problems.filter((p) => {
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const matches =
+        p.title?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q) ||
+        String(p.problemNumber).includes(q)
+      if (!matches) return false
+    }
+
+    // Tab filter
+    if (filterTab === 'ACTIVE') return p.isActive
+    if (filterTab === 'INACTIVE') return !p.isActive
+    if (filterTab === 'AVAILABLE') return p.isActive && (!p.isFull) && (p.maxCapacity === null || p.remainingCapacity > 0)
+    if (filterTab === 'FULL') return p.isFull
+    return true
+  })
+
+  return (
+    <div className="organizer-page-view organizer-hackathon-page" style={{ width: '100%' }}>
+      {/* PAGE HEADING */}
+      <OrganizerPageHeading
+        eyebrow="QISKIT FALL FEST 2026"
+        title="Hackathon Management"
+        description="Create and configure problem statements, manage team capacity limits, and monitor live problem selections in real time."
+        action={
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={loadData}
+              disabled={isLoading}
+              title="Refresh problem statements and statistics"
+            >
+              🔄 Refresh
+            </button>
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={openCreateModal}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Problem Statement
+            </button>
+          </div>
+        }
+      />
+
+      {/* TOAST ALERTS */}
+      {success && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.9rem 1.25rem',
+            background: 'rgba(46, 125, 50, 0.1)',
+            border: '1px solid rgba(46, 125, 50, 0.3)',
+            borderRadius: '14px',
+            color: '#2e7d32',
+            fontWeight: 500,
+          }}
+        >
+          <span>✓ {success}</span>
+          <button
+            type="button"
+            onClick={() => setSuccess('')}
+            style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.9rem 1.25rem',
+            background: 'rgba(211, 47, 47, 0.08)',
+            border: '1px solid rgba(211, 47, 47, 0.25)',
+            borderRadius: '14px',
+            color: '#c2185b',
+            fontWeight: 500,
+          }}
+        >
+          <span>⚠️ {error}</span>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{ background: 'none', border: 'none', color: '#c2185b', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* 1. STATISTICS DASHBOARD CARDS */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '1.1rem',
+          width: '100%',
+        }}
+      >
+        <div
+          style={{
+            padding: '1.35rem',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 79, 163, 0.18)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7859ca', fontWeight: 700 }}>
+            Problem Statements
+          </span>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2d253f', marginTop: '0.35rem', lineHeight: 1.1 }}>
+            {stats.totalProblems}
+          </div>
+          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Created for Hackathon</small>
+        </div>
+
+        <div
+          style={{
+            padding: '1.35rem',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 79, 163, 0.18)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7859ca', fontWeight: 700 }}>
+            Total Teams
+          </span>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2d253f', marginTop: '0.35rem', lineHeight: 1.1 }}>
+            {stats.totalTeams}
+          </div>
+          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Formed hackathon teams</small>
+        </div>
+
+        <div
+          style={{
+            padding: '1.35rem',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 79, 163, 0.22)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.07)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#ff4fa3', fontWeight: 700 }}>
+            Total Selections
+          </span>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#ff4fa3', marginTop: '0.35rem', lineHeight: 1.1 }}>
+            {stats.totalSelections}
+          </div>
+          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Problem statement picks</small>
+        </div>
+
+        <div
+          style={{
+            padding: '1.35rem',
+            borderRadius: '20px',
+            border: '1px solid rgba(46, 125, 50, 0.22)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 8px 24px rgba(46, 125, 50, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#2e7d32', fontWeight: 700 }}>
+            Available Problems
+          </span>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2e7d32', marginTop: '0.35rem', lineHeight: 1.1 }}>
+            {stats.availableProblems}
+          </div>
+          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Capacity remaining</small>
+        </div>
+
+        <div
+          style={{
+            padding: '1.35rem',
+            borderRadius: '20px',
+            border: '1px solid rgba(194, 24, 91, 0.22)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            boxShadow: '0 8px 24px rgba(194, 24, 91, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c2185b', fontWeight: 700 }}>
+            Full Problems
+          </span>
+          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#c2185b', marginTop: '0.35rem', lineHeight: 1.1 }}>
+            {stats.fullProblems}
+          </div>
+          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Capacity filled</small>
+        </div>
+      </div>
+
+      {/* 2. SEARCH & FILTER CONTROLS */}
+      <div
+        className="organizer-page-content-panel"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '1.25rem 1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', flex: '1 1 280px', maxWidth: '480px', position: 'relative' }}>
+          <input
+            type="text"
+            placeholder="Search problem statements by title or keyword..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.65rem 1rem 0.65rem 2.2rem',
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 79, 163, 0.2)',
+              fontSize: '0.95rem',
+              background: '#ffffff',
+            }}
+          />
+          <span
+            style={{
+              position: 'absolute',
+              left: '0.75rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#8d7ba8',
+              pointerEvents: 'none',
+            }}
+          >
+            🔍
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+          {['ALL', 'ACTIVE', 'AVAILABLE', 'FULL', 'INACTIVE'].map((tab) => {
+            const isActiveTab = filterTab === tab
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setFilterTab(tab)}
+                style={{
+                  padding: '0.45rem 0.9rem',
+                  borderRadius: '10px',
+                  border: isActiveTab ? '1px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.16)',
+                  background: isActiveTab ? 'linear-gradient(135deg, #ff4fa3, #e0368b)' : '#ffffff',
+                  color: isActiveTab ? '#ffffff' : '#2d253f',
+                  fontWeight: isActiveTab ? 600 : 500,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                }}
+              >
+                {tab.charAt(0) + tab.slice(1).toLowerCase()}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 3. PROBLEM STATEMENTS LIST */}
+      <div style={{ width: '100%', minHeight: '18rem' }}>
+        {isLoading ? (
+          <div
+            className="organizer-page-content-panel"
+            style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#5c4779' }}
+          >
+            <div style={{ fontSize: '1.6rem', marginBottom: '0.75rem' }}>⏳</div>
+            <h3>Loading hackathon problem statements…</h3>
+          </div>
+        ) : filteredProblems.length === 0 ? (
+          <div
+            className="organizer-page-content-panel"
+            style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#5c4779' }}
+          >
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>💡</div>
+            <h3>No problem statements found</h3>
+            <p style={{ maxWidth: '420px', margin: '0.5rem auto 1.5rem' }}>
+              {searchQuery || filterTab !== 'ALL'
+                ? 'No problem statements match your search query or filter criteria.'
+                : 'No problem statements have been created yet. Get started by adding the first challenge.'}
+            </p>
+            {(!searchQuery && filterTab === 'ALL') && (
+              <button type="button" className="button button--primary" onClick={openCreateModal}>
+                + Add Problem Statement
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))', gap: '1.25rem' }}>
+            {filteredProblems.map((problem) => {
+              const numStr = String(problem.problemNumber).padStart(2, '0')
+              const isFull = problem.isFull
+              const isInactive = !problem.isActive
+              const isUnlimited = problem.isUnlimited
+
+              return (
+                <div
+                  key={problem.id}
+                  style={{
+                    padding: '1.5rem',
+                    borderRadius: '22px',
+                    background: '#ffffff',
+                    border: isInactive
+                      ? '1px solid rgba(140, 130, 155, 0.25)'
+                      : isFull
+                      ? '1px solid rgba(255, 79, 163, 0.35)'
+                      : '1px solid rgba(255, 79, 163, 0.18)',
+                    boxShadow: '0 10px 28px rgba(45, 37, 63, 0.05)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    opacity: isInactive ? 0.78 : 1,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div>
+                    {/* Header Badges */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: '#7859ca',
+                          background: 'rgba(120, 89, 202, 0.09)',
+                          padding: '0.25rem 0.65rem',
+                          borderRadius: '8px',
+                        }}
+                      >
+                        Problem {numStr}
+                      </span>
+
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        {/* Status Badge */}
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.05em',
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: '999px',
+                            background: isInactive ? 'rgba(140, 130, 155, 0.12)' : 'rgba(46, 125, 50, 0.1)',
+                            color: isInactive ? '#685c79' : '#2e7d32',
+                            border: isInactive ? '1px solid rgba(140, 130, 155, 0.2)' : '1px solid rgba(46, 125, 50, 0.2)',
+                          }}
+                        >
+                          {isInactive ? 'INACTIVE' : 'ACTIVE'}
+                        </span>
+
+                        {/* Capacity Status Badge */}
+                        {isUnlimited ? (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              background: 'rgba(120, 89, 202, 0.1)',
+                              color: '#7859ca',
+                              border: '1px solid rgba(120, 89, 202, 0.2)',
+                            }}
+                          >
+                            ∞ UNLIMITED
+                          </span>
+                        ) : isFull ? (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              background: 'rgba(194, 24, 91, 0.12)',
+                              color: '#c2185b',
+                              border: '1px solid rgba(194, 24, 91, 0.3)',
+                            }}
+                          >
+                            FULL
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              padding: '0.2rem 0.6rem',
+                              borderRadius: '999px',
+                              background: 'rgba(255, 79, 163, 0.08)',
+                              color: '#d81b60',
+                              border: '1px solid rgba(255, 79, 163, 0.2)',
+                            }}
+                          >
+                            {problem.remainingCapacity} Left
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <h3 style={{ margin: '0 0 0.6rem', fontSize: '1.25rem', color: '#2d253f', lineHeight: 1.3 }}>
+                      {problem.title}
+                    </h3>
+
+                    {/* Description */}
+                    <p
+                      style={{
+                        margin: '0 0 1.25rem',
+                        fontSize: '0.92rem',
+                        color: '#5c4779',
+                        lineHeight: 1.55,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                      title={problem.description}
+                    >
+                      {problem.description}
+                    </p>
+
+                    {/* Capacity Indicator & Progress Bar */}
+                    <div
+                      style={{
+                        padding: '0.9rem',
+                        borderRadius: '14px',
+                        background: 'rgba(255, 79, 163, 0.04)',
+                        border: '1px solid rgba(255, 79, 163, 0.1)',
+                        marginBottom: '1.25rem',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'baseline',
+                          fontSize: '0.85rem',
+                          marginBottom: '0.45rem',
+                          color: '#2d253f',
+                        }}
+                      >
+                        <span>
+                          Teams Selected: <strong>{problem.selectedTeams}</strong>
+                          {isUnlimited ? ' (Unlimited)' : ` / ${problem.maxCapacity}`}
+                        </span>
+                        <span style={{ fontSize: '0.8rem', color: '#5c4779' }}>
+                          <strong>{problem.selectedParticipants}</strong> participants
+                        </span>
+                      </div>
+
+                      {/* Progress Bar */}
+                      {isUnlimited ? (
+                        <div
+                          style={{
+                            height: '6px',
+                            background: 'rgba(120, 89, 202, 0.2)',
+                            borderRadius: '999px',
+                            width: '100%',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            height: '6px',
+                            background: 'rgba(255, 79, 163, 0.14)',
+                            borderRadius: '999px',
+                            overflow: 'hidden',
+                            width: '100%',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round((problem.selectedTeams / (problem.maxCapacity || 1)) * 100)
+                              )}%`,
+                              height: '100%',
+                              background: isFull
+                                ? '#c2185b'
+                                : 'linear-gradient(90deg, #ff4fa3, #7859ca)',
+                              borderRadius: '999px',
+                              transition: 'width 0.3s ease',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderTop: '1px solid rgba(255, 79, 163, 0.12)',
+                      paddingTop: '1rem',
+                      marginTop: '0.5rem',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={() => openSelectionsModal(problem)}
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        fontSize: '0.82rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                    >
+                      👥 View Participants
+                      <span
+                        style={{
+                          background: '#ff4fa3',
+                          color: '#ffffff',
+                          borderRadius: '999px',
+                          padding: '0.1rem 0.45rem',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {problem.selectedTeams}
+                      </span>
+                    </button>
+
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      {/* Edit Button */}
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        onClick={() => openEditModal(problem)}
+                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }}
+                        title="Edit problem statement details and capacity"
+                      >
+                        ✏️ Edit
+                      </button>
+
+                      {/* Deactivate / Activate Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(problem)}
+                        style={{
+                          padding: '0.45rem 0.75rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(255, 79, 163, 0.2)',
+                          background: isInactive ? 'rgba(46, 125, 50, 0.08)' : 'rgba(211, 47, 47, 0.06)',
+                          color: isInactive ? '#2e7d32' : '#c2185b',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                        title={isInactive ? 'Activate this problem statement' : 'Deactivate this problem statement'}
+                      >
+                        {isInactive ? 'Activate' : 'Deactivate'}
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={() => openDeleteModal(problem)}
+                        style={{
+                          padding: '0.45rem 0.65rem',
+                          fontSize: '0.82rem',
+                          borderRadius: '10px',
+                          border: '1px solid rgba(211, 47, 47, 0.2)',
+                          background: problem.selectedTeams > 0 ? 'rgba(0,0,0,0.03)' : 'rgba(211, 47, 47, 0.06)',
+                          color: problem.selectedTeams > 0 ? '#999999' : '#d32f2f',
+                          cursor: problem.selectedTeams > 0 ? 'not-allowed' : 'pointer',
+                          fontWeight: 600,
+                        }}
+                        title={
+                          problem.selectedTeams > 0
+                            ? 'Cannot delete: already selected by teams. Deactivate it instead.'
+                            : 'Delete problem statement'
+                        }
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 4. CREATE / EDIT MODAL */}
+      {modalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(25, 18, 38, 0.6)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => !isSubmitting && setModalOpen(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '580px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '2rem',
+              border: '1px solid rgba(255, 79, 163, 0.25)',
+              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#2d253f' }}>
+                  {editingProblem ? 'Edit Problem Statement' : 'Add Problem Statement'}
+                </h3>
+                <small style={{ color: '#8d7ba8' }}>
+                  {editingProblem ? `Updating Problem #${editingProblem.problemNumber}` : 'Create a new hackathon challenge'}
+                </small>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                disabled={isSubmitting}
+                style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#8d7ba8', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </div>
+
+            {formError && (
+              <div
+                style={{
+                  padding: '0.8rem 1rem',
+                  background: 'rgba(211, 47, 47, 0.08)',
+                  border: '1px solid rgba(211, 47, 47, 0.25)',
+                  borderRadius: '12px',
+                  color: '#c2185b',
+                  fontSize: '0.9rem',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                ⚠️ {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleModalSubmit} style={{ display: 'grid', gap: '1.25rem' }}>
+              {/* Title */}
+              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
+                Problem Statement Title *
+                <input
+                  type="text"
+                  placeholder="e.g. Quantum Optimization for Smart Energy Grid"
+                  value={modalForm.title}
+                  onChange={(e) => setModalForm((prev) => ({ ...prev, title: e.target.value }))}
+                  required
+                  style={{
+                    padding: '0.75rem 0.95rem',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 79, 163, 0.22)',
+                    fontSize: '0.95rem',
+                  }}
+                />
+              </label>
+
+              {/* Description */}
+              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
+                Description *
+                <textarea
+                  rows={4}
+                  placeholder="Describe the challenge, goals, technical scope, and expected deliverables..."
+                  value={modalForm.description}
+                  onChange={(e) => setModalForm((prev) => ({ ...prev, description: e.target.value }))}
+                  required
+                  style={{
+                    padding: '0.75rem 0.95rem',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 79, 163, 0.22)',
+                    fontSize: '0.95rem',
+                    resize: 'vertical',
+                  }}
+                />
+              </label>
+
+              {/* Capacity Selector (Limited vs Unlimited) */}
+              <div style={{ display: 'grid', gap: '0.65rem' }}>
+                <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
+                  Maximum Capacity (Teams Allowed) *
+                </span>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {/* Unlimited Option */}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '14px',
+                      border: !modalForm.isLimited ? '2px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.2)',
+                      background: !modalForm.isLimited ? 'rgba(255, 79, 163, 0.05)' : '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '0.92rem',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="capacityType"
+                      checked={!modalForm.isLimited}
+                      onChange={() => setModalForm((prev) => ({ ...prev, isLimited: false }))}
+                    />
+                    <div>
+                      <strong>∞ Unlimited</strong>
+                      <div style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>No team limit</div>
+                    </div>
+                  </label>
+
+                  {/* Limited Option */}
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.85rem 1rem',
+                      borderRadius: '14px',
+                      border: modalForm.isLimited ? '2px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.2)',
+                      background: modalForm.isLimited ? 'rgba(255, 79, 163, 0.05)' : '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '0.92rem',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="capacityType"
+                      checked={modalForm.isLimited}
+                      onChange={() => setModalForm((prev) => ({ ...prev, isLimited: true }))}
+                    />
+                    <div>
+                      <strong>Limited</strong>
+                      <div style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>Cap selections</div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Capacity Input if Limited */}
+                {modalForm.isLimited && (
+                  <div style={{ marginTop: '0.25rem' }}>
+                    <label style={{ display: 'grid', gap: '0.35rem', fontSize: '0.88rem', color: '#5c4779' }}>
+                      Maximum Number of Teams Allowed:
+                      <input
+                        type="number"
+                        min="0"
+                        value={modalForm.maxCapacity}
+                        onChange={(e) => setModalForm((prev) => ({ ...prev, maxCapacity: e.target.value }))}
+                        required
+                        style={{
+                          padding: '0.65rem 0.9rem',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(255, 79, 163, 0.22)',
+                          fontSize: '0.95rem',
+                          maxWidth: '180px',
+                        }}
+                      />
+                      <small style={{ color: '#8d7ba8' }}>
+                        Set to 0 if temporarily unavailable, or any positive integer (e.g. 10).
+                      </small>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Selector */}
+              <div style={{ display: 'grid', gap: '0.4rem' }}>
+                <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>Status</span>
+                <div style={{ display: 'flex', gap: '1.25rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.92rem' }}>
+                    <input
+                      type="radio"
+                      name="status"
+                      checked={modalForm.isActive}
+                      onChange={() => setModalForm((prev) => ({ ...prev, isActive: true }))}
+                    />
+                    <span style={{ color: '#2e7d32', fontWeight: 600 }}>Active</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.92rem' }}>
+                    <input
+                      type="radio"
+                      name="status"
+                      checked={!modalForm.isActive}
+                      onChange={() => setModalForm((prev) => ({ ...prev, isActive: false }))}
+                    />
+                    <span style={{ color: '#685c79', fontWeight: 600 }}>Inactive</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={() => setModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="button button--primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving…' : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. VIEW PARTICIPANTS / SELECTIONS MODAL */}
+      {selectionsModal.isOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(25, 18, 38, 0.6)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '24px',
+              maxWidth: '720px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '2rem',
+              border: '1px solid rgba(255, 79, 163, 0.25)',
+              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+              <div>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: '#7859ca',
+                    fontWeight: 700,
+                  }}
+                >
+                  Selected Teams Roster
+                </span>
+                <h3 style={{ margin: '0.2rem 0 0.4rem', fontSize: '1.35rem', color: '#2d253f' }}>
+                  {selectionsModal.problem?.title}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#5c4779' }}>
+                  <strong>{selectionsModal.data?.selectedTeamsCount || 0}</strong> Teams Selected (
+                  {selectionsModal.data?.selectedParticipantsCount || 0} Participants)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })}
+                style={{ background: 'none', border: 'none', fontSize: '1.6rem', color: '#8d7ba8', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </div>
+
+            {selectionsModal.loading ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#5c4779' }}>
+                <div>⏳</div>
+                <p>Loading teams and participant details…</p>
+              </div>
+            ) : selectionsModal.error ? (
+              <div
+                style={{
+                  padding: '1rem',
+                  borderRadius: '12px',
+                  background: 'rgba(211, 47, 47, 0.08)',
+                  color: '#c2185b',
+                }}
+              >
+                ⚠️ {selectionsModal.error}
+              </div>
+            ) : !selectionsModal.data?.teams || selectionsModal.data.teams.length === 0 ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '3rem 1rem',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 79, 163, 0.04)',
+                  border: '1px dashed rgba(255, 79, 163, 0.25)',
+                }}
+              >
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👥</div>
+                <h4 style={{ margin: 0, color: '#2d253f' }}>No teams have selected this problem statement yet.</h4>
+                <p style={{ margin: '0.4rem 0 0', color: '#8d7ba8', fontSize: '0.9rem' }}>
+                  When registered teams select this challenge, their rosters and contact info will appear here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {selectionsModal.data.teams.map((t, idx) => (
+                  <div
+                    key={t.teamId}
+                    style={{
+                      padding: '1.25rem',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255, 79, 163, 0.18)',
+                      background: '#ffffff',
+                      boxShadow: '0 4px 14px rgba(45, 37, 63, 0.04)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        borderBottom: '1px solid rgba(255, 79, 163, 0.1)',
+                        paddingBottom: '0.65rem',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontSize: '0.8rem', color: '#7859ca', fontWeight: 600 }}>Team #{idx + 1}</span>
+                        <h4 style={{ margin: '0.1rem 0 0', fontSize: '1.1rem', color: '#2d253f' }}>{t.teamName}</h4>
+                      </div>
+                      <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>
+                        Selected: {new Date(t.selectedAt).toLocaleDateString()} {new Date(t.selectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5c4779' }}>Team Members ({t.members.length}):</span>
+                      <div style={{ display: 'grid', gap: '0.4rem' }}>
+                        {t.members.map((m) => (
+                          <div
+                            key={m.registrationId}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '0.55rem 0.85rem',
+                              borderRadius: '10px',
+                              background: m.isTeamLead ? 'rgba(255, 79, 163, 0.06)' : 'rgba(0, 0, 0, 0.02)',
+                              border: m.isTeamLead ? '1px solid rgba(255, 79, 163, 0.18)' : '1px solid rgba(0, 0, 0, 0.04)',
+                              fontSize: '0.88rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <span style={{ fontWeight: 600, color: '#2d253f' }}>{m.fullName}</span>
+                              {m.isTeamLead && (
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    padding: '0.15rem 0.45rem',
+                                    borderRadius: '999px',
+                                    background: '#ff4fa3',
+                                    color: '#ffffff',
+                                  }}
+                                >
+                                  LEAD
+                                </span>
+                              )}
+                              <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>({m.registrationId})</span>
+                            </div>
+                            <div style={{ fontSize: '0.82rem', color: '#5c4779', textAlign: 'right' }}>
+                              <span>{m.email}</span>
+                              {m.instituteName && (
+                                <span style={{ marginLeft: '0.5rem', color: '#8d7ba8' }}>• {m.instituteName}</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })}
+              >
+                Close Roster
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. DELETE / DEACTIVATE CONFIRMATION DIALOG */}
+      {deleteModal.isOpen && deleteModal.problem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(25, 18, 38, 0.6)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => !deleteModal.isDeleting && setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '22px',
+              maxWidth: '480px',
+              width: '100%',
+              padding: '2rem',
+              border: '1px solid rgba(211, 47, 47, 0.25)',
+              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {deleteModal.problem.selectedTeams > 0 ? (
+              <div>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#c2185b' }}>⚠️</div>
+                <h3 style={{ margin: '0 0 0.5rem', color: '#2d253f' }}>Cannot Delete Selected Problem</h3>
+                <p style={{ margin: '0 0 1rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                  This problem statement has already been selected by{' '}
+                  <strong>{deleteModal.problem.selectedTeams} team(s)</strong>. To prevent corrupting participant data,
+                  direct deletion is disabled.
+                </p>
+                <p style={{ margin: '0 0 1.5rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                  Would you like to <strong>Deactivate</strong> it instead so no new teams can select it?
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    onClick={() => setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    onClick={async () => {
+                      await handleToggleActive(deleteModal.problem)
+                      setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })
+                    }}
+                  >
+                    Deactivate Problem
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#d32f2f' }}>🗑️</div>
+                <h3 style={{ margin: '0 0 0.5rem', color: '#2d253f' }}>Delete Problem Statement?</h3>
+                <p style={{ margin: '0 0 1.25rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                  Are you sure you want to permanently delete{' '}
+                  <strong>"{deleteModal.problem.title}"</strong>? This action cannot be undone.
+                </p>
+
+                {deleteModal.error && (
+                  <div
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '10px',
+                      background: 'rgba(211, 47, 47, 0.08)',
+                      color: '#c2185b',
+                      fontSize: '0.88rem',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    ⚠️ {deleteModal.error}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    onClick={() => setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+                    disabled={deleteModal.isDeleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteConfirm}
+                    disabled={deleteModal.isDeleting}
+                    style={{
+                      padding: '0.55rem 1.1rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: '#d32f2f',
+                      color: '#ffffff',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {deleteModal.isDeleting ? 'Deleting…' : 'Delete Permanently'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const OrganizerRoutes = () => {
   const location = useLocation()
   const { getProfilePath } = useEventProfile()
@@ -1917,6 +3347,7 @@ const OrganizerRoutes = () => {
         <Route path="email" element={<OrganizerEmailPage />} />
         <Route path="attendance" element={<OrganizerAttendancePage />} />
         <Route path="participants" element={<OrganizerParticipantsPage />} />
+        <Route path="hackathon" element={<OrganizerHackathonPage />} />
         <Route path="rewards" element={<OrganizerRewardsPage />} />
         <Route path="events" element={<OrganizerEventsPage />} />
         <Route path="post-event" element={<OrganizerPostEventPage />} />
@@ -1924,6 +3355,7 @@ const OrganizerRoutes = () => {
     </OrganizerLayout>
   )
 }
+
 
 const OrganizerPage = () => {
   const location = useLocation()

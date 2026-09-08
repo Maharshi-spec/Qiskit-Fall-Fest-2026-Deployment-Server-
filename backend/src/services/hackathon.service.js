@@ -39,6 +39,34 @@ const getTeamDetailsById = async (teamId) => {
     [teamId, team.team_lead_registration_id],
   )
 
+  const selRes = await pool.query(
+    `SELECT
+       hpsel.id AS selection_id,
+       hpsel.problem_statement_id,
+       hpsel.selected_at,
+       hps.title AS problem_title,
+       hps.description AS problem_description,
+       hps.max_capacity,
+       hps.is_active
+     FROM hackathon_problem_selections hpsel
+     JOIN hackathon_problem_statements hps ON hps.id = hpsel.problem_statement_id
+     WHERE hpsel.team_id = $1 AND hpsel.event_id = $2
+     LIMIT 1;`,
+    [teamId, team.event_id]
+  )
+
+  const problemSelection = selRes.rows[0]
+    ? {
+        selectionId: String(selRes.rows[0].selection_id),
+        problemStatementId: String(selRes.rows[0].problem_statement_id),
+        problemTitle: selRes.rows[0].problem_title,
+        problemDescription: selRes.rows[0].problem_description,
+        maxCapacity: selRes.rows[0].max_capacity,
+        isUnlimited: selRes.rows[0].max_capacity === null,
+        selectedAt: selRes.rows[0].selected_at,
+      }
+    : null
+
   return {
     teamId: String(team.id),
     teamName: team.team_name,
@@ -47,6 +75,7 @@ const getTeamDetailsById = async (teamId) => {
     eventName: team.event_name || 'Hackathon',
     teamLeadRegistrationId: team.team_lead_registration_id,
     createdAt: team.created_at,
+    problemSelection,
     members: membersRes.rows.map((row) => ({
       registrationId: row.registration_id,
       fullName: row.full_name,
@@ -55,6 +84,47 @@ const getTeamDetailsById = async (teamId) => {
       isTeamLead: row.registration_id === team.team_lead_registration_id,
       joinedAt: row.joined_at,
     })),
+  }
+}
+
+const getMyTeamProblemSelection = async (user) => {
+  const registration = await findRegistrationByUser(user)
+  if (!registration) throw new AppError(404, 'REGISTRATION_NOT_FOUND', 'Registration record not found.')
+
+  const memberRes = await pool.query(
+    'SELECT team_id FROM team_members WHERE registration_id = $1 LIMIT 1',
+    [registration.registration_id],
+  )
+
+  if (!memberRes.rows[0]) {
+    return {
+      hasTeam: false,
+      hasSelection: false,
+      selection: null,
+      team: null,
+    }
+  }
+
+  const teamId = memberRes.rows[0].team_id
+  const teamDetails = await getTeamDetailsById(teamId)
+  if (!teamDetails) {
+    return {
+      hasTeam: false,
+      hasSelection: false,
+      selection: null,
+      team: null,
+    }
+  }
+
+  return {
+    hasTeam: true,
+    hasSelection: Boolean(teamDetails.problemSelection),
+    selection: teamDetails.problemSelection,
+    team: {
+      teamId: teamDetails.teamId,
+      teamName: teamDetails.teamName,
+      teamLeadRegistrationId: teamDetails.teamLeadRegistrationId,
+    },
   }
 }
 
@@ -179,6 +249,477 @@ const verifyParticipant = async (user, email) => {
   }
 }
 
+const validateCapacity = (val) => {
+  if (val === undefined || val === null || val === '' || val === 'unlimited' || val === 'UNLIMITED') {
+    return null
+  }
+  const num = Number(val)
+  if (!Number.isInteger(num) || num < 0 || isNaN(num)) {
+    throw new AppError(400, 'INVALID_CAPACITY', 'Capacity must be 0 or a positive integer, or null for unlimited.')
+  }
+  return num
+}
+
+const validateTitle = (val) => {
+  const title = typeof val === 'string' ? val.trim() : ''
+  if (!title || title.length < 3 || title.length > 255) {
+    throw new AppError(400, 'INVALID_TITLE', 'Problem statement title is required and must be between 3 and 255 characters.')
+  }
+  return title
+}
+
+const validateDescription = (val) => {
+  const desc = typeof val === 'string' ? val.trim() : ''
+  if (!desc || desc.length < 5) {
+    throw new AppError(400, 'INVALID_DESCRIPTION', 'Problem statement description is required and must be at least 5 characters.')
+  }
+  return desc
+}
+
+const getHackathonStats = async (eventId = 'day-3') => {
+  const result = await pool.query(
+    `WITH problem_counts AS (
+       SELECT
+         hps.id,
+         hps.max_capacity,
+         hps.is_active,
+         COUNT(hpsel.id)::int AS selected_teams
+       FROM hackathon_problem_statements hps
+       LEFT JOIN hackathon_problem_selections hpsel ON hpsel.problem_statement_id = hps.id
+       WHERE hps.event_id = $1
+       GROUP BY hps.id, hps.max_capacity, hps.is_active
+     ),
+     team_count AS (
+       SELECT COUNT(*)::int AS total_teams FROM teams WHERE event_id = $1
+     ),
+     selection_count AS (
+       SELECT COUNT(*)::int AS total_selections FROM hackathon_problem_selections WHERE event_id = $1
+     )
+     SELECT
+       (SELECT COUNT(*)::int FROM problem_counts) AS total_problems,
+       (SELECT total_teams FROM team_count) AS total_teams,
+       (SELECT total_selections FROM selection_count) AS total_selections,
+       (SELECT COUNT(*)::int FROM problem_counts WHERE is_active = true AND (max_capacity IS NULL OR (max_capacity > 0 AND selected_teams < max_capacity))) AS available_problems,
+       (SELECT COUNT(*)::int FROM problem_counts WHERE max_capacity IS NOT NULL AND max_capacity > 0 AND selected_teams >= max_capacity) AS full_problems;`,
+    [eventId]
+  )
+
+  const row = result.rows[0] || {}
+  return {
+    totalProblems: Number(row.total_problems || 0),
+    totalTeams: Number(row.total_teams || 0),
+    totalSelections: Number(row.total_selections || 0),
+    availableProblems: Number(row.available_problems || 0),
+    fullProblems: Number(row.full_problems || 0),
+  }
+}
+
+const getProblemStatements = async (eventId = 'day-3', options = {}) => {
+  let activeFilter = ''
+  if (options.activeOnly) {
+    activeFilter = ' AND hps.is_active = true'
+  }
+
+  const result = await pool.query(
+    `SELECT
+       hps.id,
+       hps.event_id,
+       hps.title,
+       hps.description,
+       hps.max_capacity,
+       hps.is_active,
+       hps.created_by,
+       hps.created_at,
+       hps.updated_at,
+       COUNT(DISTINCT hpsel.team_id)::int AS selected_teams,
+       COUNT(DISTINCT tm.id)::int AS selected_participants
+     FROM hackathon_problem_statements hps
+     LEFT JOIN hackathon_problem_selections hpsel ON hpsel.problem_statement_id = hps.id
+     LEFT JOIN team_members tm ON tm.team_id = hpsel.team_id
+     WHERE hps.event_id = $1${activeFilter}
+     GROUP BY hps.id
+     ORDER BY hps.id ASC;`,
+    [eventId]
+  )
+
+  return result.rows.map((row, idx) => {
+    const selectedTeams = Number(row.selected_teams || 0)
+    const selectedParticipants = Number(row.selected_participants || 0)
+    const maxCapacity = row.max_capacity === null ? null : Number(row.max_capacity)
+    const isUnlimited = maxCapacity === null
+    const remainingCapacity = isUnlimited ? null : Math.max(0, maxCapacity - selectedTeams)
+    const isFull = !isUnlimited && maxCapacity > 0 && selectedTeams >= maxCapacity
+    const isUnavailable = !row.is_active || maxCapacity === 0
+
+    return {
+      id: String(row.id),
+      problemNumber: idx + 1,
+      eventId: row.event_id,
+      title: row.title,
+      description: row.description,
+      maxCapacity,
+      isUnlimited,
+      isActive: Boolean(row.is_active),
+      selectedTeams,
+      selectedParticipants,
+      remainingCapacity,
+      isFull,
+      isUnavailable,
+      createdBy: row.created_by ? String(row.created_by) : null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  })
+}
+
+const getProblemStatementById = async (id, eventId = null) => {
+  const query = `
+    SELECT
+      hps.id,
+      hps.event_id,
+      hps.title,
+      hps.description,
+      hps.max_capacity,
+      hps.is_active,
+      hps.created_by,
+      hps.created_at,
+      hps.updated_at,
+      COUNT(DISTINCT hpsel.team_id)::int AS selected_teams,
+      COUNT(DISTINCT tm.id)::int AS selected_participants
+    FROM hackathon_problem_statements hps
+    LEFT JOIN hackathon_problem_selections hpsel ON hpsel.problem_statement_id = hps.id
+    LEFT JOIN team_members tm ON tm.team_id = hpsel.team_id
+    WHERE hps.id = $1 ${eventId ? 'AND hps.event_id = $2' : ''}
+    GROUP BY hps.id
+    LIMIT 1;`
+  const params = eventId ? [id, eventId] : [id]
+  const result = await pool.query(query, params)
+
+  if (!result.rows[0]) {
+    throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+  }
+
+  const row = result.rows[0]
+  const selectedTeams = Number(row.selected_teams || 0)
+  const selectedParticipants = Number(row.selected_participants || 0)
+  const maxCapacity = row.max_capacity === null ? null : Number(row.max_capacity)
+  const isUnlimited = maxCapacity === null
+  const remainingCapacity = isUnlimited ? null : Math.max(0, maxCapacity - selectedTeams)
+  const isFull = !isUnlimited && maxCapacity > 0 && selectedTeams >= maxCapacity
+
+  return {
+    id: String(row.id),
+    eventId: row.event_id,
+    title: row.title,
+    description: row.description,
+    maxCapacity,
+    isUnlimited,
+    isActive: Boolean(row.is_active),
+    selectedTeams,
+    selectedParticipants,
+    remainingCapacity,
+    isFull,
+    isUnavailable: !row.is_active || maxCapacity === 0,
+    createdBy: row.created_by ? String(row.created_by) : null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+const createProblemStatement = async (user, payload = {}) => {
+  const title = validateTitle(payload.title)
+  const description = validateDescription(payload.description)
+  const maxCapacity = validateCapacity(payload.maxCapacity)
+  const isActive = payload.isActive === undefined ? true : Boolean(payload.isActive)
+  const eventId = typeof payload.eventId === 'string' && payload.eventId.trim() ? payload.eventId.trim() : 'day-3'
+
+  const eventCheck = await pool.query('SELECT event_id FROM events WHERE event_id = $1 LIMIT 1;', [eventId])
+  if (!eventCheck.rows[0]) {
+    throw new AppError(404, 'EVENT_NOT_FOUND', `Event '${eventId}' does not exist.`)
+  }
+
+  const organizerId = user?.organizerId || user?.organizer_id || user?.id || null
+
+  const result = await pool.query(
+    `INSERT INTO hackathon_problem_statements (event_id, title, description, max_capacity, is_active, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id;`,
+    [eventId, title, description, maxCapacity, isActive, organizerId]
+  )
+
+  return getProblemStatementById(result.rows[0].id)
+}
+
+const updateProblemStatement = async (id, user, payload = {}) => {
+  const existing = await pool.query(
+    'SELECT id, event_id, title, description, max_capacity, is_active FROM hackathon_problem_statements WHERE id = $1 LIMIT 1;',
+    [id]
+  )
+  if (!existing.rows[0]) {
+    throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+  }
+
+  const prev = existing.rows[0]
+  const title = payload.title !== undefined ? validateTitle(payload.title) : prev.title
+  const description = payload.description !== undefined ? validateDescription(payload.description) : prev.description
+  const isActive = payload.isActive !== undefined ? Boolean(payload.isActive) : prev.is_active
+
+  let maxCapacity = prev.max_capacity
+  if (payload.maxCapacity !== undefined) {
+    maxCapacity = validateCapacity(payload.maxCapacity)
+
+    // Editing rule: If a problem already has selections, do not allow reducing capacity below current selections!
+    if (maxCapacity !== null) {
+      const selectionsRes = await pool.query(
+        'SELECT COUNT(*)::int AS count FROM hackathon_problem_selections WHERE problem_statement_id = $1;',
+        [id]
+      )
+      const currentSelections = Number(selectionsRes.rows[0]?.count || 0)
+      if (maxCapacity < currentSelections) {
+        throw new AppError(
+          400,
+          'CANNOT_REDUCE_CAPACITY_BELOW_SELECTIONS',
+          `Cannot reduce capacity to ${maxCapacity} because ${currentSelections} teams have already selected this problem statement.`
+        )
+      }
+    }
+  }
+
+  await pool.query(
+    `UPDATE hackathon_problem_statements
+     SET title = $1, description = $2, max_capacity = $3, is_active = $4, updated_at = NOW()
+     WHERE id = $5;`,
+    [title, description, maxCapacity, isActive, id]
+  )
+
+  return getProblemStatementById(id)
+}
+
+const deleteProblemStatement = async (id) => {
+  const existing = await pool.query('SELECT id, event_id FROM hackathon_problem_statements WHERE id = $1 LIMIT 1;', [id])
+  if (!existing.rows[0]) {
+    throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+  }
+
+  // Check if any teams selected it
+  const selectionsRes = await pool.query(
+    'SELECT COUNT(*)::int AS count FROM hackathon_problem_selections WHERE problem_statement_id = $1;',
+    [id]
+  )
+  const selectionCount = Number(selectionsRes.rows[0]?.count || 0)
+  if (selectionCount > 0) {
+    throw new AppError(
+      409,
+      'CANNOT_DELETE_SELECTED_PROBLEM',
+      `Cannot delete problem statement because ${selectionCount} team(s) have already selected it. Deactivate it instead.`
+    )
+  }
+
+  await pool.query('DELETE FROM hackathon_problem_statements WHERE id = $1;', [id])
+  return { success: true, message: 'Problem statement deleted successfully.' }
+}
+
+const getProblemSelections = async (problemStatementId) => {
+  const problemRes = await pool.query(
+    'SELECT id, event_id, title, max_capacity, is_active FROM hackathon_problem_statements WHERE id = $1 LIMIT 1;',
+    [problemStatementId]
+  )
+  if (!problemRes.rows[0]) {
+    throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+  }
+  const problem = problemRes.rows[0]
+
+  const selectionsRes = await pool.query(
+    `SELECT
+       hpsel.id AS selection_id,
+       hpsel.selected_at,
+       t.id AS team_id,
+       t.team_name,
+       t.team_lead_registration_id,
+       lead_r.full_name AS lead_name,
+       lead_r.email AS lead_email,
+       lead_r.institute_name AS lead_institute
+     FROM hackathon_problem_selections hpsel
+     JOIN teams t ON t.id = hpsel.team_id
+     LEFT JOIN registrations lead_r ON lead_r.registration_id = t.team_lead_registration_id
+     WHERE hpsel.problem_statement_id = $1
+     ORDER BY hpsel.selected_at ASC;`,
+    [problemStatementId]
+  )
+
+  const teams = []
+  if (selectionsRes.rows.length > 0) {
+    const teamIds = selectionsRes.rows.map((r) => r.team_id)
+    const membersRes = await pool.query(
+      `SELECT
+         tm.team_id,
+         tm.registration_id,
+         tm.joined_at,
+         r.full_name,
+         r.email,
+         r.institute_name
+       FROM team_members tm
+       JOIN registrations r ON r.registration_id = tm.registration_id
+       WHERE tm.team_id = ANY($1::bigint[])
+       ORDER BY tm.joined_at ASC;`,
+      [teamIds]
+    )
+
+    const membersByTeam = new Map()
+    for (const m of membersRes.rows) {
+      const list = membersByTeam.get(String(m.team_id)) || []
+      list.push({
+        registrationId: m.registration_id,
+        fullName: m.full_name,
+        email: m.email,
+        instituteName: m.institute_name,
+        joinedAt: m.joined_at,
+      })
+      membersByTeam.set(String(m.team_id), list)
+    }
+
+    for (const sel of selectionsRes.rows) {
+      const teamIdStr = String(sel.team_id)
+      const members = membersByTeam.get(teamIdStr) || []
+      teams.push({
+        selectionId: String(sel.selection_id),
+        selectedAt: sel.selected_at,
+        teamId: teamIdStr,
+        teamName: sel.team_name,
+        teamLeadRegistrationId: sel.team_lead_registration_id,
+        teamLead: {
+          registrationId: sel.team_lead_registration_id,
+          fullName: sel.lead_name,
+          email: sel.lead_email,
+          instituteName: sel.lead_institute,
+        },
+        members: members.map((m) => ({
+          ...m,
+          isTeamLead: m.registrationId === sel.team_lead_registration_id,
+        })),
+      })
+    }
+  }
+
+  return {
+    problemStatementId: String(problem.id),
+    title: problem.title,
+    maxCapacity: problem.max_capacity,
+    selectedTeamsCount: teams.length,
+    selectedParticipantsCount: teams.reduce((acc, t) => acc + t.members.length, 0),
+    teams,
+  }
+}
+
+const selectProblemForTeam = async (teamId, problemStatementId, userId = null) => {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // 1. Fetch team
+    const teamRes = await client.query(
+      'SELECT id, event_id, team_name, team_lead_registration_id FROM teams WHERE id = $1 LIMIT 1;',
+      [teamId]
+    )
+    if (!teamRes.rows[0]) {
+      throw new AppError(404, 'TEAM_NOT_FOUND', 'Team not found.')
+    }
+    const team = teamRes.rows[0]
+
+    // 2. Lock problem statement row for atomic capacity check
+    const problemRes = await client.query(
+      'SELECT id, event_id, title, description, max_capacity, is_active FROM hackathon_problem_statements WHERE id = $1 FOR UPDATE;',
+      [problemStatementId]
+    )
+    if (!problemRes.rows[0]) {
+      throw new AppError(404, 'PROBLEM_STATEMENT_NOT_FOUND', 'Problem statement not found.')
+    }
+    const problem = problemRes.rows[0]
+
+    // 3. Validate event isolation
+    if (problem.event_id !== team.event_id) {
+      throw new AppError(400, 'EVENT_MISMATCH', 'Problem statement belongs to a different event than the team.')
+    }
+
+    // 4. Validate active status
+    if (!problem.is_active) {
+      throw new AppError(400, 'PROBLEM_STATEMENT_INACTIVE', 'This problem statement is currently inactive.')
+    }
+
+    // 5. If max_capacity is 0, selection is unavailable / full
+    if (problem.max_capacity === 0) {
+      throw new AppError(409, 'PROBLEM_STATEMENT_FULL', 'This problem statement is not available for selection.')
+    }
+
+    // 6. Check if team has already selected a problem statement for this event
+    const existingSelection = await client.query(
+      'SELECT id, problem_statement_id FROM hackathon_problem_selections WHERE event_id = $1 AND team_id = $2 LIMIT 1;',
+      [team.event_id, team.id]
+    )
+    if (existingSelection.rows[0]) {
+      throw new AppError(409, 'ALREADY_SELECTED', 'This team has already selected a problem statement.')
+    }
+
+    // 7. Check capacity (if not unlimited)
+    if (problem.max_capacity !== null) {
+      const countRes = await client.query(
+        'SELECT COUNT(*)::int AS count FROM hackathon_problem_selections WHERE problem_statement_id = $1;',
+        [problemStatementId]
+      )
+      const currentCount = Number(countRes.rows[0]?.count || 0)
+      if (currentCount >= problem.max_capacity) {
+        throw new AppError(409, 'PROBLEM_STATEMENT_FULL', 'This problem statement has reached its maximum capacity.')
+      }
+    }
+
+    // 8. Insert selection atomically
+    const insertRes = await client.query(
+      `INSERT INTO hackathon_problem_selections (event_id, problem_statement_id, team_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, selected_at;`,
+      [team.event_id, problemStatementId, team.id]
+    )
+
+    await client.query('COMMIT')
+    return {
+      selectionId: String(insertRes.rows[0].id),
+      selectedAt: insertRes.rows[0].selected_at,
+      teamId: String(team.id),
+      teamName: team.team_name,
+      problemStatementId: String(problem.id),
+      problemTitle: problem.title,
+      problemDescription: problem.description,
+      selectedByUserId: userId ? String(userId) : null,
+    }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    if (err.code === '23505') {
+      throw new AppError(409, 'ALREADY_SELECTED', 'This team has already selected a problem statement.')
+    }
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+const selectProblemStatement = async (user, problemStatementId) => {
+  const userRegistration = await findRegistrationByUser(user)
+  if (!userRegistration) {
+    throw new AppError(404, 'REGISTRATION_NOT_FOUND', 'Registration record not found.')
+  }
+
+  const memberRes = await pool.query(
+    'SELECT team_id FROM team_members WHERE registration_id = $1 LIMIT 1;',
+    [userRegistration.registration_id]
+  )
+  if (!memberRes.rows[0]) {
+    throw new AppError(400, 'TEAM_NOT_FOUND', 'Create or join a team before selecting a problem statement.')
+  }
+
+  const userId = user?.userId || user?.id || null
+  return selectProblemForTeam(memberRes.rows[0].team_id, problemStatementId, userId)
+}
+
 const getHackathonInfo = async () => ({
   title: 'Hackathon',
   entries: [],
@@ -187,6 +728,17 @@ const getHackathonInfo = async () => ({
 module.exports = {
   getHackathonInfo,
   getMyTeam,
+  getMyTeamProblemSelection,
   createTeam,
   verifyParticipant,
+  getHackathonStats,
+  getProblemStatements,
+  getProblemStatementById,
+  createProblemStatement,
+  updateProblemStatement,
+  deleteProblemStatement,
+  getProblemSelections,
+  selectProblemForTeam,
+  selectProblemStatement,
 }
+
