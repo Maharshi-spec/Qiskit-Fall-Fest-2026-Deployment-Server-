@@ -857,27 +857,27 @@ const Hackathon = () => {
         </div>
       </div>
 
-      <div className="container detail-page__panel detail-page__panel--split">
+      <div className="container detail-page__panel detail-page__panel--split detail-page__panel--expectations">
         <div className="detail-page__panel-copy">
           <p className="page-shell__eyebrow">What to expect</p>
-          <h2>Practical quantum learning and collaborative building.</h2>
+          <h2>Learn, experiment, and build with quantum technology.</h2>
           <p>
-            The hackathon experience is designed around experimentation, learning, and teamwork. Participants explore ideas in a flexible environment that encourages honest experimentation and guided discovery.
+            Qiskit Fall Fest 2026 is a hands-on experience designed for curiosity, collaboration, and practical learning. Explore quantum computing through workshops, problem-solving, experimentation, and team-based challenges—all in an environment where you can learn by doing.
           </p>
         </div>
 
         <div className="detail-page__info-stack">
           <div className="detail-info-item">
             <span>Focus</span>
-            <strong>Qiskit + quantum problem solving</strong>
+            <strong>Quantum computing, Qiskit &amp; real-world problem solving</strong>
           </div>
           <div className="detail-info-item">
-            <span>Approach</span>
-            <strong>Hands-on and collaborative</strong>
+            <span>Experience</span>
+            <strong>Hands-on workshops, guided learning &amp; collaborative building</strong>
           </div>
           <div className="detail-info-item">
-            <span>Status</span>
-            <strong>Details coming soon</strong>
+            <span>For everyone</span>
+            <strong>Learn at your own pace, collaborate with others, and turn ideas into working solutions</strong>
           </div>
         </div>
       </div>
