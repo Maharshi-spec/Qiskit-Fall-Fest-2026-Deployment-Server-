@@ -161,7 +161,7 @@ export const techTeam = [
   },
 
   {
-    name: "V Sai Tej",
+    name: "Nadiminti Venkata Sai Tej",
     role: "Backend Developer",
     department: "CSE-AIML",
     year: "2nd Year",
