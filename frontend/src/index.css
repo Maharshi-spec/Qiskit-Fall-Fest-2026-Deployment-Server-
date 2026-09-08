@@ -2806,9 +2806,16 @@ a:focus-visible {
   }
 
   .hero-bloch-orbital__mover {
-    transform: translate3d(18.9%, 70.0%, 0) scale(1) !important;
     opacity: 0.95 !important;
     z-index: 1 !important;
+  }
+
+  .hero-bloch-orbital:not(.hero-bloch-orbital--opposite) .hero-bloch-orbital__mover {
+    transform: translate3d(50.0%, 10.0%, 0) scale(1) !important;
+  }
+
+  .hero-bloch-orbital--opposite .hero-bloch-orbital__mover {
+    transform: translate3d(50.0%, 78.0%, 0) scale(1) !important;
   }
 
   .hero-bloch-orbital__sphere-spin {
@@ -2822,9 +2829,16 @@ a:focus-visible {
 }
 
 .hero-bloch-orbital--reduced-motion .hero-bloch-orbital__mover {
-  transform: translate3d(18.9%, 70.0%, 0) scale(1) !important;
   opacity: 0.95 !important;
   z-index: 1 !important;
+}
+
+.hero-bloch-orbital--reduced-motion:not(.hero-bloch-orbital--opposite) .hero-bloch-orbital__mover {
+  transform: translate3d(50.0%, 10.0%, 0) scale(1) !important;
+}
+
+.hero-bloch-orbital--reduced-motion.hero-bloch-orbital--opposite .hero-bloch-orbital__mover {
+  transform: translate3d(50.0%, 78.0%, 0) scale(1) !important;
 }
 
 .hero-bloch-orbital--reduced-motion .hero-bloch-orbital__sphere-spin {
