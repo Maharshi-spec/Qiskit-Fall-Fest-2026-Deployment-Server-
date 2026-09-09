@@ -16,9 +16,9 @@ const Day3 = () => {
     <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div className="container detail-page__header">
         <div className="detail-page__intro">
-          <p className="page-shell__eyebrow">Day 3</p>
-          <h1>Share, challenge, and connect.</h1>
-          <p>{day?.description || 'A culminating experience reflecting on learning outcomes, community collaboration, and progress across the event.'}</p>
+          <p className="page-shell__eyebrow">{day?.label || 'DAY 3 · HACKATHON'} — {day?.date || 'September 9, 2026'}</p>
+          <h1>{day?.title || 'Build, test, and collaborate.'}</h1>
+          <p>{day?.description || 'Intensive building day. Finalize project implementations, run circuits on quantum simulators, test code, collaborate with mentors, and prepare project showcase submissions.'}</p>
         </div>
         <div className="detail-page__visual">
           <img src={sticker09} alt="" className="detail-page__sticker" />
@@ -26,8 +26,8 @@ const Day3 = () => {
       </div>
 
       <div className="container detail-page__meta-bar">
-        <Link to="/day-2" className="page-inline-link">← Previous day</Link>
-        <Link to="/day-4" className="page-inline-link">Next day →</Link>
+        <Link to="/day-2" className="page-inline-link">← Previous day (Day 2)</Link>
+        <Link to="/day-4" className="page-inline-link">Next day (Day 4) →</Link>
       </div>
 
       <div className="container detail-page__session-shell">

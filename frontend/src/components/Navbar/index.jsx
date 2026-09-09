@@ -139,7 +139,7 @@ const Navbar = () => {
     </div>
   )
 
-  const renderNav = (items, className) => (
+  const renderNav = (items, className, closeOnClick = false) => (
     <motion.nav
       className={className}
       aria-label="Main navigation"
@@ -162,7 +162,11 @@ const Navbar = () => {
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) => `nav__menu-link ${item.isDay ? 'nav__menu-link--day' : ''} ${isActive ? 'nav__menu-link--active' : ''}`}
-            onClick={() => item.isDay || setIsOpen(false)}
+            onClick={() => {
+              if (closeOnClick || !item.isDay) {
+                setIsOpen(false)
+              }
+            }}
           >{({ isActive }) => (
             <>
               {item.label}
@@ -390,7 +394,7 @@ const Navbar = () => {
       <AnimatePresence initial={false}>
         {isOpen && (
           <div className="nav-panel-wrap">
-            {renderNav(primaryNavItems, 'nav nav--menu nav--open')}
+            {renderNav(primaryNavItems, 'nav nav--menu nav--open', true)}
           </div>
         )}
       </AnimatePresence>

@@ -16,9 +16,9 @@ const Day1 = () => {
     <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div className="container detail-page__header">
         <div className="detail-page__intro">
-          <p className="page-shell__eyebrow">Day 1</p>
+          <p className="page-shell__eyebrow">DAY 1 · BOOTCAMP — SEPTEMBER 7, 2026</p>
           <h1>Start with the fundamentals.</h1>
-          <p>{day?.description || 'A guided introduction to quantum concepts and Qiskit fundamentals.'}</p>
+          <p>{day?.description || 'A beginner-friendly deep dive into quantum computing, qubits, superposition, quantum circuits, and getting started with Qiskit.'}</p>
         </div>
         <div className="detail-page__visual">
           <img src={sticker07} alt="" className="detail-page__sticker" />
@@ -27,7 +27,7 @@ const Day1 = () => {
 
       <div className="container detail-page__meta-bar">
         <Link to="/" className="page-inline-link">← Home</Link>
-        <Link to="/day-2" className="page-inline-link">Next day →</Link>
+        <Link to="/day-2" className="page-inline-link">Next day (Day 2) →</Link>
       </div>
 
       <div className="container detail-page__session-shell">

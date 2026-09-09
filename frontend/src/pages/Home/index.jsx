@@ -382,7 +382,7 @@ const Home = () => {
             <div className="section__header-row section__header-row--program">
               <SectionHeader
                 label="The Program"
-                title="Three days of quantum learning, building, and discovery."
+                title="Four days of quantum learning, building, and discovery."
                 description="The event brings together quantum computing fundamentals, Qiskit learning, technical sessions, hands-on workshops, collaborative activities, hackathon work, and community connection."
               />
               <StickerAccent src={sticker03} alt="" className="sticker--program" rotate={-8} delay={0.18} />
@@ -406,9 +406,10 @@ const Home = () => {
                   aria-selected={selectedDay === day.id}
                   aria-controls={`panel-${day.id}`}
                   className={`program-day-tab ${selectedDay === day.id ? 'program-day-tab--active' : ''}`}
-                  onClick={() => {
+                  onClick={(event) => {
                     setSelectedDay(day.id)
                     setExpandedSessionId(day.sessions[0]?.id || null)
+                    event.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
                   }}
                   whileTap={shouldReduceMotion ? undefined : { scale: 0.99 }}
                 >
@@ -421,8 +422,9 @@ const Home = () => {
             <div id={`panel-${selectedDay}`} className="program-day-panel" role="tabpanel">
               <div className="program-day-panel__header">
                 <div>
-                  <p className="program-day-panel__eyebrow">{activeProgramDay.label}</p>
+                  <p className="program-day-panel__eyebrow">{activeProgramDay.label} — {activeProgramDay.date}</p>
                   <h3>{activeProgramDay.title}</h3>
+                  <p className="program-day-panel__desc">{activeProgramDay.description}</p>
                 </div>
                 <StickerAccent src={stickerQiskit} alt="" className="sticker--program-detail" rotate={10} delay={0.22} />
               </div>
@@ -485,7 +487,7 @@ const Home = () => {
             </div>
 
             <div className="section__action-row section__action-row--program">
-              <Button to={activeProgramDay.link} kind="secondary">View {activeProgramDay.label} →</Button>
+              <Button to={activeProgramDay.link} kind="secondary">View {activeProgramDay.dayNumber || activeProgramDay.label} →</Button>
             </div>
           </div>
         </motion.section>

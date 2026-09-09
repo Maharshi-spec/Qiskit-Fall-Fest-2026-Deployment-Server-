@@ -55,7 +55,7 @@ const Workshops = () => {
 
       <div className="container detail-page__cta-row">
         {!isLoggedIn && <Button to="/register" kind="primary">Register your interest</Button>}
-        <Button to="/day-1" kind="secondary">See day 1 program</Button>
+        <Button to="/day-1" kind="secondary">See Day 1 Bootcamp</Button>
       </div>
     </motion.section>
   )
