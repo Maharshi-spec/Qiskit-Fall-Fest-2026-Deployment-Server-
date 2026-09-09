@@ -1238,6 +1238,25 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.organizer-page__profile-footer {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 79, 163, 0.14);
+}
+
+.organizer-page__profile-logout {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  min-height: 2.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
 .organizer-page__nav {
   display: flex;
   flex-wrap: wrap;
@@ -2415,6 +2434,37 @@ a:focus-visible {
 
   .organizer-navbar {
     padding: 0.65rem 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .organizer-navbar__subheading {
+    display: none;
+  }
+
+  .organizer-page__profile-popover {
+    position: fixed;
+    top: 4.1rem;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(320px, calc(100vw - 2rem));
+    min-width: 0;
+    max-width: calc(100vw - 2rem);
+    box-sizing: border-box;
+    z-index: 1000;
+    animation: organizerProfileFadeMobile 0.22s ease;
+  }
+}
+
+@keyframes organizerProfileFadeMobile {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
   }
 }
 

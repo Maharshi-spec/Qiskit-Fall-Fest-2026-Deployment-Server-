@@ -168,7 +168,7 @@ const OrganizerLayout = ({ children }) => {
           </div>
         </div>
 
-        {/* TOP RIGHT NAVIGATION: Exactly [Profile Icon] [Logout] [Dashboard] */}
+        {/* TOP RIGHT NAVIGATION: Exactly [ProfileSwitcher] [Profile Icon] [Dashboard] */}
         <div className="organizer-navbar__actions">
           <ProfileSwitcher compact />
           {/* 1. Profile Icon */}
@@ -205,16 +205,23 @@ const OrganizerLayout = ({ children }) => {
                 <div className="organizer-page__profile-status">
                   <span className="organizer-page__role-badge">Organizer</span>
                 </div>
+                <div className="organizer-page__profile-footer">
+                  <button
+                    type="button"
+                    className="button button--primary organizer-page__profile-logout"
+                    onClick={() => {
+                      setProfileOpen(false)
+                      handleLogout()
+                    }}
+                  >
+                    Logout
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* 2. Logout */}
-          <button type="button" className="button button--primary organizer-navbar__btn" onClick={handleLogout}>
-            Logout
-          </button>
-
-          {/* 3. Dashboard */}
+          {/* 2. Dashboard */}
           <Link to={getProfilePath('organizer')} className="button button--secondary organizer-navbar__btn">
             Dashboard
           </Link>
