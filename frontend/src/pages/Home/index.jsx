@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -200,8 +200,21 @@ const Home = () => {
     ]
   }, [])
 
-
-
+  const renderSpeakerCard = useCallback(
+    (item) => (
+      <SpeakerCard
+        name={item.name}
+        role={item.role}
+        organization={item.organization}
+        bio={item.bio}
+        session={item.session}
+        link={item.link}
+        image={item.image}
+        alt={item.alt}
+      />
+    ),
+    [],
+  )
   const activeProgramDay = useMemo(
     () => programDays.find((day) => day.id === selectedDay) || programDays[0],
     [selectedDay],
@@ -569,21 +582,13 @@ const Home = () => {
               <StickerAccent src={sticker06} alt="" className="sticker--speakers" rotate={10} delay={0.14} />
             </div>
 
-            <div className="speaker-grid">
-              {speakerCards.map((item) => (
-                <SpeakerCard
-                  key={`${item.name}-${item.role || 'speaker'}`}
-                  name={item.name}
-                  role={item.role}
-                  organization={item.organization}
-                  bio={item.bio}
-                  session={item.session}
-                  link={item.link}
-                  image={item.image}
-                  alt={item.alt}
-                />
-              ))}
-            </div>
+            <HorizontalTeamCarousel
+              items={speakerCards}
+              category="speakers"
+              desktopGrid
+              ariaLabel="Speakers"
+              renderItem={renderSpeakerCard}
+            />
           </div>
         </motion.section>
 
