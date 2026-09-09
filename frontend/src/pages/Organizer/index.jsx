@@ -51,7 +51,11 @@ const OrganizerLayout = ({ children }) => {
     }
 
     document.addEventListener('mousedown', handlePointerDown)
-    return () => document.removeEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+    }
   }, [])
 
   const organizerToken = getOrganizerToken()
