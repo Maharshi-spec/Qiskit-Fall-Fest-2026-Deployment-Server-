@@ -122,7 +122,7 @@ export const techTeam = [
 
   {
     name: "Watkins Noah Sam",
-    role: "Frontend Lead Developer",
+    role: "Frontend Developer",
     department: "CSE-SE",
     year: "2nd Year",
     college: "Centurion University of Technology and Management, Vizianagaram",
