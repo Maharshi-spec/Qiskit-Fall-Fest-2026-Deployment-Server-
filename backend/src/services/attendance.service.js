@@ -80,7 +80,7 @@ const getEventById = async (eventId) => {
 
 const createEvent = async (payload = {}) => {
   const rawType = (payload.event_type || payload.eventType || '').trim().toUpperCase()
-  const validTypes = ['HACKATHON', 'WORKSHOP', 'WEBINAR', 'BOOTCAMP', 'OTHER']
+  const validTypes = ['HACKATHON', 'WORKSHOP', 'WEBINAR', 'BOOTCAMP', 'OTHER', 'GENERAL']
 
   if (!rawType) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Event type is required.')
@@ -163,37 +163,85 @@ const updateEvent = async (eventId, payload = {}) => {
     throw new AppError(404, 'EVENT_NOT_FOUND', `Event '${eventId}' not found.`)
   }
   const existing = check.rows[0]
-  const name = payload.event_name !== undefined ? payload.event_name.trim() : existing.event_name
-  const description = payload.description !== undefined ? payload.description.trim() : existing.description
-  const date = payload.event_date !== undefined ? payload.event_date.trim() : existing.event_date
-  const startTime = payload.start_time !== undefined ? payload.start_time : existing.start_time
-  const endTime = payload.end_time !== undefined ? payload.end_time : existing.end_time
-  const location = payload.location !== undefined ? payload.location.trim() : existing.location
 
+  // Name (required if supplied)
+  const rawName = payload.event_name !== undefined ? payload.event_name : (payload.eventName !== undefined ? payload.eventName : payload.name)
+  let name = existing.event_name
+  if (rawName !== undefined) {
+    const trimmed = rawName == null ? '' : String(rawName).trim()
+    if (!trimmed) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Event name is required.')
+    }
+    name = trimmed
+  }
+
+  // Description (optional)
+  const rawDesc = payload.description
+  let description = existing.description
+  if (rawDesc !== undefined) {
+    description = rawDesc == null || String(rawDesc).trim() === '' ? null : String(rawDesc).trim()
+  }
+
+  // Date (required if supplied)
+  const rawDate = payload.event_date !== undefined ? payload.event_date : (payload.eventDate !== undefined ? payload.eventDate : payload.date)
+  let date = existing.event_date
+  if (rawDate !== undefined) {
+    const trimmedDate = rawDate == null ? '' : String(rawDate).trim()
+    if (!trimmedDate) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Event date is required.')
+    }
+    date = trimmedDate
+  }
+
+  // Start & End Time (optional)
+  const rawStart = payload.start_time !== undefined ? payload.start_time : (payload.startTime !== undefined ? payload.startTime : payload.time)
+  let startTime = existing.start_time
+  if (rawStart !== undefined) {
+    startTime = rawStart == null || String(rawStart).trim() === '' ? null : String(rawStart).trim()
+  }
+
+  const rawEnd = payload.end_time !== undefined ? payload.end_time : payload.endTime
+  let endTime = existing.end_time
+  if (rawEnd !== undefined) {
+    endTime = rawEnd == null || String(rawEnd).trim() === '' ? null : String(rawEnd).trim()
+  }
+
+  // Location / Venue (optional)
+  const rawLoc = payload.location !== undefined ? payload.location : payload.venue
+  let location = existing.location
+  if (rawLoc !== undefined) {
+    location = rawLoc == null || String(rawLoc).trim() === '' ? null : String(rawLoc).trim()
+  }
+
+  // Status (optional)
   let status = existing.status
-  if (payload.status) {
+  if (payload.status !== undefined && payload.status !== null) {
     const s = String(payload.status).trim().toUpperCase()
     if (['ACTIVE', 'CLOSED'].includes(s)) status = s
   }
 
+  // Event Type (optional)
+  const rawType = payload.event_type !== undefined ? payload.event_type : (payload.eventType !== undefined ? payload.eventType : payload.type)
   let eventType = existing.event_type
-  if (payload.event_type || payload.eventType) {
-    const t = String(payload.event_type || payload.eventType).trim().toUpperCase()
-    if (['HACKATHON', 'WORKSHOP', 'WEBINAR', 'BOOTCAMP', 'OTHER'].includes(t)) eventType = t
+  if (rawType !== undefined && rawType !== null) {
+    const t = String(rawType).trim().toUpperCase()
+    if (['HACKATHON', 'WORKSHOP', 'WEBINAR', 'BOOTCAMP', 'OTHER', 'GENERAL'].includes(t)) {
+      eventType = t
+    }
   }
 
+  // Max Participants (optional numeric)
   let maxParticipants = existing.max_participants
-  if (payload.max_participants !== undefined) {
-    maxParticipants = payload.max_participants === '' || payload.max_participants === null ? null : Number(payload.max_participants)
-  } else if (payload.maxParticipants !== undefined) {
-    maxParticipants = payload.maxParticipants === '' || payload.maxParticipants === null ? null : Number(payload.maxParticipants)
+  const rawMax = payload.max_participants !== undefined ? payload.max_participants : payload.maxParticipants
+  if (rawMax !== undefined) {
+    maxParticipants = rawMax === '' || rawMax === null || isNaN(Number(rawMax)) ? null : Number(rawMax)
   }
 
+  // Registration Info (optional text)
   let registrationInfo = existing.registration_info
-  if (payload.registration_info !== undefined) {
-    registrationInfo = payload.registration_info.trim() || null
-  } else if (payload.registrationInfo !== undefined) {
-    registrationInfo = payload.registrationInfo.trim() || null
+  const rawRegInfo = payload.registration_info !== undefined ? payload.registration_info : payload.registrationInfo
+  if (rawRegInfo !== undefined) {
+    registrationInfo = rawRegInfo == null || String(rawRegInfo).trim() === '' ? null : String(rawRegInfo).trim()
   }
 
   const result = await pool.query(

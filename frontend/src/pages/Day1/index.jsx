@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import Button from '../../components/Button'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { programDays } from '../../data/program'
 import sticker07 from '../../assets/qiskit/Sticker 07.svg'
 
 const Day1 = () => {
+  const { getProfilePath } = useEventProfile()
   const day = programDays[0]
   const [expandedId, setExpandedId] = useState(day?.sessions[0]?.id || null)
 
@@ -13,54 +15,88 @@ const Day1 = () => {
   }, [day])
 
   return (
-    <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <motion.section
+      className="detail-page day-page day1-page"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35 }}
+    >
       <div className="container detail-page__header">
         <div className="detail-page__intro">
           <p className="page-shell__eyebrow">DAY 1 · BOOTCAMP — SEPTEMBER 7, 2026</p>
-          <h1>Start with the fundamentals.</h1>
-          <p>{day?.description || 'A beginner-friendly deep dive into quantum computing, qubits, superposition, quantum circuits, and getting started with Qiskit.'}</p>
+          <h1>{day?.title || 'Start with the fundamentals.'}</h1>
+          <p>
+            {day?.description ||
+              'A beginner-friendly deep dive into quantum computing, qubits, superposition, quantum circuits, and getting started with Qiskit.'}
+          </p>
         </div>
         <div className="detail-page__visual">
           <img src={sticker07} alt="" className="detail-page__sticker" />
         </div>
       </div>
 
-      <div className="container detail-page__meta-bar">
-        <Link to="/" className="page-inline-link">← Home</Link>
-        <Link to="/day-2" className="page-inline-link">Next day (Day 2) →</Link>
+      <div className="container day-schedule-container">
+
+        <div className="day-schedule-header">
+          <div>
+            <p className="page-shell__eyebrow">Day 1 Schedule</p>
+            <h2>Bootcamp Timetable</h2>
+          </div>
+          <span className="day-schedule-badge">5 Sessions · Main Auditorium &amp; Labs</span>
+        </div>
+
+        <div className="detail-page__session-shell">
+          {day?.sessions.map((session) => {
+            const isExpanded = expandedId === session.id
+            return (
+              <article
+                key={session.id}
+                className={`program-session ${isExpanded ? 'program-session--expanded' : ''}`}
+              >
+                <button
+                  type="button"
+                  className="program-session__toggle"
+                  onClick={() => setExpandedId((current) => (current === session.id ? null : session.id))}
+                  aria-expanded={isExpanded}
+                >
+                  <div className="program-session__row">
+                    <span className="program-session__time">{session.time}</span>
+                    <span className="program-session__type">{session.type}</span>
+                  </div>
+                  <div className="program-session__heading-row">
+                    <h4>{session.title}</h4>
+                    <span className="program-session__expand" aria-hidden="true">
+                      {isExpanded ? '−' : '+'}
+                    </span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="program-session__content">
+                    <p>{session.description}</p>
+                    {session.points && session.points.length > 0 && (
+                      <ul>
+                        {session.points.map((point) => (
+                          <li key={point}>{point}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="program-session__meta">
+                      {session.speaker && <span><strong>Speaker:</strong> {session.speaker}</span>}
+                      {session.location && <span><strong>Location:</strong> {session.location}</span>}
+                      {session.duration && <span><strong>Duration:</strong> {session.duration}</span>}
+                    </div>
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="container detail-page__session-shell">
-        {day?.sessions.map((session) => (
-          <article key={session.id} className={`program-session ${expandedId === session.id ? 'program-session--expanded' : ''}`}>
-            <button type="button" className="program-session__toggle" onClick={() => setExpandedId((current) => (current === session.id ? null : session.id))} aria-expanded={expandedId === session.id}>
-              <div className="program-session__row">
-                <span className="program-session__time">{session.time}</span>
-                <span className="program-session__type">{session.type}</span>
-              </div>
-              <div className="program-session__heading-row">
-                <h4>{session.title}</h4>
-                <span className="program-session__expand">{expandedId === session.id ? '−' : '+'}</span>
-              </div>
-            </button>
-
-            {expandedId === session.id && (
-              <div className="program-session__content">
-                <p>{session.description}</p>
-                <ul>
-                  {session.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-                <div className="program-session__meta">
-                  {session.speaker && <span>Speaker: {session.speaker}</span>}
-                  {session.location && <span>Location: {session.location}</span>}
-                  {session.duration && <span>Duration: {session.duration}</span>}
-                </div>
-              </div>
-            )}
-          </article>
-        ))}
+      <div className="container detail-page__cta-row">
+        <Button to={getProfilePath('')} kind="secondary">← Back to Home</Button>
+        <Button to={getProfilePath('day-2')} kind="primary">Next: Day 2 Hackathon →</Button>
       </div>
     </motion.section>
   )

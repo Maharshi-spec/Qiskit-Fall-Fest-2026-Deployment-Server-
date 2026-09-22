@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/Button'
@@ -44,19 +44,29 @@ const OrganizerLayout = ({ children }) => {
   const { getProfilePath } = useEventProfile()
 
   useEffect(() => {
+    if (!profileOpen) return
+
     const handlePointerDown = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setProfileOpen(false)
       }
     }
 
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setProfileOpen(false)
+      }
+    }
+
     document.addEventListener('mousedown', handlePointerDown)
     document.addEventListener('touchstart', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [])
+  }, [profileOpen])
 
   const organizerToken = getOrganizerToken()
   const organizerProfile = organizerToken ? parseJwtPayload(organizerToken) : null
@@ -175,14 +185,14 @@ const OrganizerLayout = ({ children }) => {
           <div
             ref={profileRef}
             className="organizer-page__profile-wrap"
-            onMouseEnter={() => setProfileOpen(true)}
-            onMouseLeave={() => setProfileOpen(false)}
           >
             <button
               type="button"
               className="organizer-page__profile-button"
               onClick={() => setProfileOpen((open) => !open)}
               aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              aria-controls="organizer-profile-popover"
               aria-label="Organizer profile menu"
               title={organizerName}
             >
@@ -190,7 +200,12 @@ const OrganizerLayout = ({ children }) => {
             </button>
 
             {profileOpen && (
-              <div className="organizer-page__profile-popover" role="dialog" aria-label="Organizer profile">
+              <div
+                id="organizer-profile-popover"
+                className="organizer-page__profile-popover"
+                role="menu"
+                aria-label="Organizer profile"
+              >
                 <div className="organizer-page__profile-summary">
                   <span className="organizer-page__profile-avatar organizer-page__profile-avatar--large">{organizerName.charAt(0).toUpperCase()}</span>
                   <div>
@@ -240,7 +255,21 @@ const OrganizerLayout = ({ children }) => {
         )}
 
         {/* LEFT SIDEBAR */}
-        <aside className={`organizer-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="Organizer sidebar navigation">
+        <aside className={`organizer-sidebar ${sidebarOpen ? 'is-open' : ''}`} aria-label="Organizer operations navigation">
+          <div className="organizer-sidebar__header">
+            <span className="organizer-sidebar__section-title">OPERATIONS</span>
+            {sidebarOpen && (
+              <button
+                type="button"
+                className="organizer-sidebar__close-btn"
+                onClick={() => setSidebarOpen(false)}
+                aria-label="Close navigation sidebar"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           <nav className="organizer-sidebar__nav">
             {navItems.map((item) => (
               <NavLink
@@ -250,11 +279,19 @@ const OrganizerLayout = ({ children }) => {
                 end={item.to === getProfilePath('organizer')}
                 onClick={() => setSidebarOpen(false)}
               >
-                <span className="organizer-sidebar__icon">{item.icon}</span>
+                <span className="organizer-sidebar__indicator" aria-hidden="true" />
+                <span className="organizer-sidebar__icon" aria-hidden="true">{item.icon}</span>
                 <span className="organizer-sidebar__label">{item.label}</span>
               </NavLink>
             ))}
           </nav>
+
+          <div className="organizer-sidebar__footer">
+            <div className="organizer-sidebar__footer-badge">
+              <span className="organizer-sidebar__footer-dot" aria-hidden="true" />
+              <span>Operations Console</span>
+            </div>
+          </div>
         </aside>
 
         {/* MAIN CONTENT AREA */}
@@ -303,37 +340,202 @@ const OrganizerLogin = () => {
     setError('Invalid organizer credentials.')
   }
 
-  return (
-    <div className="detail-page">
-      <div className="container detail-page__panel">
-        <div className="detail-page__panel-copy">
-          <p className="page-shell__eyebrow">Organizer access</p>
-          <h2>Sign in to your dashboard.</h2>
-          <p>This area is restricted to authorized organizers.</p>
-        </div>
+  const operations = [
+    {
+      label: 'Participants',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Attendance',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Hackathon',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Rewards',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="7" />
+          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Events',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+    },
+    {
+      label: 'Post-Event',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+      ),
+    },
+  ]
 
-        <div className="detail-page__form-shell detail-page__form-shell--compact">
-          <form className="detail-form" onSubmit={handleLogin}>
+  return (
+    <div className="organizer-login">
+      <div className="organizer-login__container">
+        {/* TOP BRANDING BAR */}
+        <header className="organizer-login__header">
+          <Link to={getProfilePath('')} className="organizer-login__brand" title="Return to Event Site">
+            <span className="organizer-login__brand-icon" aria-hidden="true">⚛</span>
+            <span className="organizer-login__brand-name">Qiskit Fall Fest 2026</span>
+          </Link>
+          <div className="organizer-login__header-badge">
+            <span className="organizer-login__header-badge-dot" aria-hidden="true" />
+            <span>Event Operations</span>
+          </div>
+        </header>
+
+        {/* MAIN TWO-COLUMN GRID */}
+        <div className="organizer-login__grid">
+          {/* LEFT: CONTEXT / IDENTITY PANEL */}
+          <section className="organizer-login__context" aria-labelledby="organizer-login-title">
+            <p className="organizer-login__eyebrow">ORGANIZER CONSOLE</p>
+            <h1 id="organizer-login-title" className="organizer-login__title">
+              Manage Qiskit Fall Fest 2026
+            </h1>
+            <p className="organizer-login__subtitle">
+              Secure access to event operations, attendance, participants, hackathon workflows, rewards, and post-event configuration.
+            </p>
+
+            <div className="organizer-login__ops" aria-label="Console operation domains">
+              <span className="organizer-login__ops-heading">CONSOLE CAPABILITIES</span>
+              <ul className="organizer-login__ops-list" role="list">
+                {operations.map((op) => (
+                  <li key={op.label} className="organizer-login__op-item">
+                    <span className="organizer-login__op-icon" aria-hidden="true">
+                      {op.icon}
+                    </span>
+                    <span className="organizer-login__op-label">{op.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* RIGHT: FOCUSED AUTHENTICATION FORM */}
+          <section className="organizer-login__card" aria-labelledby="organizer-signin-heading">
+            <div className="organizer-login__card-header">
+              <h2 id="organizer-signin-heading" className="organizer-login__card-title">
+                Organizer sign in
+              </h2>
+              <p className="organizer-login__card-subtitle">
+                Sign in to access the event operations dashboard.
+              </p>
+            </div>
+
             {error && (
-              <div style={{ padding: '0.8rem 0.9rem', borderRadius: '12px', background: 'rgba(255,79,163,0.08)', color: '#c2348a', border: '1px solid rgba(255,79,163,0.14)' }}>
-                {error}
+              <div
+                role="alert"
+                aria-live="polite"
+                className="organizer-login__error-banner"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className="organizer-login__error-icon"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{error}</span>
               </div>
             )}
 
-            <label>
-              Email
-              <input type="email" name="email" value={form.email} onChange={handleChange} required />
-            </label>
+            <form className="organizer-login__form" onSubmit={handleLogin} noValidate={false}>
+              <div className="organizer-login__field">
+                <label htmlFor="organizer-email" className="organizer-login__label">
+                  Email
+                </label>
+                <input
+                  id="organizer-email"
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  autoComplete="email"
+                  placeholder="admin@qiskitfallfest.com"
+                  required
+                  disabled={isLoading}
+                  className="organizer-login__input"
+                />
+              </div>
 
-            <label>
-              Password
-              <input type="password" name="password" value={form.password} onChange={handleChange} required />
-            </label>
+              <div className="organizer-login__field">
+                <label htmlFor="organizer-password" className="organizer-login__label">
+                  Password
+                </label>
+                <input
+                  id="organizer-password"
+                  type="password"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  autoComplete="current-password"
+                  placeholder="••••••••••••"
+                  required
+                  disabled={isLoading}
+                  className="organizer-login__input"
+                />
+              </div>
 
-            <Button type="submit" kind="primary" disabled={isLoading}>
-              {isLoading ? 'Signing in…' : 'Login to Organizer Dashboard'}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                kind="primary"
+                disabled={isLoading}
+                className="organizer-login__submit-btn"
+              >
+                {isLoading ? 'Signing in…' : 'Sign in to Organizer Dashboard'}
+              </Button>
+            </form>
+
+            <div className="organizer-login__footer-note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>Authorized personnel only. Sessions are encrypted and audited.</span>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -512,6 +714,7 @@ const QR_REFRESH_SECONDS = 5
 const QR_REFRESH_MS = QR_REFRESH_SECONDS * 1000
 
 const OrganizerAttendancePage = () => {
+  const { activeProfile } = useEventProfile()
   const [events, setEvents] = useState([])
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [sessionActive, setSessionActive] = useState(false)
@@ -521,30 +724,43 @@ const OrganizerAttendancePage = () => {
   const [records, setRecords] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessionError, setSessionError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const rotationRequestIdRef = useRef(0)
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true)
-      const res = await api.fetchActiveEvents()
-      setIsLoading(false)
-      if (res.success && res.data) {
-        setEvents(res.data)
-      }
+  const fetchEvents = useCallback(async () => {
+    setIsLoading(true)
+    setSessionError('')
+    const res = await api.fetchActiveEvents()
+    setIsLoading(false)
+    if (res.success && res.data) {
+      setEvents(res.data)
+    } else {
+      setEvents([])
+      setSessionError(res.error?.message || 'Unable to load attendance sessions.')
     }
-    fetchEvents()
   }, [])
 
-  const loadAttendanceData = async (eventId) => {
+  // Re-fetch events and reset selection when activeProfile changes for isolation
+  useEffect(() => {
+    setSelectedEvent(null)
+    setQrToken('')
+    setSessionActive(false)
+    setRecords([])
+    setAttendanceCount(0)
+    setSearchTerm('')
+    fetchEvents()
+  }, [fetchEvents, activeProfile])
+
+  const loadAttendanceData = useCallback(async (eventId) => {
     const res = await api.organizerFetchAttendanceData(eventId)
     if (res.success && res.data) {
       setAttendanceCount(res.data.count || 0)
       setRecords(res.data.records || [])
     }
-  }
+  }, [])
 
-  const checkAndFetchSessionState = async (eventId) => {
+  const checkAndFetchSessionState = useCallback(async (eventId) => {
     setSessionError('')
     const reqId = ++rotationRequestIdRef.current
     const res = await api.organizerFetchQrToken(eventId)
@@ -558,7 +774,7 @@ const OrganizerAttendancePage = () => {
       setSessionActive(false)
       setQrToken('')
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!selectedEvent) return
@@ -597,7 +813,7 @@ const OrganizerAttendancePage = () => {
       clearInterval(countdownInterval)
       clearInterval(dataPollInterval)
     }
-  }, [selectedEvent, sessionActive])
+  }, [selectedEvent, sessionActive, loadAttendanceData, checkAndFetchSessionState])
 
   const toggleSession = async () => {
     if (!selectedEvent) return
@@ -628,304 +844,834 @@ const OrganizerAttendancePage = () => {
     }
   }
 
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredRecords = useMemo(() => {
+    if (!normalizedSearch) return records
+    return records.filter((r) =>
+      [r.fullName, r.email, r.registrationId, r.status].some((val) =>
+        String(val || '').toLowerCase().includes(normalizedSearch)
+      )
+    )
+  }, [records, normalizedSearch])
+
+  const formatCheckinTime = (timeString) => {
+    if (!timeString) return 'Just now'
+    try {
+      const d = new Date(timeString)
+      if (isNaN(d.getTime())) return String(timeString)
+      return d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    } catch {
+      return String(timeString)
+    }
+  }
+
+  // VIEW 1: SESSIONS SELECTION LIST (!selectedEvent)
   if (!selectedEvent) {
     return (
       <div className="organizer-page-view organizer-attendance-page">
-        <OrganizerPageHeading eyebrow="Attendance Management" title="Select an Event for Attendance" description="Select an event below to open its Event Attendance Board and launch dynamic QR code check-in." />
+        <OrganizerPageHeading
+          eyebrow="ATTENDANCE"
+          title="Attendance"
+          description="Track participant attendance across event sessions and launch dynamic QR check-in."
+          action={
+            <div className="organizer-attendance__header-badge">
+              <span className="organizer-attendance__count-pill" aria-label={`Total sessions: ${events.length}`}>
+                {isLoading ? 'Loading…' : `${events.length} ${events.length === 1 ? 'session' : 'sessions'}`}
+              </span>
+            </div>
+          }
+        />
 
-        {isLoading ? (
-          <div className="detail-info-item"><span>Loading</span><strong>Fetching events list…</strong></div>
-        ) : (
-          <div className="organizer-attendance-page__grid">
-            {events.map((evt) => (
-              <div
-                key={evt.eventId}
-                className="detail-card"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justify: 'space-between',
-                  padding: '1.25rem',
-                  border: '1px solid rgba(255,79,163,0.18)',
-                  borderRadius: '16px',
-                  background: 'rgba(255,255,255,0.85)',
-                }}
-              >
-                <div>
-                  <p className="detail-card__eyebrow" style={{ color: '#ff4fa3' }}>{evt.date}</p>
-                  <h3 style={{ fontSize: '1.15rem', margin: '0.4rem 0', color: '#2d253f' }}>{evt.name}</h3>
-                  <p style={{ fontSize: '0.9rem', color: '#5f5773', marginBottom: '0.8rem' }}>{evt.description}</p>
-                  <span style={{ fontSize: '0.82rem', color: '#88809e' }}>📍 {evt.venue}</span>
-                </div>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={() => setSelectedEvent(evt)}
-                  style={{ marginTop: '1rem', width: '100%', justifyContent: 'center' }}
-                >
-                  Open Attendance Board →
-                </button>
+        {sessionError ? (
+          <div className="organizer-attendance__alert organizer-attendance__alert--error" role="alert" aria-live="polite">
+            <div className="organizer-attendance__alert-content">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <div>
+                <strong>Unable to load attendance sessions.</strong>
+                <p>{sessionError}</p>
               </div>
-            ))}
+            </div>
+            <button type="button" className="button button--secondary organizer-attendance__retry-btn" onClick={fetchEvents}>
+              Retry
+            </button>
+          </div>
+        ) : isLoading ? (
+          <div className="organizer-page-content-panel organizer-attendance__loading-panel" aria-busy="true" aria-label="Loading event sessions">
+            <div className="organizer-attendance__skeleton-grid">
+              <div className="organizer-attendance__skeleton-card" />
+              <div className="organizer-attendance__skeleton-card" />
+              <div className="organizer-attendance__skeleton-card" />
+            </div>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="organizer-page-content-panel organizer-attendance__empty-panel">
+            <div className="organizer-attendance__empty-state">
+              <div className="organizer-attendance__empty-icon" aria-hidden="true">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </div>
+              <h3 className="organizer-attendance__empty-title">No attendance sessions available.</h3>
+              <p className="organizer-attendance__empty-description">
+                Active event sessions will appear here once configured in Events management.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="organizer-page-content-panel organizer-attendance__sessions-panel">
+            {/* SUMMARY STRIP */}
+            <div className="organizer-attendance__summary-strip" aria-label="Attendance sessions overview">
+              <div className="organizer-attendance__metric-item organizer-attendance__metric-item--total">
+                <span className="organizer-attendance__metric-label">Total Sessions</span>
+                <strong className="organizer-attendance__metric-value">{events.length}</strong>
+              </div>
+              <div className="organizer-attendance__metric-item">
+                <span className="organizer-attendance__metric-label">Active Sessions</span>
+                <strong className="organizer-attendance__metric-value">{events.filter((e) => String(e.status).toUpperCase() === 'ACTIVE').length}</strong>
+              </div>
+              <div className="organizer-attendance__metric-item">
+                <span className="organizer-attendance__metric-label">Profile Context</span>
+                <strong className="organizer-attendance__metric-value organizer-attendance__metric-value--text">
+                  {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'}
+                </strong>
+              </div>
+            </div>
+
+            {/* SESSIONS GRID */}
+            <div className="organizer-attendance__session-grid" aria-label="Available event sessions">
+              {events.map((evt) => {
+                const isEvtActive = String(evt.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+                return (
+                  <article key={evt.eventId || evt.id} className="organizer-attendance__session-card" tabIndex={0}>
+                    <div className="organizer-attendance__session-card-header">
+                      <span className="organizer-attendance__date-tag">{evt.date || 'Scheduled'}</span>
+                      <span className={`organizer-attendance__status-tag ${isEvtActive ? 'organizer-attendance__status-tag--active' : 'organizer-attendance__status-tag--closed'}`}>
+                        <span className="organizer-attendance__status-dot" aria-hidden="true" />
+                        <span>{isEvtActive ? 'Active' : 'Closed'}</span>
+                      </span>
+                    </div>
+
+                    <div className="organizer-attendance__session-card-body">
+                      <h3 className="organizer-attendance__session-title">{evt.name}</h3>
+                      {evt.description && (
+                        <p className="organizer-attendance__session-desc">{evt.description}</p>
+                      )}
+                    </div>
+
+                    <div className="organizer-attendance__session-card-footer">
+                      <div className="organizer-attendance__session-meta">
+                        <span className="organizer-attendance__venue">📍 {evt.venue || evt.location || 'Online'}</span>
+                        {evt.eventType && (
+                          <span className="organizer-attendance__type-badge">{evt.eventType}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="button button--primary organizer-attendance__open-btn"
+                        onClick={() => setSelectedEvent(evt)}
+                      >
+                        Open Attendance Board →
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
     )
   }
 
+  // VIEW 2: LIVE ATTENDANCE BOARD (selectedEvent !== null)
   return (
     <div className="organizer-page-view organizer-attendance-page">
-      <OrganizerPageHeading eyebrow="Event Attendance Board" title={selectedEvent.name} description={`📍 ${selectedEvent.venue} (${selectedEvent.date})`} action={<div className="organizer-page-heading__buttons">
-          <button
-            type="button"
-            className={`button ${sessionActive ? 'button--secondary' : 'button--primary'}`}
-            onClick={toggleSession}
-          >
-            {sessionActive ? 'Stop Session' : 'Start Session'}
-          </button>
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => {
-              setSelectedEvent(null)
-              setQrToken('')
-            }}
-          >
-            ← Back to Events List
-          </button>
-        </div>} />
+      <OrganizerPageHeading
+        eyebrow="ATTENDANCE BOARD"
+        title={selectedEvent.name}
+        description={`📍 ${selectedEvent.venue || selectedEvent.location || 'Online'} · ${selectedEvent.date || 'Scheduled'}`}
+        action={
+          <div className="organizer-page-heading__buttons">
+            <button
+              type="button"
+              className={`button ${sessionActive ? 'button--secondary' : 'button--primary'} organizer-attendance__toggle-btn`}
+              onClick={toggleSession}
+            >
+              {sessionActive ? 'Stop Session' : 'Start Session'}
+            </button>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => {
+                setSelectedEvent(null)
+                setQrToken('')
+                setRecords([])
+                setSearchTerm('')
+              }}
+            >
+              ← Back to Sessions
+            </button>
+          </div>
+        }
+      />
 
-      <div className="organizer-page-content-panel organizer-attendance-page__board">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '0.5rem' }}>
-        {/* Dynamic QR Board */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          border: '1px solid rgba(255, 79, 163, 0.2)',
-          borderRadius: '20px',
-          padding: '1.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
-        }}>
-          <p style={{ fontWeight: 700, color: '#3d2f59', fontSize: '1rem', marginBottom: '0.5rem' }}>
-            DYNAMIC ATTENDANCE QR
-          </p>
-
-          {sessionActive && qrToken ? (
-            <>
-              <div style={{
-                background: '#ffffff',
-                padding: '1rem',
-                borderRadius: '16px',
-                border: '2px solid rgba(255,79,163,0.3)',
-                boxShadow: '0 4px 20px rgba(255,79,163,0.12)',
-              }}>
-                <QRCodeSVG key={qrToken} value={qrToken} size={210} level="M" includeMargin />
-              </div>
-
-              <div style={{ marginTop: '1rem', width: '100%' }}>
-                <div style={{
-                  display: 'flex',
-                  justify: 'space-between',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  color: '#6e6584',
-                  marginBottom: '0.3rem',
-                }}>
-                  <span>Backend QR Refresh</span>
-                  <span style={{ color: '#ff4fa3' }}>{countdown}s</span>
-                </div>
-                <div style={{ height: '6px', background: 'rgba(255,79,163,0.15)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${(countdown / QR_REFRESH_SECONDS) * 100}%`,
-                    background: '#ff4fa3',
-                    transition: 'width 1s linear',
-                  }} />
-                </div>
-              </div>
-
-              <p style={{ fontSize: '0.8rem', color: '#7a7291', marginTop: '0.75rem' }}>
-                🔒 Expiration enforced by backend every {QR_REFRESH_SECONDS} seconds. Screenshots will be rejected.
-              </p>
-            </>
-          ) : (
-            <div style={{ padding: '3rem 1rem', color: '#7a7291' }}>
-              <p style={{ fontSize: '1.1rem', fontWeight: 600 }}>Attendance Session Paused</p>
-              <p style={{ fontSize: '0.9rem' }}>Click "Start Session" above to display the dynamic QR code.</p>
+      {sessionError && (
+        <div className="organizer-attendance__alert organizer-attendance__alert--error" role="alert" aria-live="polite">
+          <div className="organizer-attendance__alert-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div>
+              <strong>Attendance session notice</strong>
+              <p>{sessionError}</p>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          <div style={{
-            marginTop: '1.25rem',
-            padding: '0.75rem 1.5rem',
-            borderRadius: '14px',
-            background: 'rgba(255, 79, 163, 0.08)',
-            border: '1px solid rgba(255, 79, 163, 0.2)',
-            width: '100%',
-          }}>
-            <span style={{ fontSize: '0.85rem', color: '#6e6584', display: 'block' }}>Total Marked Present</span>
-            <strong style={{ fontSize: '1.8rem', color: '#ff4fa3', fontWeight: 800 }}>{attendanceCount}</strong>
+      <div className="organizer-page-content-panel organizer-attendance__board-panel">
+        {/* BOARD SUMMARY STRIP */}
+        <div className="organizer-attendance__summary-strip" aria-label="Selected session summary">
+          <div className="organizer-attendance__metric-item organizer-attendance__metric-item--total">
+            <span className="organizer-attendance__metric-label">Total Checked In</span>
+            <strong className="organizer-attendance__metric-value">{attendanceCount}</strong>
+          </div>
+          <div className="organizer-attendance__metric-item">
+            <span className="organizer-attendance__metric-label">Session Status</span>
+            <strong className="organizer-attendance__metric-value organizer-attendance__metric-value--text">
+              {sessionActive ? 'Active' : 'Paused'}
+            </strong>
+          </div>
+          <div className="organizer-attendance__metric-item">
+            <span className="organizer-attendance__metric-label">Session Date</span>
+            <strong className="organizer-attendance__metric-value organizer-attendance__metric-value--text">
+              {selectedEvent.date || '—'}
+            </strong>
+          </div>
+          <div className="organizer-attendance__metric-item">
+            <span className="organizer-attendance__metric-label">Live Records</span>
+            <strong className="organizer-attendance__metric-value">{records.length}</strong>
           </div>
         </div>
 
-        {/* Live Attendance Log Table */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          border: '1px solid rgba(255, 79, 163, 0.2)',
-          borderRadius: '20px',
-          padding: '1.25rem',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#3d2f59' }}>LIVE ATTENDANCE</h3>
-            <span style={{
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              padding: '0.25rem 0.6rem',
-              borderRadius: '20px',
-              background: sessionActive ? 'rgba(42, 190, 120, 0.12)' : 'rgba(120,120,120,0.1)',
-              color: sessionActive ? '#1b8f65' : '#666',
-            }}>
-              {sessionActive ? '● LIVE UPDATES' : 'OFFLINE'}
-            </span>
+        {/* SESSION SELECTOR QUICK-SWITCH (Requirement 4) */}
+        {events.length > 1 && (
+          <div className="organizer-attendance__session-switcher">
+            <label htmlFor="session-quick-select" className="organizer-attendance__switcher-label">
+              Switch Session:
+            </label>
+            <select
+              id="session-quick-select"
+              value={selectedEvent.eventId || selectedEvent.event_id}
+              onChange={(e) => {
+                const target = events.find((evt) => (evt.eventId || evt.event_id) === e.target.value)
+                if (target) {
+                  setSelectedEvent(target)
+                  setQrToken('')
+                  setRecords([])
+                  setSearchTerm('')
+                }
+              }}
+              className="organizer-attendance__switcher-select"
+            >
+              {events.map((evt) => (
+                <option key={evt.eventId || evt.id} value={evt.eventId || evt.event_id}>
+                  {evt.name} ({evt.date})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* 2-COLUMN OPERATIONS BOARD */}
+        <div className="organizer-attendance__board-layout">
+          {/* LEFT: DYNAMIC QR PANEL */}
+          <div className="organizer-attendance__qr-card">
+            <div className="organizer-attendance__qr-card-header">
+              <h3 className="organizer-attendance__qr-card-title">DYNAMIC ATTENDANCE QR</h3>
+              <span className={`organizer-attendance__live-pill ${sessionActive ? 'organizer-attendance__live-pill--active' : ''}`}>
+                {sessionActive ? '● Rotating Every 5s' : 'Paused'}
+              </span>
+            </div>
+
+            {sessionActive && qrToken ? (
+              <div className="organizer-attendance__qr-active-box">
+                <div className="organizer-attendance__qr-frame">
+                  <QRCodeSVG key={qrToken} value={qrToken} size={200} level="M" includeMargin />
+                </div>
+
+                <div className="organizer-attendance__progress-wrap">
+                  <div className="organizer-attendance__progress-labels">
+                    <span>Backend QR Refresh</span>
+                    <span className="organizer-attendance__countdown">{countdown}s</span>
+                  </div>
+                  <div className="organizer-attendance__progress-bar-track">
+                    <div
+                      className="organizer-attendance__progress-bar-fill"
+                      style={{
+                        width: `${(countdown / QR_REFRESH_SECONDS) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <p className="organizer-attendance__security-note">
+                  🔒 Expiration enforced by backend every {QR_REFRESH_SECONDS} seconds. Screenshots will be rejected.
+                </p>
+              </div>
+            ) : (
+              <div className="organizer-attendance__qr-paused-box">
+                <div className="organizer-attendance__qr-paused-icon" aria-hidden="true">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <rect x="7" y="7" width="3" height="3" />
+                    <rect x="14" y="7" width="3" height="3" />
+                    <rect x="7" y="14" width="3" height="3" />
+                    <line x1="14" y1="14" x2="17" y2="17" />
+                  </svg>
+                </div>
+                <h4 className="organizer-attendance__paused-title">Attendance Session Paused</h4>
+                <p className="organizer-attendance__paused-desc">Click "Start Session" above to display the dynamic QR code.</p>
+              </div>
+            )}
+
+            <div className="organizer-attendance__counter-box">
+              <span className="organizer-attendance__counter-label">Total Marked Present</span>
+              <strong className="organizer-attendance__counter-value">{attendanceCount}</strong>
+            </div>
           </div>
 
-          {records.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#7a7291', fontSize: '0.9rem' }}>
-              No participants marked present for this event yet.
+          {/* RIGHT: ATTENDANCE RECORDS PANEL */}
+          <div className="organizer-attendance__records-card">
+            <div className="organizer-attendance__records-header">
+              <div className="organizer-attendance__records-title-group">
+                <h3 className="organizer-attendance__records-title">LIVE ATTENDANCE</h3>
+                <span className={`organizer-attendance__live-badge ${sessionActive ? 'organizer-attendance__live-badge--active' : ''}`}>
+                  {sessionActive ? '● LIVE UPDATES' : 'OFFLINE'}
+                </span>
+              </div>
+
+              {/* SEARCH INPUT (Requirement 10) */}
+              {records.length > 0 && (
+                <div className="organizer-attendance__search-wrap">
+                  <svg className="organizer-attendance__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search attendance records..."
+                    className="organizer-attendance__search-input"
+                    aria-label="Search attendance records"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="organizer-attendance__search-clear"
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ overflowY: 'auto', maxHeight: '380px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,79,163,0.15)', textAlign: 'left', color: '#6e6584' }}>
-                    <th style={{ padding: '0.6rem' }}>Participant</th>
-                    <th style={{ padding: '0.6rem' }}>Registration ID</th>
-                    <th style={{ padding: '0.6rem' }}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((r) => (
-                    <tr key={r.id || r.registrationId + r.markedAt} style={{ borderBottom: '1px solid rgba(255,79,163,0.08)' }}>
-                      <td style={{ padding: '0.6rem' }}>
-                        <div style={{ fontWeight: 700, color: '#2d253f' }}>{r.fullName}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#7a7291' }}>{r.email}</div>
-                      </td>
-                      <td style={{ padding: '0.6rem', color: '#ff4fa3', fontWeight: 600 }}>{r.registrationId}</td>
-                      <td style={{ padding: '0.6rem', color: '#6e6584', fontSize: '0.8rem' }}>
-                        {r.markedAt ? new Date(r.markedAt).toLocaleTimeString() : 'Just now'}
-                      </td>
-                    </tr>
+
+            {/* EMPTY & DATA STATES */}
+            {records.length === 0 ? (
+              <div className="organizer-attendance__empty-records">
+                <div className="organizer-attendance__empty-icon" aria-hidden="true">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <line x1="19" y1="8" x2="19" y2="14" />
+                    <line x1="22" y1="11" x2="16" y2="11" />
+                  </svg>
+                </div>
+                <h4 className="organizer-attendance__empty-title">No attendance records for this session.</h4>
+                <p className="organizer-attendance__empty-description">
+                  Participants will appear here in real time as they complete dynamic QR check-in.
+                </p>
+              </div>
+            ) : filteredRecords.length === 0 ? (
+              <div className="organizer-attendance__empty-records organizer-attendance__empty-records--filtered">
+                <h4 className="organizer-attendance__empty-title">No attendance records match your search.</h4>
+                <p className="organizer-attendance__empty-description">
+                  No check-ins match your current search terms.
+                </p>
+                <button
+                  type="button"
+                  className="button button--secondary organizer-attendance__reset-search-btn"
+                  onClick={() => setSearchTerm('')}
+                >
+                  Clear search
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* DESKTOP TABLE VIEW (> 768px) */}
+                <div className="organizer-attendance__table-wrap">
+                  <table className="organizer-attendance__table" aria-label="Checked in participants">
+                    <thead>
+                      <tr>
+                        <th scope="col">Participant</th>
+                        <th scope="col">Registration ID</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Check-in Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRecords.map((r) => (
+                        <tr key={r.id || r.registrationId + (r.markedAt || '')} tabIndex={0}>
+                          <td className="organizer-attendance__participant-cell">
+                            <strong>{r.fullName || '—'}</strong>
+                            <small className="organizer-attendance__email-sub">{r.email || '—'}</small>
+                          </td>
+                          <td>
+                            <code className="organizer-attendance__id-code">{r.registrationId || '—'}</code>
+                          </td>
+                          <td>
+                            <span className="organizer-attendance__status-tag organizer-attendance__status-tag--active">
+                              <span className="organizer-attendance__status-dot" aria-hidden="true" />
+                              <span>{String(r.status || 'PRESENT').toUpperCase()}</span>
+                            </span>
+                          </td>
+                          <td className="organizer-attendance__time-cell">
+                            {formatCheckinTime(r.markedAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* MOBILE CARDS VIEW (<= 768px) */}
+                <div className="organizer-attendance__mobile-records" aria-label="Checked in participants list">
+                  {filteredRecords.map((r) => (
+                    <article key={r.id || r.registrationId + (r.markedAt || '')} className="organizer-attendance__mobile-card" tabIndex={0}>
+                      <div className="organizer-attendance__mobile-card-top">
+                        <div className="organizer-attendance__mobile-card-title">
+                          <strong>{r.fullName || '—'}</strong>
+                          <span className="organizer-attendance__mobile-email">{r.email || '—'}</span>
+                        </div>
+                        <span className="organizer-attendance__status-tag organizer-attendance__status-tag--active">
+                          <span className="organizer-attendance__status-dot" aria-hidden="true" />
+                          <span>{String(r.status || 'PRESENT').toUpperCase()}</span>
+                        </span>
+                      </div>
+
+                      <div className="organizer-attendance__mobile-card-details">
+                        <div className="organizer-attendance__mobile-detail-row">
+                          <span className="organizer-attendance__mobile-label">Registration ID</span>
+                          <code className="organizer-attendance__id-code">{r.registrationId || '—'}</code>
+                        </div>
+                        <div className="organizer-attendance__mobile-detail-row">
+                          <span className="organizer-attendance__mobile-label">Check-in</span>
+                          <span className="organizer-attendance__mobile-time">{formatCheckinTime(r.markedAt)}</span>
+                        </div>
+                      </div>
+                    </article>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
       </div>
     </div>
   )
 }
 
 const OrganizerParticipantsPage = () => {
-  const participantRoleOptions = [
-    { value: 'STUDENT', label: 'Student' },
-    { value: 'FACULTY', label: 'Faculty' },
-    { value: 'PROFESSIONAL', label: 'Professional' },
-    { value: 'OTHER', label: 'Other' },
-  ]
+  const { activeProfile } = useEventProfile()
   const [participants, setParticipants] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedRole, setSelectedRole] = useState('ALL')
 
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true)
-      setError('')
-      const result = await api.organizerFetchParticipants()
-      setIsLoading(false)
+  const participantRoleOptions = [
+    { value: 'ALL', label: 'All Roles' },
+    { value: 'STUDENT', label: 'Student' },
+    { value: 'FACULTY', label: 'Faculty' },
+    { value: 'PROFESSIONAL', label: 'Professional' },
+    { value: 'OTHER', label: 'Other' },
+  ]
 
-      if (!result.success) {
-        setError(result.error?.message || 'Unable to load participants.')
-        return
-      }
+  const load = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    const result = await api.organizerFetchParticipants()
+    setIsLoading(false)
 
-      setParticipants(Array.isArray(result.data) ? result.data : [])
+    if (!result.success) {
+      setError(result.error?.message || 'Unable to load participant records.')
+      return
     }
 
-    load()
+    setParticipants(Array.isArray(result.data) ? result.data : [])
   }, [])
 
+  useEffect(() => {
+    load()
+  }, [load, activeProfile])
+
+  const metrics = useMemo(() => {
+    let student = 0
+    let faculty = 0
+    let professional = 0
+    let other = 0
+
+    participants.forEach((p) => {
+      const role = String(p.role || '').toUpperCase()
+      if (role === 'STUDENT') student++
+      else if (role === 'FACULTY') faculty++
+      else if (role === 'PROFESSIONAL') professional++
+      else other++
+    })
+
+    return {
+      total: participants.length,
+      student,
+      faculty,
+      professional,
+      other,
+    }
+  }, [participants])
+
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
-  const filteredParticipants = participants.filter((participant) => {
-    const matchesSearch = !normalizedSearchTerm || `${participant.fullName || ''} ${participant.email || ''}`.toLowerCase().includes(normalizedSearchTerm)
-    const matchesRole = selectedRole === 'ALL' || String(participant.role || '').toUpperCase() === selectedRole
-    return matchesSearch && matchesRole
-  })
-  const hasFilters = Boolean(normalizedSearchTerm) || selectedRole !== 'ALL'
+  const filteredParticipants = useMemo(() => {
+    return participants.filter((p) => {
+      const matchesSearch =
+        !normalizedSearchTerm ||
+        [p.fullName, p.email, p.registrationId, p.instituteName, p.department].some((val) =>
+          String(val || '').toLowerCase().includes(normalizedSearchTerm)
+        )
+
+      const role = String(p.role || '').toUpperCase()
+      const matchesRole = selectedRole === 'ALL' || role === selectedRole
+
+      return matchesSearch && matchesRole
+    })
+  }, [participants, normalizedSearchTerm, selectedRole])
+
+  const hasActiveFilters = Boolean(normalizedSearchTerm) || selectedRole !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearchTerm('')
+    setSelectedRole('ALL')
+  }
+
+  const formatParticipantDate = (dateString) => {
+    if (!dateString) return '—'
+    try {
+      const d = new Date(dateString)
+      if (isNaN(d.getTime())) return String(dateString)
+      return d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+    } catch {
+      return String(dateString)
+    }
+  }
+
+  const getRoleLabel = (role) => {
+    const found = participantRoleOptions.find((opt) => opt.value === String(role || '').toUpperCase())
+    return found ? found.label : role || 'Other'
+  }
 
   return (
     <div className="organizer-page-view organizer-participants-page">
-      <OrganizerPageHeading eyebrow="Participants" title="Registered participant records" />
+      <OrganizerPageHeading
+        eyebrow="PARTICIPANTS"
+        title="Registered participant records"
+        description="Review and manage attendee registrations, institutional affiliations, and participant roles across the active event profile."
+        action={
+          <div className="organizer-participants__header-badge">
+            <span className="organizer-participants__count-pill" aria-label={`Total participants: ${participants.length}`}>
+              {isLoading ? 'Loading…' : `${participants.length} ${participants.length === 1 ? 'participant' : 'participants'}`}
+            </span>
+          </div>
+        }
+      />
 
-      {isLoading ? (
-        <div className="detail-info-item"><span>Loading</span><strong>Fetching participant records…</strong></div>
-      ) : error ? (
-        <div style={{ padding: '0.9rem', borderRadius: '12px', background: 'rgba(255,79,163,0.06)', color: '#c2348a', border: '1px solid rgba(255,79,163,0.14)' }}>{error}</div>
+      {error ? (
+        <div className="organizer-participants__alert organizer-participants__alert--error" role="alert" aria-live="polite">
+          <div className="organizer-participants__alert-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <div>
+              <strong>Unable to load participant records.</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button type="button" className="button button--secondary organizer-participants__retry-btn" onClick={load}>
+            Retry
+          </button>
+        </div>
+      ) : isLoading ? (
+        <div className="organizer-page-content-panel organizer-participants__loading-panel" aria-busy="true" aria-label="Loading participant records">
+          <div className="organizer-participants__skeleton-header" />
+          <div className="organizer-participants__skeleton-row" />
+          <div className="organizer-participants__skeleton-row" />
+          <div className="organizer-participants__skeleton-row" />
+          <div className="organizer-participants__skeleton-row" />
+        </div>
       ) : participants.length === 0 ? (
-        <div className="detail-info-item"><span>Empty state</span><strong>No participants registered yet.</strong></div>
+        <div className="organizer-page-content-panel organizer-participants__empty-panel">
+          <div className="organizer-participants__empty-state">
+            <div className="organizer-participants__empty-icon" aria-hidden="true">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <h3 className="organizer-participants__empty-title">No participants registered yet.</h3>
+            <p className="organizer-participants__empty-description">
+              Participant registrations will appear here once attendees complete registration.
+            </p>
+          </div>
+        </div>
       ) : (
-        <div className="organizer-page-content-panel organizer-participants organizer-participants__body">
-          <div className="organizer-participants__filters">
-            <label className="organizer-participants__search" htmlFor="participant-search">
-              <span>Search participants</span>
-              <div className="organizer-participants__search-control">
-                <span aria-hidden="true">⌕</span>
-                <input id="participant-search" type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by name or email..." />
-                {searchTerm && <button type="button" onClick={() => setSearchTerm('')}>Clear</button>}
+        <div className="organizer-page-content-panel organizer-participants__panel">
+          {/* SUMMARY METRICS STRIP */}
+          <div className="organizer-participants__summary-strip" aria-label="Participant metrics summary">
+            <div className="organizer-participants__metric-item organizer-participants__metric-item--total">
+              <span className="organizer-participants__metric-label">Total</span>
+              <strong className="organizer-participants__metric-value">{metrics.total}</strong>
+            </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Students</span>
+              <strong className="organizer-participants__metric-value">{metrics.student}</strong>
+            </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Faculty</span>
+              <strong className="organizer-participants__metric-value">{metrics.faculty}</strong>
+            </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Professionals</span>
+              <strong className="organizer-participants__metric-value">{metrics.professional}</strong>
+            </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Other</span>
+              <strong className="organizer-participants__metric-value">{metrics.other}</strong>
+            </div>
+          </div>
+
+          {/* SEARCH & FILTERS TOOLBAR */}
+          <div className="organizer-participants__toolbar">
+            <div className="organizer-participants__search-box">
+              <label htmlFor="participant-search" className="visually-hidden">Search participants</label>
+              <div className="organizer-participants__search-input-wrap">
+                <svg className="organizer-participants__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  id="participant-search"
+                  type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search participants..."
+                  className="organizer-participants__search-input"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="organizer-participants__clear-search"
+                    aria-label="Clear search text"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-            </label>
-            <label className="organizer-participants__role" htmlFor="participant-role">
-              <span>Role</span>
-              <select id="participant-role" value={selectedRole} onChange={(event) => setSelectedRole(event.target.value)}>
-                <option value="ALL">All Roles</option>
-                {participantRoleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+            </div>
+
+            <div className="organizer-participants__filter-group">
+              <label htmlFor="participant-role-filter" className="organizer-participants__filter-label">Role:</label>
+              <select
+                id="participant-role-filter"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="organizer-participants__role-select"
+              >
+                {participantRoleOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
-            </label>
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="organizer-participants__reset-btn"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
 
-          <div className="organizer-participants__summary" aria-live="polite">
-            <span>{hasFilters ? `Showing ${filteredParticipants.length} of ${participants.length} participants` : `Showing ${participants.length} participants`}</span>
-            {hasFilters && <button type="button" onClick={() => { setSearchTerm(''); setSelectedRole('ALL') }}>Clear filters</button>}
+          {/* STATUS / COUNT BAR */}
+          <div className="organizer-participants__status-bar" aria-live="polite">
+            <span className="organizer-participants__status-text">
+              {hasActiveFilters
+                ? `Showing ${filteredParticipants.length} of ${participants.length} participants`
+                : `Showing ${participants.length} ${participants.length === 1 ? 'participant' : 'participants'}`}
+            </span>
           </div>
 
-          <div className="organizer-page__table-wrap organizer-participants__table-wrap">
-          <table className="organizer-page__table organizer-participants__table">
-            <thead>
-              <tr style={{ background: 'rgba(255,79,163,0.06)' }}>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredParticipants.length > 0 ? filteredParticipants.map((participant) => (
-                <tr key={participant.registrationId || participant.email} style={{ borderTop: '1px solid rgba(255,79,163,0.08)' }}>
-                  <td data-label="Name">{participant.fullName}</td>
-                  <td data-label="Email">{participant.email}</td>
-                  <td data-label="Role">{participantRoleOptions.find((role) => role.value === String(participant.role || '').toUpperCase())?.label || participant.role}</td>
-                </tr>
-              )) : <tr className="organizer-participants__empty-row"><td colSpan="3"><strong>No registered participants found.</strong><span>Try searching with a different name or email.</span></td></tr>}
-            </tbody>
-          </table>
-          </div>
+          {/* DATA VIEW OR FILTER EMPTY STATE */}
+          {filteredParticipants.length === 0 ? (
+            <div className="organizer-participants__empty-state organizer-participants__empty-state--filtered">
+              <div className="organizer-participants__empty-icon" aria-hidden="true">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </div>
+              <h3 className="organizer-participants__empty-title">No participants match your search.</h3>
+              <p className="organizer-participants__empty-description">
+                No participants match your current search or filters. Try adjusting your search terms or clearing your role filter.
+              </p>
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="button button--secondary organizer-participants__empty-action"
+              >
+                Clear search and filters
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* DESKTOP TABLE VIEW (> 768px) */}
+              <div className="organizer-participants__table-wrap">
+                <table className="organizer-participants__table" aria-label="Registered participants table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Registration ID</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Email</th>
+                      <th scope="col">Role</th>
+                      <th scope="col">Institution / Dept</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Registered At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredParticipants.map((participant) => {
+                      const statusText = participant.status || 'CONFIRMED'
+                      return (
+                        <tr key={participant.registrationId || participant.email} tabIndex={0}>
+                          <td>
+                            <code className="organizer-participants__id-code">
+                              {participant.registrationId || '—'}
+                            </code>
+                          </td>
+                          <td className="organizer-participants__name-cell">
+                            <strong>{participant.fullName || '—'}</strong>
+                          </td>
+                          <td className="organizer-participants__email-cell">
+                            {participant.email || '—'}
+                          </td>
+                          <td>
+                            <span className={`organizer-participants__role-tag organizer-participants__role-tag--${String(participant.role || 'other').toLowerCase()}`}>
+                              {getRoleLabel(participant.role)}
+                            </span>
+                          </td>
+                          <td className="organizer-participants__institution-cell">
+                            <span className="organizer-participants__inst-name">{participant.instituteName || '—'}</span>
+                            {participant.department && (
+                              <small className="organizer-participants__dept-name">{participant.department}</small>
+                            )}
+                          </td>
+                          <td>
+                            <span className="organizer-participants__status-tag">
+                              <span className="organizer-participants__status-dot" aria-hidden="true" />
+                              <span>{statusText.charAt(0).toUpperCase() + statusText.slice(1).toLowerCase()}</span>
+                            </span>
+                          </td>
+                          <td className="organizer-participants__date-cell">
+                            {formatParticipantDate(participant.createdAt)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBILE CARDS VIEW (<= 768px) */}
+              <div className="organizer-participants__mobile-list" aria-label="Registered participants list">
+                {filteredParticipants.map((participant) => {
+                  const statusText = participant.status || 'CONFIRMED'
+                  return (
+                    <article key={participant.registrationId || participant.email} className="organizer-participants__mobile-card" tabIndex={0}>
+                      <div className="organizer-participants__mobile-card-header">
+                        <div className="organizer-participants__mobile-card-title">
+                          <strong>{participant.fullName || '—'}</strong>
+                          <span className="organizer-participants__mobile-email">{participant.email || '—'}</span>
+                        </div>
+                        <span className="organizer-participants__status-tag">
+                          <span className="organizer-participants__status-dot" aria-hidden="true" />
+                          <span>{statusText.charAt(0).toUpperCase() + statusText.slice(1).toLowerCase()}</span>
+                        </span>
+                      </div>
+
+                      <div className="organizer-participants__mobile-card-meta">
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">ID</span>
+                          <code className="organizer-participants__id-code">{participant.registrationId || '—'}</code>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Role</span>
+                          <span className={`organizer-participants__role-tag organizer-participants__role-tag--${String(participant.role || 'other').toLowerCase()}`}>
+                            {getRoleLabel(participant.role)}
+                          </span>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Institution</span>
+                          <span className="organizer-participants__mobile-value">
+                            {participant.instituteName || '—'}
+                            {participant.department ? ` (${participant.department})` : ''}
+                          </span>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Registered</span>
+                          <span className="organizer-participants__mobile-value">{formatParticipantDate(participant.createdAt)}</span>
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -952,68 +1698,185 @@ const eventTypeCertificateMap = {
 }
 
 const hackathonPlacements = [
-  { value: 'FIRST_POSITION', label: '1st Position' },
-  { value: 'FIRST_RUNNERS_UP', label: '1st Runners Up' },
-  { value: 'SECOND_RUNNERS_UP', label: '2nd Runners Up' },
+  { value: 'FIRST_POSITION', label: '1st Position', badge: '1st Place', icon: '🥇', tier: 'gold', desc: 'Champion team of the Qiskit Hackathon.' },
+  { value: 'FIRST_RUNNERS_UP', label: '1st Runners Up', badge: '1st Runner Up', icon: '🥈', tier: 'silver', desc: 'Second place team for innovative algorithms.' },
+  { value: 'SECOND_RUNNERS_UP', label: '2nd Runners Up', badge: '2nd Runner Up', icon: '🥉', tier: 'bronze', desc: 'Third place team for outstanding implementation.' },
 ]
 
+const certificateTypeLabels = {
+  GENERAL_EVENT_PARTICIPATION: 'Event Participation Certificate',
+  HACKATHON_PARTICIPATION: 'Hackathon Participation Certificate',
+  WEBINAR_PARTICIPATION: 'Webinar Participation Certificate',
+  WORKSHOP_PARTICIPATION: 'Workshop Participation Certificate',
+  QUANTUM_BOOTCAMP_COMPLETION: 'Quantum Bootcamp Certificate',
+  HACKATHON_FIRST_POSITION: '1st Place Winner Certificate',
+  HACKATHON_FIRST_RUNNERS_UP: '1st Runner Up Certificate',
+  HACKATHON_SECOND_RUNNERS_UP: '2nd Runner Up Certificate',
+}
+
+const formatCertificateDate = (dateString) => {
+  if (!dateString) return '—'
+  try {
+    const d = new Date(dateString)
+    if (isNaN(d.getTime())) return String(dateString)
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return String(dateString)
+  }
+}
+
 const OrganizerRewardsPage = () => {
+  const { activeProfile } = useEventProfile()
+
   const [events, setEvents] = useState([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [eligibleParticipants, setEligibleParticipants] = useState([])
   const [alreadyIssued, setAlreadyIssued] = useState([])
   const [excludedParticipants, setExcludedParticipants] = useState([])
+  const [issuedCertificates, setIssuedCertificates] = useState([])
   const [teams, setTeams] = useState([])
   const [selectedTeamId, setSelectedTeamId] = useState('')
   const [teamMembers, setTeamMembers] = useState([])
   const [placement, setPlacement] = useState('FIRST_POSITION')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isAssigning, setIsAssigning] = useState(false)
+
+  // UI state
+  const [activeTab, setActiveTab] = useState('participants') // 'participants'/'attendees', 'awards', 'ledger'
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedRegistrationIds, setSelectedRegistrationIds] = useState(new Set())
+  const [selectedCertModal, setSelectedCertModal] = useState(null)
+
+  // Loading & notification states
   const [isLoading, setIsLoading] = useState(true)
   const [isEligibilityLoading, setIsEligibilityLoading] = useState(false)
+  const [isCertificatesLoading, setIsCertificatesLoading] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isAssigning, setIsAssigning] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  // Selected event metadata (never hardcoded)
   const selectedEvent = events.find((event) => event.event_id === selectedEventId) || null
   const eventType = String(selectedEvent?.event_type || '').toUpperCase()
-  const certificateType = eventTypeCertificateMap[eventType] || ''
+  const certificateType = eventTypeCertificateMap[eventType] || 'GENERAL_EVENT_PARTICIPATION'
   const isHackathon = eventType === 'HACKATHON'
 
-  const loadEligibility = async (eventId, type) => {
+  // Escape key handler for accessible modal dismissal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && selectedCertModal) {
+        setSelectedCertModal(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedCertModal])
+
+  // Load Eligibility for selected event
+  const loadEligibility = useCallback(async (eventId, type) => {
     if (!eventId || !type) return
     setIsEligibilityLoading(true)
-    const result = await api.organizerPreviewCertificateEligibility(eventId, type)
-    setIsEligibilityLoading(false)
-    if (!result.success) {
-      setError(result.error?.message || 'Unable to load certificate eligibility.')
+    try {
+      const result = await api.organizerPreviewCertificateEligibility(eventId, type)
+      if (!result.success) {
+        setError(result.error?.message || 'Unable to load certificate eligibility.')
+        setEligibleParticipants([])
+        setAlreadyIssued([])
+        setExcludedParticipants([])
+        return
+      }
+      const preview = result.data || {}
+      const issued = Array.isArray(preview.alreadyIssued) ? preview.alreadyIssued : []
+      const eligible = Array.isArray(preview.eligibleParticipants)
+        ? preview.eligibleParticipants.filter((participant) => !issued.some((i) => String(i.registrationId) === String(participant.registrationId)))
+        : []
+      setEligibleParticipants(eligible)
+      setAlreadyIssued(issued)
+      setExcludedParticipants(Array.isArray(preview.excludedParticipants) ? preview.excludedParticipants : [])
+      setSelectedRegistrationIds(new Set())
+    } catch (err) {
+      setError('A network error occurred while reviewing certificate eligibility.')
+    } finally {
+      setIsEligibilityLoading(false)
+    }
+  }, [])
+
+  // Load Issued Certificates ledger (profile-aware)
+  const loadIssuedCertificates = useCallback(async () => {
+    setIsCertificatesLoading(true)
+    try {
+      const result = await api.organizerFetchCertificates()
+      if (result.success && Array.isArray(result.data)) {
+        setIssuedCertificates(result.data)
+      } else {
+        setIssuedCertificates([])
+      }
+    } catch (err) {
+      setIssuedCertificates([])
+    } finally {
+      setIsCertificatesLoading(false)
+    }
+  }, [])
+
+  // Profile-switch sequence: clean reload sequence
+  useEffect(() => {
+    let isMounted = true
+
+    const initProfile = async () => {
+      setSelectedEventId('')
       setEligibleParticipants([])
       setAlreadyIssued([])
       setExcludedParticipants([])
-      return
-    }
-    const preview = result.data || {}
-    setEligibleParticipants(Array.isArray(preview.eligibleParticipants) ? preview.eligibleParticipants.filter((participant) => !(preview.alreadyIssued || []).some((issued) => String(issued.registrationId) === String(participant.registrationId))) : [])
-    setAlreadyIssued(Array.isArray(preview.alreadyIssued) ? preview.alreadyIssued : [])
-    setExcludedParticipants(Array.isArray(preview.excludedParticipants) ? preview.excludedParticipants : [])
-  }
-
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true)
+      setIssuedCertificates([])
+      setTeams([])
+      setSelectedTeamId('')
+      setTeamMembers([])
+      setSelectedRegistrationIds(new Set())
+      setSearchQuery('')
+      setSelectedCertModal(null)
       setError('')
-      const eventsResult = await api.organizerFetchEvents()
-      setIsLoading(false)
-      if (!eventsResult.success) {
-        setError(eventsResult.error?.message || 'Unable to load events.')
-        return
-      }
-      const nextEvents = normalizeRewardEvents(eventsResult.data)
-      setEvents(nextEvents)
-      if (nextEvents.length > 0) setSelectedEventId(nextEvents[0].event_id)
-    }
-    load()
-  }, [])
+      setSuccess('')
+      setIsLoading(true)
 
+      try {
+        const [eventsRes, certsRes] = await Promise.all([
+          api.organizerFetchEvents(),
+          api.organizerFetchCertificates(),
+        ])
+
+        if (!isMounted) return
+
+        if (certsRes.success && Array.isArray(certsRes.data)) {
+          setIssuedCertificates(certsRes.data)
+        }
+
+        if (eventsRes.success) {
+          const nextEvents = normalizeRewardEvents(eventsRes.data)
+          setEvents(nextEvents)
+          if (nextEvents.length > 0) {
+            setSelectedEventId(nextEvents[0].event_id)
+          }
+        } else {
+          setError(eventsRes.error?.message || 'Unable to load events.')
+        }
+      } catch (err) {
+        if (isMounted) setError('A network error occurred while connecting to the server.')
+      } finally {
+        if (isMounted) setIsLoading(false)
+      }
+    }
+
+    initProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeProfile])
+
+  // When selected event changes, reload its eligibility, teams (if hackathon), and reset tab
   useEffect(() => {
     setError('')
     setSuccess('')
@@ -1023,189 +1886,1001 @@ const OrganizerRewardsPage = () => {
     setTeams([])
     setSelectedTeamId('')
     setTeamMembers([])
+    setSelectedRegistrationIds(new Set())
+
     if (!selectedEventId) return
-    if (!certificateType) {
-      setError(`Unsupported event type: ${eventType || 'unknown'}.`)
-      return
-    }
+
     loadEligibility(selectedEventId, certificateType)
+
     if (isHackathon) {
       api.organizerFetchTeams(selectedEventId).then((result) => {
-        if (!result.success) setError(result.error?.message || 'Unable to load hackathon teams.')
+        if (!result.success) {
+          setError(result.error?.message || 'Unable to load hackathon teams.')
+        }
         setTeams(Array.isArray(result.data) ? result.data : [])
       })
+      setActiveTab('participants')
+    } else {
+      setActiveTab('attendees')
     }
-  }, [selectedEventId, certificateType, eventType, isHackathon])
+  }, [selectedEventId, certificateType, isHackathon, loadEligibility])
 
+  // Load team members when selectedTeamId changes
   useEffect(() => {
     if (!selectedTeamId) {
       setTeamMembers([])
       return
     }
     api.organizerFetchTeamMembers(selectedTeamId).then((result) => {
-      if (!result.success) setError(result.error?.message || 'Unable to load team members.')
+      if (!result.success) {
+        setError(result.error?.message || 'Unable to load team members.')
+      }
       setTeamMembers(Array.isArray(result.data) ? result.data : [])
     })
   }, [selectedTeamId])
 
+  // Certificate generation for eligible participants (batch or selection)
   const handleGenerateCertificates = async () => {
     if (!selectedEventId || !certificateType || !eligibleParticipants.length || isGenerating) return
+
+    const targetIds = selectedRegistrationIds.size > 0
+      ? Array.from(selectedRegistrationIds)
+      : eligibleParticipants.map((p) => p.publicRegistrationId)
+
+    if (!targetIds.length) return
+
     setIsGenerating(true)
     setError('')
     setSuccess('')
+
     const result = await api.organizerGenerateCertificates(selectedEventId, {
       certificateType,
-      registrationIds: eligibleParticipants.map((participant) => participant.publicRegistrationId),
+      registrationIds: targetIds,
     })
+
     setIsGenerating(false)
+
     if (!result.success) {
       setError(result.error?.message || 'Unable to generate certificates.')
       return
     }
-    setSuccess(`${result.data?.length || 0} certificate(s) generated successfully.`)
-    await loadEligibility(selectedEventId, certificateType)
+
+    const count = result.data?.length || targetIds.length
+    setSuccess(`Successfully generated and dispatched ${count} certificate${count === 1 ? '' : 's'}.`)
+    await Promise.all([
+      loadEligibility(selectedEventId, certificateType),
+      loadIssuedCertificates(),
+    ])
   }
 
+  // Hackathon award assignment
   const handleAssignAward = async () => {
     if (!selectedEventId || !selectedTeamId || isAssigning) return
     setIsAssigning(true)
     setError('')
     setSuccess('')
+
     const result = await api.organizerAssignHackathonAward(selectedEventId, selectedTeamId, placement)
     setIsAssigning(false)
+
     if (!result.success) {
       setError(result.error?.message || 'Unable to assign hackathon award.')
       return
     }
-    setSuccess('Hackathon award assigned successfully.')
-    await loadEligibility(selectedEventId, eventTypeCertificateMap.HACKATHON_FIRST_POSITION)
+
+    const matchedPlacement = hackathonPlacements.find((p) => p.value === placement)
+    setSuccess(`Assigned "${matchedPlacement?.label || placement}" award successfully to the selected team.`)
+    await loadEligibility(selectedEventId, certificateType)
   }
 
+  // Hackathon award certificates generation
   const handleGenerateAwardCertificates = async () => {
     if (!selectedEventId || !selectedTeamId || isGenerating) return
     setIsGenerating(true)
     setError('')
     setSuccess('')
+
     const result = await api.organizerGenerateAwardCertificates(selectedEventId, selectedTeamId)
     setIsGenerating(false)
+
     if (!result.success) {
-      setError(result.error?.message || 'Unable to generate award certificates.')
+      setError(result.error?.message || 'Unable to generate award certificates. Make sure the team has an assigned placement first.')
       return
     }
-    setSuccess(`${result.data?.length || 0} team certificate(s) generated successfully.`)
+
+    const count = result.data?.length || teamMembers.length
+    setSuccess(`Generated ${count} award winner certificate${count === 1 ? '' : 's'} successfully.`)
+    await Promise.all([
+      loadEligibility(selectedEventId, certificateType),
+      loadIssuedCertificates(),
+    ])
+  }
+
+  // Selection toggle helpers
+  const handleToggleSelectAll = () => {
+    if (selectedRegistrationIds.size === eligibleParticipants.length) {
+      setSelectedRegistrationIds(new Set())
+    } else {
+      setSelectedRegistrationIds(new Set(eligibleParticipants.map((p) => p.publicRegistrationId)))
+    }
+  }
+
+  const handleToggleSelectOne = (regId) => {
+    const next = new Set(selectedRegistrationIds)
+    if (next.has(regId)) {
+      next.delete(regId)
+    } else {
+      next.add(regId)
+    }
+    setSelectedRegistrationIds(next)
+  }
+
+  // Filtered lists based on search query
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+
+  const filteredEligible = useMemo(() => {
+    if (!normalizedQuery) return eligibleParticipants
+    return eligibleParticipants.filter((p) => {
+      const name = String(getRewardParticipant(p)).toLowerCase()
+      const email = String(p.email || '').toLowerCase()
+      const regId = String(p.publicRegistrationId || '').toLowerCase()
+      const team = String(p.teamName || '').toLowerCase()
+      return name.includes(normalizedQuery) || email.includes(normalizedQuery) || regId.includes(normalizedQuery) || team.includes(normalizedQuery)
+    })
+  }, [eligibleParticipants, normalizedQuery])
+
+  const eventIssuedCertificates = useMemo(() => {
+    if (!selectedEventId) return issuedCertificates
+    return issuedCertificates.filter((cert) => String(cert.eventId) === String(selectedEventId))
+  }, [issuedCertificates, selectedEventId])
+
+  const filteredIssued = useMemo(() => {
+    if (!normalizedQuery) return eventIssuedCertificates
+    return eventIssuedCertificates.filter((cert) => {
+      const certNum = String(cert.certificateNumber || '').toLowerCase()
+      const certType = String(cert.certificateType || '').toLowerCase()
+      const eventName = String(cert.eventName || '').toLowerCase()
+      const recipient = String(cert.participantName || cert.recipientName || '').toLowerCase()
+      const email = String(cert.participantEmail || cert.recipientEmail || '').toLowerCase()
+      const code = String(cert.verificationCode || '').toLowerCase()
+      return certNum.includes(normalizedQuery) || certType.includes(normalizedQuery) || eventName.includes(normalizedQuery) || recipient.includes(normalizedQuery) || email.includes(normalizedQuery) || code.includes(normalizedQuery)
+    })
+  }, [eventIssuedCertificates, normalizedQuery])
+
+  // Get recipient display from certificate or matched issued participant
+  const getCertRecipient = (cert) => {
+    if (cert.participantName) return cert.participantName
+    if (cert.recipientName) return cert.recipientName
+    const matched = alreadyIssued.find((p) => String(p.registrationId) === String(cert.registrationId))
+    return matched ? getRewardParticipant(matched) : 'Participant'
+  }
+
+  const getCertEmail = (cert) => {
+    if (cert.participantEmail) return cert.participantEmail
+    if (cert.recipientEmail) return cert.recipientEmail
+    const matched = alreadyIssued.find((p) => String(p.registrationId) === String(cert.registrationId))
+    return matched ? matched.email : '—'
   }
 
   return (
-    <div className="organizer-page-view organizer-rewards">
-      <OrganizerPageHeading eyebrow="Rewards" title="Certificates and reward records" description="Choose a certificate category to review its reward workflow." />
+    <div className="organizer-page-view organizer-rewards-container">
+      <OrganizerPageHeading
+        eyebrow="REWARDS"
+        title="Rewards & Certificates"
+        description="Review attendee eligibility, assign hackathon placements, and issue verifiable digital certificates."
+        action={
+          <div className="organizer-rewards__header-badge">
+            <span className="organizer-rewards__profile-pill">
+              <span className="organizer-rewards__profile-dot" />
+              {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'}
+            </span>
+            <span className="organizer-rewards__count-pill" aria-label={`Loaded records: ${eligibleParticipants.length + alreadyIssued.length}`}>
+              {isLoading ? 'Loading…' : `${eligibleParticipants.length + alreadyIssued.length} Records`}
+            </span>
+          </div>
+        }
+      />
 
-      {isLoading ? (
-        <div className="detail-info-item"><span>Loading</span><strong>Loading events...</strong></div>
-      ) : events.length === 0 ? (
-        <div className="detail-info-item"><span>Empty state</span><strong>No events are available.</strong></div>
-      ) : error ? (
-        <div style={{ padding: '0.9rem', borderRadius: '12px', background: 'rgba(255,79,163,0.06)', color: '#c2348a', border: '1px solid rgba(255,79,163,0.14)' }}>{error}</div>
-      ) : (
-        <div className="organizer-page-content-panel organizer-rewards__content">
-          <section className="organizer-rewards__selector" aria-label="Reward category selector">
-            <label htmlFor="reward-category">Select event</label>
-            <select id="reward-category" value={selectedEventId} onChange={(eventChange) => setSelectedEventId(eventChange.target.value)}>
-              {events.map((event) => <option key={event.event_id} value={event.event_id}>{event.event_name}</option>)}
-            </select>
-          </section>
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="organizer-rewards__alert organizer-rewards__alert--error" role="alert">
+          <div className="organizer-rewards__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          <button type="button" className="organizer-rewards__alert-close" onClick={() => setError('')} aria-label="Dismiss error">×</button>
+        </div>
+      )}
 
-          {success && <div style={{ padding: '0.9rem', borderRadius: '12px', background: 'rgba(42,190,120,0.08)', color: '#1b8f65', border: '1px solid rgba(42,190,120,0.18)' }}>{success}</div>}
-          {isEligibilityLoading && <div className="detail-info-item"><span>Loading</span><strong>Reviewing eligibility...</strong></div>}
+      {/* SUCCESS BANNER */}
+      {success && (
+        <div className="organizer-rewards__alert organizer-rewards__alert--success" role="status">
+          <div className="organizer-rewards__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="organizer-rewards__alert-close" onClick={() => setSuccess('')} aria-label="Dismiss success">×</button>
+        </div>
+      )}
 
-          {isHackathon ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {/* Part A: Hackathon Participant Certificates */}
-              <section className="organizer-rewards__workflow" style={{ border: '1px solid rgba(255, 79, 163, 0.15)', borderRadius: '12px', padding: '1.5rem', background: '#fff' }}>
-                <div className="organizer-rewards__section-heading">
-                  <span className="organizer-rewards__kicker">Hackathon Certificates</span>
-                  <h3>Hackathon Participant Certificate</h3>
-                  <p>Eligibility is determined by valid registered hackathon team membership.</p>
-                </div>
-                <div className="organizer-rewards__mapping">
-                  <span>Eligibility summary</span>
-                  <strong>Eligible: {eligibleParticipants.length} | Already issued: {alreadyIssued.length} | Excluded: {excludedParticipants.length}</strong>
-                </div>
-                <div className="organizer-rewards__participants" style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '1.2rem', padding: '0.5rem', border: '1px solid #f0f0f0', borderRadius: '8px', background: '#fafafa' }}>
-                  {eligibleParticipants.length > 0 ? eligibleParticipants.map((participant) => (
-                    <div className="organizer-rewards__participant" key={participant.registrationId || participant.email} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0' }}>
-                      <span aria-hidden="true" style={{ color: '#ff4fa3' }}>✓</span>
-                      <div>
-                        <strong style={{ display: 'block' }}>{getRewardParticipant(participant)}</strong>
-                        <small style={{ color: '#666' }}>{participant.publicRegistrationId} · {participant.email} · Team: {participant.teamName || 'N/A'}</small>
-                      </div>
-                    </div>
-                  )) : <p className="organizer-rewards__empty">No eligible participants in the current records.</p>}
-                </div>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={handleGenerateCertificates}
-                  disabled={!selectedEventId || isEligibilityLoading || isGenerating || eligibleParticipants.length === 0}
-                >
-                  {isGenerating ? 'Generating Participant Certificates...' : 'Generate Hackathon Participant Certificates'}
-                </button>
-              </section>
+      {/* SUMMARY KPI STRIP (Derived 100% from backend data) */}
+      <div className="organizer-rewards__summary-strip">
+        <div className="organizer-rewards__metric-item organizer-rewards__metric-item--total">
+          <span className="organizer-rewards__metric-label">Eligible</span>
+          <span className="organizer-rewards__metric-value">{isLoading ? '—' : eligibleParticipants.length}</span>
+          <span className="organizer-rewards__metric-desc">Pending certificate issuance</span>
+        </div>
+        <div className="organizer-rewards__metric-item">
+          <span className="organizer-rewards__metric-label">Issued for Event</span>
+          <span className="organizer-rewards__metric-value">{isLoading ? '—' : alreadyIssued.length}</span>
+          <span className="organizer-rewards__metric-desc">Certificates awarded</span>
+        </div>
+        <div className="organizer-rewards__metric-item">
+          <span className="organizer-rewards__metric-label">Excluded</span>
+          <span className="organizer-rewards__metric-value">{isLoading ? '—' : excludedParticipants.length}</span>
+          <span className="organizer-rewards__metric-desc">Ineligible attendees</span>
+        </div>
+        {isHackathon && (
+          <div className="organizer-rewards__metric-item">
+            <span className="organizer-rewards__metric-label">Hackathon Teams</span>
+            <span className="organizer-rewards__metric-value">{isLoading ? '—' : teams.length}</span>
+            <span className="organizer-rewards__metric-desc">Registered teams</span>
+          </div>
+        )}
+        <div className="organizer-rewards__metric-item">
+          <span className="organizer-rewards__metric-label">Total Profile Ledger</span>
+          <span className="organizer-rewards__metric-value">{isLoading ? '—' : issuedCertificates.length}</span>
+          <span className="organizer-rewards__metric-desc">All certificates issued</span>
+        </div>
+      </div>
 
-              {/* Part B: Hackathon Award / Winner Certificates */}
-              <section className="organizer-rewards__workflow" style={{ border: '1px solid rgba(255, 79, 163, 0.15)', borderRadius: '12px', padding: '1.5rem', background: '#fff' }}>
-                <div className="organizer-rewards__section-heading">
-                  <span className="organizer-rewards__kicker">Hackathon Certificates</span>
-                  <h3>Hackathon Winner Certificates</h3>
-                  <p>Choose an award to automatically use its certificate template (1st Position, 1st Runner Up, 2nd Runner Up).</p>
-                </div>
-                <label htmlFor="reward-team" style={{ display: 'block', marginTop: '1rem', fontWeight: 'bold' }}>Select team</label>
-                <select id="reward-team" value={selectedTeamId} onChange={(eventChange) => setSelectedTeamId(eventChange.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid #ccc', margin: '0.5rem 0 1rem 0' }}>
-                  <option value="">Select Team</option>
-                  {teams.map((team) => <option key={team.id} value={team.id}>{team.team_name}</option>)}
-                </select>
-                <fieldset className="organizer-rewards__award-list" style={{ border: '1px solid #f0f0f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.2rem' }}>
-                  <legend style={{ padding: '0 0.5rem', fontWeight: 'bold' }}>Award</legend>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {hackathonPlacements.map((award) => (
-                      <label key={award.value} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input type="radio" name="hackathon-award" value={award.value} checked={placement === award.value} onChange={() => setPlacement(award.value)} />
-                        {award.label}
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <button type="button" className="button button--primary" onClick={handleAssignAward} disabled={!selectedTeamId || isAssigning} style={{ marginBottom: '1rem' }}>
-                  {isAssigning ? 'Assigning Award...' : 'Assign Award'}
-                </button>
-                <div className="organizer-rewards__mapping" style={{ margin: '1rem 0' }}>
-                  <span>Team members</span>
-                  <strong>{teamMembers.length ? teamMembers.map((member) => member.fullName).join(', ') : 'No team selected'}</strong>
-                </div>
-                <button type="button" className="button button--secondary" onClick={handleGenerateAwardCertificates} disabled={!selectedTeamId || !teamMembers.length || isGenerating}>
-                  {isGenerating ? 'Generating Award Certificates...' : 'Generate Award Certificates'}
-                </button>
-              </section>
-            </div>
-          ) : (
-            <section className="organizer-rewards__workflow">
-              <div className="organizer-rewards__section-heading">
-                <span className="organizer-rewards__kicker">{selectedEvent?.name || 'Event'}</span>
-                <h3>Eligible participants</h3>
-                <p>Eligibility comes from the existing attendance records for this event.</p>
-              </div>
-              <div className="organizer-rewards__mapping"><span>Eligibility summary</span><strong>Eligible: {eligibleParticipants.length} | Already issued: {alreadyIssued.length} | Excluded: {excludedParticipants.length}</strong></div>
-              <div className="organizer-rewards__participants">
-                {eligibleParticipants.length > 0 ? eligibleParticipants.map((participant) => (
-                  <div className="organizer-rewards__participant" key={participant.registrationId || participant.email}>
-                    <span aria-hidden="true">✓</span>
-                    <strong>{getRewardParticipant(participant)}</strong>
-                    <small>{participant.publicRegistrationId} · {participant.email}</small>
-                  </div>
-                )) : <p className="organizer-rewards__empty">No eligible participants in the current records.</p>}
-              </div>
-              <button type="button" className="button button--primary" onClick={handleGenerateCertificates} disabled={!selectedEventId || isEligibilityLoading || isGenerating || eligibleParticipants.length === 0}>{isGenerating ? 'Generating Certificates...' : 'Generate Certificates'}</button>
-            </section>
+      {/* EVENT SELECTOR CARD */}
+      <div className="organizer-rewards__event-selector-card">
+        <div className="organizer-rewards__event-selector-left">
+          <label htmlFor="organizer-reward-event" className="organizer-rewards__selector-label">
+            Target Event
+          </label>
+          <select
+            id="organizer-reward-event"
+            className="organizer-rewards__selector-select"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            disabled={isLoading || events.length === 0}
+            aria-label="Select target event for certificates and rewards"
+          >
+            {events.map((event) => (
+              <option key={event.event_id} value={event.event_id}>
+                {event.event_name}
+              </option>
+            ))}
+          </select>
+
+          {selectedEvent && (
+            <span className="organizer-rewards__event-meta-tag">
+              Type: <strong>{eventType || 'GENERAL'}</strong> · Template: <strong>{certificateTypeLabels[certificateType] || certificateType}</strong>
+            </span>
           )}
+        </div>
+
+        <button
+          type="button"
+          className="button button--secondary"
+          onClick={() => {
+            loadEligibility(selectedEventId, certificateType)
+            loadIssuedCertificates()
+          }}
+          disabled={isLoading || !selectedEventId}
+          style={{ fontSize: '0.84rem', padding: '0.5rem 1rem' }}
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* NAVIGATION TABS */}
+      <div className="organizer-rewards__tabs" role="tablist" aria-label="Reward operations">
+        {isHackathon ? (
+          <>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'participants'}
+              className={`organizer-rewards__tab ${activeTab === 'participants' ? 'organizer-rewards__tab--active' : ''}`}
+              onClick={() => setActiveTab('participants')}
+            >
+              Participant Certificates
+              <span className="organizer-rewards__tab-badge">{eligibleParticipants.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'awards'}
+              className={`organizer-rewards__tab ${activeTab === 'awards' ? 'organizer-rewards__tab--active' : ''}`}
+              onClick={() => setActiveTab('awards')}
+            >
+              Awards & Placements
+              <span className="organizer-rewards__tab-badge">3 Tiers</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'ledger'}
+              className={`organizer-rewards__tab ${activeTab === 'ledger' ? 'organizer-rewards__tab--active' : ''}`}
+              onClick={() => setActiveTab('ledger')}
+            >
+              Issued Certificates Ledger
+              <span className="organizer-rewards__tab-badge">{eventIssuedCertificates.length}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'attendees'}
+              className={`organizer-rewards__tab ${activeTab === 'attendees' ? 'organizer-rewards__tab--active' : ''}`}
+              onClick={() => setActiveTab('attendees')}
+            >
+              Eligible Attendees
+              <span className="organizer-rewards__tab-badge">{eligibleParticipants.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'ledger'}
+              className={`organizer-rewards__tab ${activeTab === 'ledger' ? 'organizer-rewards__tab--active' : ''}`}
+              onClick={() => setActiveTab('ledger')}
+            >
+              Issued Certificates Ledger
+              <span className="organizer-rewards__tab-badge">{eventIssuedCertificates.length}</span>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* MAIN CONTENT CARD */}
+      <div className="organizer-rewards__card">
+        {isLoading ? (
+          <div>
+            <div className="organizer-rewards__skeleton-row" />
+            <div className="organizer-rewards__skeleton-row" />
+            <div className="organizer-rewards__skeleton-row" />
+            <div className="organizer-rewards__skeleton-row" />
+          </div>
+        ) : events.length === 0 ? (
+          <div className="organizer-rewards__empty">
+            <span className="organizer-rewards__empty-icon" aria-hidden="true">📅</span>
+            <h4>No Events Available</h4>
+            <p>No events were found for the {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'} profile context.</p>
+          </div>
+        ) : (
+          <>
+            {/* TAB 1: ELIGIBLE PARTICIPANTS / ATTENDEES */}
+            {(activeTab === 'participants' || activeTab === 'attendees') && (
+              <>
+                <div className="organizer-rewards__toolbar">
+                  <div className="organizer-rewards__search-wrap">
+                    <span className="organizer-rewards__search-icon" aria-hidden="true">🔍</span>
+                    <input
+                      type="text"
+                      className="organizer-rewards__search-input"
+                      placeholder="Search eligible by name, email, reg ID, team…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      aria-label="Search eligible attendees"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="organizer-rewards__search-clear"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search input"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="organizer-rewards__toolbar-actions">
+                    <button
+                      type="button"
+                      className="button button--primary"
+                      onClick={handleGenerateCertificates}
+                      disabled={!selectedEventId || isEligibilityLoading || isGenerating || eligibleParticipants.length === 0}
+                      style={{ fontSize: '0.88rem', padding: '0.55rem 1.25rem' }}
+                    >
+                      {isGenerating
+                        ? 'Generating Certificates…'
+                        : selectedRegistrationIds.size > 0
+                        ? `Generate for Selected (${selectedRegistrationIds.size})`
+                        : `Generate All Eligible (${eligibleParticipants.length})`}
+                    </button>
+                  </div>
+                </div>
+
+                {isEligibilityLoading ? (
+                  <div>
+                    <div className="organizer-rewards__skeleton-row" />
+                    <div className="organizer-rewards__skeleton-row" />
+                    <div className="organizer-rewards__skeleton-row" />
+                  </div>
+                ) : filteredEligible.length === 0 ? (
+                  <div className="organizer-rewards__empty">
+                    <span className="organizer-rewards__empty-icon" aria-hidden="true">
+                      {searchQuery ? '🔎' : '🎓'}
+                    </span>
+                    <h4>
+                      {searchQuery ? 'No Matching Eligible Participants' : 'No Eligible Participants Pending'}
+                    </h4>
+                    <p>
+                      {searchQuery
+                        ? 'Try clearing or changing your search terms.'
+                        : alreadyIssued.length > 0
+                        ? `All ${alreadyIssued.length} eligible participants have already received their certificates for this event.`
+                        : isHackathon
+                        ? 'Eligibility requires registered team membership. Check the Hackathon section to manage teams.'
+                        : 'Eligibility is derived from present attendance records for this session.'}
+                    </p>
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        onClick={() => setSearchQuery('')}
+                        style={{ marginTop: '0.5rem' }}
+                      >
+                        Clear Search
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* DESKTOP TABLE */}
+                    <div className="organizer-rewards__table-wrap">
+                      <table className="organizer-rewards__table" aria-label="Eligible participants table">
+                        <thead>
+                          <tr>
+                            <th className="organizer-rewards__th" style={{ width: '40px' }}>
+                              <input
+                                type="checkbox"
+                                aria-label="Select all eligible participants"
+                                checked={selectedRegistrationIds.size === eligibleParticipants.length && eligibleParticipants.length > 0}
+                                onChange={handleToggleSelectAll}
+                                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ff4fa3' }}
+                              />
+                            </th>
+                            <th className="organizer-rewards__th">Participant</th>
+                            <th className="organizer-rewards__th">Registration ID</th>
+                            <th className="organizer-rewards__th">{isHackathon ? 'Team Name' : 'Email Address'}</th>
+                            <th className="organizer-rewards__th">Eligibility Source</th>
+                            <th className="organizer-rewards__th">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredEligible.map((p) => {
+                            const isSelected = selectedRegistrationIds.has(p.publicRegistrationId)
+                            return (
+                              <tr
+                                key={p.publicRegistrationId || p.registrationId || p.email}
+                                className={`organizer-rewards__tr ${isSelected ? 'organizer-rewards__tr--selected' : ''}`}
+                              >
+                                <td className="organizer-rewards__td">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Select ${getRewardParticipant(p)}`}
+                                    checked={isSelected}
+                                    onChange={() => handleToggleSelectOne(p.publicRegistrationId)}
+                                    style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#ff4fa3' }}
+                                  />
+                                </td>
+                                <td className="organizer-rewards__td">
+                                  <strong style={{ display: 'block', color: '#241938' }}>{getRewardParticipant(p)}</strong>
+                                  <small style={{ color: '#7b6f93' }}>{p.email}</small>
+                                </td>
+                                <td className="organizer-rewards__td">
+                                  <span className="organizer-rewards__code-pill">{p.publicRegistrationId || '—'}</span>
+                                </td>
+                                <td className="organizer-rewards__td">
+                                  {isHackathon ? (
+                                    <strong style={{ color: '#4b3d68' }}>{p.teamName || '—'}</strong>
+                                  ) : (
+                                    <span style={{ color: '#4b3d68' }}>{p.email}</span>
+                                  )}
+                                </td>
+                                <td className="organizer-rewards__td">
+                                  <span className="organizer-rewards__badge organizer-rewards__badge--eligible">
+                                    {isHackathon ? 'Team Member' : 'Attended Session'}
+                                  </span>
+                                </td>
+                                <td className="organizer-rewards__td">
+                                  <span className="organizer-rewards__badge organizer-rewards__badge--eligible">
+                                    ✓ Eligible
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* MOBILE CARDS VIEW */}
+                    <div className="organizer-rewards__mobile-records">
+                      {filteredEligible.map((p) => {
+                        const isSelected = selectedRegistrationIds.has(p.publicRegistrationId)
+                        return (
+                          <div key={p.publicRegistrationId || p.registrationId} className="organizer-rewards__mobile-card">
+                            <div className="organizer-rewards__mobile-card-header">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelectOne(p.publicRegistrationId)}
+                                  style={{ width: '18px', height: '18px', accentColor: '#ff4fa3' }}
+                                  aria-label={`Select ${getRewardParticipant(p)}`}
+                                />
+                                <div className="organizer-rewards__mobile-card-title">
+                                  <strong>{getRewardParticipant(p)}</strong>
+                                  <span>{p.email}</span>
+                                </div>
+                              </div>
+                              <span className="organizer-rewards__badge organizer-rewards__badge--eligible">
+                                Eligible
+                              </span>
+                            </div>
+
+                            <div className="organizer-rewards__mobile-card-body">
+                              <div className="organizer-rewards__mobile-detail-row">
+                                <span style={{ color: '#7b6f93' }}>Reg ID:</span>
+                                <span className="organizer-rewards__code-pill">{p.publicRegistrationId}</span>
+                              </div>
+                              {isHackathon && (
+                                <div className="organizer-rewards__mobile-detail-row">
+                                  <span style={{ color: '#7b6f93' }}>Team:</span>
+                                  <strong>{p.teamName || '—'}</strong>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* TAB 2: HACKATHON AWARDS & PLACEMENTS (Hackathon only) */}
+            {activeTab === 'awards' && isHackathon && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: '800', color: '#241938', margin: '0 0 0.35rem 0' }}>
+                    Select Placement Tier
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: '#7b6f93', margin: 0 }}>
+                    Choose the placement award to assign and generate verified winner certificates.
+                  </p>
+                </div>
+
+                {/* PLACEMENT CARDS */}
+                <div className="organizer-rewards__awards-grid" role="radiogroup" aria-label="Hackathon placement tiers">
+                  {hackathonPlacements.map((p) => {
+                    const isSelected = placement === p.value
+                    return (
+                      <div
+                        key={p.value}
+                        className={`organizer-rewards__placement-card ${isSelected ? 'organizer-rewards__placement-card--selected' : ''}`}
+                        onClick={() => setPlacement(p.value)}
+                        role="radio"
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault()
+                            setPlacement(p.value)
+                          }
+                        }}
+                      >
+                        <div className="organizer-rewards__placement-top">
+                          <span className="organizer-rewards__placement-icon" aria-hidden="true">{p.icon}</span>
+                          <input
+                            type="radio"
+                            name="placement-tier"
+                            value={p.value}
+                            checked={isSelected}
+                            onChange={() => setPlacement(p.value)}
+                            className="organizer-rewards__placement-radio"
+                            aria-label={p.label}
+                          />
+                        </div>
+                        <h4 className="organizer-rewards__placement-title">{p.label}</h4>
+                        <p className="organizer-rewards__placement-desc">{p.desc}</p>
+                        <span className={`organizer-rewards__badge organizer-rewards__badge--${p.tier}`}>
+                          {p.badge}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* TEAM ASSIGNMENT CONSOLE */}
+                <div className="organizer-rewards__assign-section">
+                  <div className="organizer-rewards__assign-header">
+                    <div>
+                      <h4 style={{ margin: '0 0 0.25rem 0', color: '#241938', fontSize: '1rem', fontWeight: '700' }}>
+                        Assign Team & Generate Winner Certificates
+                      </h4>
+                      <p style={{ margin: 0, color: '#7b6f93', fontSize: '0.84rem' }}>
+                        Select a registered hackathon team to assign the chosen placement.
+                      </p>
+                    </div>
+
+                    <select
+                      id="organizer-award-team-select"
+                      className="organizer-rewards__selector-select"
+                      value={selectedTeamId}
+                      onChange={(e) => setSelectedTeamId(e.target.value)}
+                      aria-label="Select winning team"
+                    >
+                      <option value="">— Select Winning Team —</option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.team_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* TEAM ROSTER PREVIEW */}
+                  {selectedTeamId ? (
+                    <div className="organizer-rewards__team-roster">
+                      <span className="organizer-rewards__roster-title">
+                        Team Roster ({teamMembers.length} {teamMembers.length === 1 ? 'member' : 'members'})
+                      </span>
+                      {teamMembers.length > 0 ? (
+                        <div className="organizer-rewards__roster-list">
+                          {teamMembers.map((member) => (
+                            <div key={member.publicRegistrationId || member.registrationId} className="organizer-rewards__roster-tag">
+                              <span style={{ color: '#ff4fa3' }}>👤</span>
+                              <strong>{member.fullName}</strong>
+                              <small style={{ color: '#7b6f93' }}>({member.publicRegistrationId})</small>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: '0.84rem', color: '#7b6f93', margin: 0 }}>
+                          Loading team members…
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.84rem', color: '#7b6f93', margin: 0 }}>
+                      No team selected. Choose a team above to view its member roster.
+                    </p>
+                  )}
+
+                  <div className="organizer-rewards__assign-actions">
+                    <button
+                      type="button"
+                      className="button button--primary"
+                      onClick={handleAssignAward}
+                      disabled={!selectedTeamId || isAssigning}
+                      style={{ fontSize: '0.88rem', padding: '0.6rem 1.3rem' }}
+                    >
+                      {isAssigning ? 'Assigning Award…' : '1. Assign Award Placement'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="button button--secondary"
+                      onClick={handleGenerateAwardCertificates}
+                      disabled={!selectedTeamId || !teamMembers.length || isGenerating}
+                      style={{ fontSize: '0.88rem', padding: '0.6rem 1.3rem' }}
+                    >
+                      {isGenerating ? 'Generating Winner Certificates…' : '2. Generate Winner Certificates'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: ISSUED CERTIFICATES LEDGER */}
+            {activeTab === 'ledger' && (
+              <>
+                <div className="organizer-rewards__toolbar">
+                  <div className="organizer-rewards__search-wrap">
+                    <span className="organizer-rewards__search-icon" aria-hidden="true">🔍</span>
+                    <input
+                      type="text"
+                      className="organizer-rewards__search-input"
+                      placeholder="Search ledger by cert #, recipient, type, verification code…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      aria-label="Search issued certificates ledger"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="organizer-rewards__search-clear"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search input"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="organizer-rewards__toolbar-actions">
+                    <span style={{ fontSize: '0.84rem', color: '#7b6f93' }}>
+                      Showing {filteredIssued.length} of {eventIssuedCertificates.length} certificates
+                    </span>
+                  </div>
+                </div>
+
+                {isCertificatesLoading ? (
+                  <div>
+                    <div className="organizer-rewards__skeleton-row" />
+                    <div className="organizer-rewards__skeleton-row" />
+                    <div className="organizer-rewards__skeleton-row" />
+                  </div>
+                ) : filteredIssued.length === 0 ? (
+                  <div className="organizer-rewards__empty">
+                    <span className="organizer-rewards__empty-icon" aria-hidden="true">
+                      {searchQuery ? '🔎' : '📜'}
+                    </span>
+                    <h4>
+                      {searchQuery ? 'No Matching Certificates' : 'No Certificates Issued Yet'}
+                    </h4>
+                    <p>
+                      {searchQuery
+                        ? 'Try clearing or changing your search terms.'
+                        : 'Certificates generated for this event will appear in this ledger with verifiable security codes and PDF download links.'}
+                    </p>
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        className="button button--secondary"
+                        onClick={() => setSearchQuery('')}
+                        style={{ marginTop: '0.5rem' }}
+                      >
+                        Clear Search
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* DESKTOP TABLE */}
+                    <div className="organizer-rewards__table-wrap">
+                      <table className="organizer-rewards__table" aria-label="Issued certificates table">
+                        <thead>
+                          <tr>
+                            <th className="organizer-rewards__th">Certificate #</th>
+                            <th className="organizer-rewards__th">Recipient</th>
+                            <th className="organizer-rewards__th">Certificate Type</th>
+                            <th className="organizer-rewards__th">Issue Date</th>
+                            <th className="organizer-rewards__th">Status</th>
+                            <th className="organizer-rewards__th">Verification Code</th>
+                            <th className="organizer-rewards__th" style={{ textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredIssued.map((cert) => (
+                            <tr key={cert.certificateId || cert.certificateNumber} className="organizer-rewards__tr">
+                              <td className="organizer-rewards__td">
+                                <strong style={{ color: '#241938' }}>{cert.certificateNumber}</strong>
+                              </td>
+                              <td className="organizer-rewards__td">
+                                <strong style={{ display: 'block', color: '#241938' }}>{getCertRecipient(cert)}</strong>
+                                <small style={{ color: '#7b6f93' }}>{getCertEmail(cert)}</small>
+                              </td>
+                              <td className="organizer-rewards__td">
+                                <span className={`organizer-rewards__badge ${cert.certificateType?.includes('FIRST') ? 'organizer-rewards__badge--gold' : 'organizer-rewards__badge--issued'}`}>
+                                  {certificateTypeLabels[cert.certificateType] || cert.certificateType}
+                                </span>
+                              </td>
+                              <td className="organizer-rewards__td">
+                                <span style={{ color: '#4b3d68', fontSize: '0.82rem' }}>
+                                  {formatCertificateDate(cert.issuedAt)}
+                                </span>
+                              </td>
+                              <td className="organizer-rewards__td">
+                                <span className="organizer-rewards__badge organizer-rewards__badge--eligible">
+                                  ● {cert.status || 'issued'}
+                                </span>
+                              </td>
+                              <td className="organizer-rewards__td">
+                                <span className="organizer-rewards__code-pill">{cert.verificationCode || '—'}</span>
+                              </td>
+                              <td className="organizer-rewards__td" style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  {(cert.viewUrl || cert.downloadUrl) && (
+                                    <a
+                                      href={cert.viewUrl || cert.downloadUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="button button--secondary"
+                                      style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                                    >
+                                      View PDF
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className="button button--secondary"
+                                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                                    onClick={() => setSelectedCertModal(cert)}
+                                  >
+                                    Details
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* MOBILE CARDS VIEW */}
+                    <div className="organizer-rewards__mobile-records">
+                      {filteredIssued.map((cert) => (
+                        <div key={cert.certificateId || cert.certificateNumber} className="organizer-rewards__mobile-card">
+                          <div className="organizer-rewards__mobile-card-header">
+                            <div className="organizer-rewards__mobile-card-title">
+                              <strong>{cert.certificateNumber}</strong>
+                              <span>{getCertRecipient(cert)}</span>
+                            </div>
+                            <span className="organizer-rewards__badge organizer-rewards__badge--eligible">
+                              ● {cert.status || 'issued'}
+                            </span>
+                          </div>
+
+                          <div className="organizer-rewards__mobile-card-body">
+                            <div className="organizer-rewards__mobile-detail-row">
+                              <span style={{ color: '#7b6f93' }}>Type:</span>
+                              <span style={{ fontWeight: 600 }}>
+                                {certificateTypeLabels[cert.certificateType] || cert.certificateType}
+                              </span>
+                            </div>
+                            <div className="organizer-rewards__mobile-detail-row">
+                              <span style={{ color: '#7b6f93' }}>Issued:</span>
+                              <span>{formatCertificateDate(cert.issuedAt)}</span>
+                            </div>
+                            <div className="organizer-rewards__mobile-detail-row">
+                              <span style={{ color: '#7b6f93' }}>Verify Code:</span>
+                              <span className="organizer-rewards__code-pill">{cert.verificationCode}</span>
+                            </div>
+                          </div>
+
+                          <div className="organizer-rewards__mobile-card-actions">
+                            {(cert.viewUrl || cert.downloadUrl) && (
+                              <a
+                                href={cert.viewUrl || cert.downloadUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="button button--primary"
+                                style={{ flex: 1, fontSize: '0.82rem', padding: '0.45rem 0.75rem', textAlign: 'center' }}
+                              >
+                                View / Download PDF
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              className="button button--secondary"
+                              style={{ flex: 1, fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}
+                              onClick={() => setSelectedCertModal(cert)}
+                            >
+                              Inspect Details
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* CERTIFICATE DETAILS INSPECTION MODAL */}
+      {selectedCertModal && (
+        <div
+          className="organizer-rewards__modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedCertModal(null)
+          }}
+          role="presentation"
+        >
+          <div
+            className="organizer-rewards__modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cert-modal-title"
+          >
+            <div className="organizer-rewards__modal-header">
+              <div>
+                <h3 id="cert-modal-title" className="organizer-rewards__modal-title">
+                  Certificate Details
+                </h3>
+                <p className="organizer-rewards__modal-subtitle">
+                  {selectedCertModal.certificateNumber}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="organizer-rewards__modal-close"
+                onClick={() => setSelectedCertModal(null)}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="organizer-rewards__modal-body">
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Recipient Name</span>
+                <span className="organizer-rewards__modal-field-value">{getCertRecipient(selectedCertModal)}</span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Recipient Email</span>
+                <span className="organizer-rewards__modal-field-value">{getCertEmail(selectedCertModal)}</span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Certificate Type</span>
+                <span className="organizer-rewards__modal-field-value">
+                  {certificateTypeLabels[selectedCertModal.certificateType] || selectedCertModal.certificateType}
+                </span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Event</span>
+                <span className="organizer-rewards__modal-field-value">{selectedCertModal.eventName || selectedEvent?.event_name || '—'}</span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Issued Timestamp</span>
+                <span className="organizer-rewards__modal-field-value">{formatCertificateDate(selectedCertModal.issuedAt)}</span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Verification Code</span>
+                <span className="organizer-rewards__code-pill" style={{ fontSize: '0.88rem', padding: '0.35rem 0.65rem' }}>
+                  {selectedCertModal.verificationCode}
+                </span>
+              </div>
+              <div className="organizer-rewards__modal-field">
+                <span className="organizer-rewards__modal-field-label">Status</span>
+                <span className="organizer-rewards__badge organizer-rewards__badge--eligible" style={{ width: 'fit-content' }}>
+                  ● {selectedCertModal.status || 'issued'}
+                </span>
+              </div>
+            </div>
+
+            <div className="organizer-rewards__modal-footer">
+              {(selectedCertModal.viewUrl || selectedCertModal.downloadUrl) && (
+                <a
+                  href={selectedCertModal.viewUrl || selectedCertModal.downloadUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button button--primary"
+                  style={{ fontSize: '0.88rem' }}
+                >
+                  Download Certificate PDF ↗
+                </a>
+              )}
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => setSelectedCertModal(null)}
+                style={{ fontSize: '0.88rem' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1213,14 +2888,21 @@ const OrganizerRewardsPage = () => {
 }
 
 const OrganizerEventsPage = () => {
+  const { activeProfile } = useEventProfile()
+
   const [events, setEvents] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [deleteModalEvent, setDeleteModalEvent] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState(null)
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterTab, setFilterTab] = useState('ALL') // 'ALL', 'ACTIVE', 'CLOSED', 'UPCOMING', 'TODAY', 'HACKATHON', 'WORKSHOP', 'WEBINAR', 'GENERAL'
 
   const initialFormData = {
     event_type: 'HACKATHON',
@@ -1240,21 +2922,102 @@ const OrganizerEventsPage = () => {
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState('')
 
-  const loadEvents = async () => {
-    setIsLoading(true)
-    setError('')
-    const res = await api.organizerFetchEvents()
-    setIsLoading(false)
-    if (res.success && Array.isArray(res.data)) {
-      setEvents(res.data)
-    } else {
-      setError(res.error?.message || 'Failed to load events from database.')
+  // Date & Schedule boundary calculation helpers (Single source of truth)
+  const getTodayDateStr = () => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  const getScheduleStatus = (dateVal) => {
+    if (!dateVal) return null
+    const dateStr = String(dateVal).slice(0, 10)
+    const todayStr = getTodayDateStr()
+    if (dateStr > todayStr) return 'UPCOMING'
+    if (dateStr === todayStr) return 'TODAY'
+    return 'CONCLUDED'
+  }
+
+  const formatEventDate = (dateVal) => {
+    if (!dateVal) return 'Date TBA'
+    const str = String(dateVal).slice(0, 10)
+    const parts = str.split('-')
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number)
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const localDate = new Date(y, m - 1, d)
+        return localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      }
+    }
+    return str
+  }
+
+  const formatTimeRange = (start, end) => {
+    if (!start && !end) return null
+    if (start && end) return `${start.slice(0, 5)} - ${end.slice(0, 5)}`
+    if (start) return `Starts at ${start.slice(0, 5)}`
+    return `Until ${end.slice(0, 5)}`
+  }
+
+  const getEventTypeClass = (type) => {
+    switch (String(type || '').toUpperCase()) {
+      case 'HACKATHON': return 'organizer-events__type-pill--hackathon'
+      case 'WORKSHOP': return 'organizer-events__type-pill--workshop'
+      case 'WEBINAR': return 'organizer-events__type-pill--webinar'
+      case 'BOOTCAMP': return 'organizer-events__type-pill--bootcamp'
+      case 'GENERAL': return 'organizer-events__type-pill--general'
+      default: return 'organizer-events__type-pill--other'
     }
   }
 
-  useEffect(() => {
-    loadEvents()
+  // Load events via profile-aware API
+  const loadEvents = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const res = await api.organizerFetchEvents()
+      if (res.success && Array.isArray(res.data)) {
+        setEvents(res.data)
+      } else {
+        setError(res.error?.message || 'Failed to load events from database.')
+      }
+    } catch (err) {
+      setError('A network error occurred while loading events.')
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
+
+  // Profile-isolation: clean reset and reload whenever activeProfile changes
+  useEffect(() => {
+    setEvents([])
+    setEditingEvent(null)
+    setDeleteModalEvent(null)
+    setModalOpen(false)
+    setSearchQuery('')
+    setFilterTab('ALL')
+    setError('')
+    setSuccess('')
+    loadEvents()
+  }, [activeProfile, loadEvents])
+
+  // Accessible keyboard dismissal for modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (modalOpen && !formLoading) {
+          setModalOpen(false)
+        }
+        if (deleteModalEvent && !isDeleting) {
+          setDeleteModalEvent(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [modalOpen, formLoading, deleteModalEvent, isDeleting])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -1297,15 +3060,15 @@ const OrganizerEventsPage = () => {
 
     const payload = {
       event_type: formData.event_type,
-      event_name: formData.event_name.trim(),
-      description: formData.description.trim(),
+      event_name: (formData.event_name || '').trim(),
+      description: (formData.description || '').trim() || null,
       event_date: formData.event_date,
       start_time: formData.start_time || null,
       end_time: formData.end_time || null,
-      location: formData.location.trim(),
+      location: (formData.location || '').trim() || null,
       status: formData.status || 'ACTIVE',
       max_participants: formData.max_participants ? Number(formData.max_participants) : null,
-      registration_info: formData.registration_info.trim() || null,
+      registration_info: (formData.registration_info || '').trim() || null,
     }
 
     const eventId = editingEvent ? (editingEvent.eventId || editingEvent.event_id) : null
@@ -1327,7 +3090,7 @@ const OrganizerEventsPage = () => {
       setEditingEvent(null)
       setFormData(initialFormData)
       setFormSuccess('')
-    }, 1000)
+    }, 900)
   }
 
   const handleToggleStatus = async (evt) => {
@@ -1340,9 +3103,10 @@ const OrganizerEventsPage = () => {
     setActionLoadingId(null)
 
     if (res.success) {
+      setSuccess(`Event "${evt.name || evt.event_name}" status changed to ${nextStatus}.`)
       await loadEvents()
     } else {
-      alert(res.error?.message || `Failed to change status to ${nextStatus}.`)
+      setError(res.error?.message || `Failed to change status to ${nextStatus}.`)
     }
   }
 
@@ -1355,446 +3119,897 @@ const OrganizerEventsPage = () => {
 
     if (res.success) {
       setDeleteModalEvent(null)
+      setSuccess(`Event "${deleteModalEvent.name || deleteModalEvent.event_name}" was deleted successfully.`)
       await loadEvents()
     } else {
-      alert(res.error?.message || 'Failed to delete event.')
+      setError(res.error?.message || 'Failed to delete event. Dependent records may exist.')
+      setDeleteModalEvent(null)
     }
   }
 
-  const formatEventDate = (dateVal) => {
-    if (!dateVal) return 'Date TBA'
-    const str = String(dateVal).slice(0, 10)
-    const parts = str.split('-')
-    if (parts.length === 3) {
-      const [y, m, d] = parts.map(Number)
-      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        const localDate = new Date(y, m - 1, d)
-        return localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  // Summary Metrics (100% derived from loaded events)
+  const totalCount = events.length
+  const activeCount = events.filter((e) => String(e.status || 'ACTIVE').toUpperCase() === 'ACTIVE').length
+  const closedCount = events.filter((e) => String(e.status || '').toUpperCase() === 'CLOSED').length
+  const upcomingCount = events.filter((e) => getScheduleStatus(e.date || e.event_date) === 'UPCOMING').length
+  const todayCount = events.filter((e) => getScheduleStatus(e.date || e.event_date) === 'TODAY').length
+  const hackathonCount = events.filter((e) => String(e.eventType || e.event_type || '').toUpperCase() === 'HACKATHON').length
+  const workshopCount = events.filter((e) => ['WORKSHOP', 'WEBINAR'].includes(String(e.eventType || e.event_type || '').toUpperCase())).length
+
+  // Filtered Events (Client-side search & filter)
+  const filteredEvents = events.filter((evt) => {
+    // Tab filter
+    if (filterTab === 'ACTIVE' && String(evt.status || 'ACTIVE').toUpperCase() !== 'ACTIVE') return false
+    if (filterTab === 'CLOSED' && String(evt.status || '').toUpperCase() !== 'CLOSED') return false
+    if (filterTab === 'UPCOMING' && getScheduleStatus(evt.date || evt.event_date) !== 'UPCOMING') return false
+    if (filterTab === 'TODAY' && getScheduleStatus(evt.date || evt.event_date) !== 'TODAY') return false
+    if (filterTab === 'HACKATHON' && String(evt.eventType || evt.event_type || '').toUpperCase() !== 'HACKATHON') return false
+    if (filterTab === 'WORKSHOP' && String(evt.eventType || evt.event_type || '').toUpperCase() !== 'WORKSHOP') return false
+    if (filterTab === 'WEBINAR' && String(evt.eventType || evt.event_type || '').toUpperCase() !== 'WEBINAR') return false
+    if (filterTab === 'GENERAL' && String(evt.eventType || evt.event_type || '').toUpperCase() !== 'GENERAL') return false
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      const name = String(evt.name || evt.event_name || '').toLowerCase()
+      const id = String(evt.eventId || evt.event_id || '').toLowerCase()
+      const type = String(evt.eventType || evt.event_type || '').toLowerCase()
+      const loc = String(evt.venue || evt.location || '').toLowerCase()
+      const desc = String(evt.description || '').toLowerCase()
+      if (!name.includes(q) && !id.includes(q) && !type.includes(q) && !loc.includes(q) && !desc.includes(q)) {
+        return false
       }
     }
-    return str
-  }
-
-  const formatTimeRange = (start, end) => {
-    if (!start && !end) return null
-    if (start && end) return `${start.slice(0, 5)} - ${end.slice(0, 5)}`
-    if (start) return `Starts at ${start.slice(0, 5)}`
-    return `Until ${end.slice(0, 5)}`
-  }
-
-  const getEventTypeBadgeColor = (type) => {
-    switch (String(type || '').toUpperCase()) {
-      case 'HACKATHON':
-        return { bg: 'rgba(255, 79, 163, 0.12)', color: '#c2348a', border: 'rgba(255, 79, 163, 0.3)' }
-      case 'WORKSHOP':
-        return { bg: 'rgba(77, 47, 116, 0.1)', color: '#4d2f74', border: 'rgba(77, 47, 116, 0.25)' }
-      case 'WEBINAR':
-        return { bg: 'rgba(20, 184, 166, 0.1)', color: '#0d9488', border: 'rgba(20, 184, 166, 0.25)' }
-      case 'BOOTCAMP':
-        return { bg: 'rgba(249, 115, 22, 0.1)', color: '#ea580c', border: 'rgba(249, 115, 22, 0.25)' }
-      default:
-        return { bg: 'rgba(100, 116, 139, 0.1)', color: '#475569', border: 'rgba(100, 116, 139, 0.25)' }
-    }
-  }
+    return true
+  })
 
   return (
-    <div className="organizer-page-view organizer-events-page">
+    <div className="organizer-page-view organizer-events-container">
       <OrganizerPageHeading
-        eyebrow="Events Management"
+        eyebrow="EVENT OPERATIONS"
         title="Events"
-        description="Monitor all scheduled sessions and manage events stored in the database."
+        description="Monitor scheduled sessions, configure event metadata, and manage event lifecycles."
         action={
-          <button
-            type="button"
-            className="button button--primary organizer-events__add-btn"
-            onClick={handleOpenCreateModal}
-          >
-            <span aria-hidden="true" style={{ fontSize: '1.1rem', marginRight: '0.35rem' }}>＋</span>
-            Create New Event
-          </button>
+          <div className="organizer-events__header-badge">
+            <span className="organizer-events__profile-pill">
+              <span className="organizer-events__profile-dot" />
+              {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'}
+            </span>
+            <span className="organizer-events__count-pill" aria-label={`Loaded events: ${totalCount}`}>
+              {isLoading ? 'Loading…' : `${totalCount} Event${totalCount === 1 ? '' : 's'}`}
+            </span>
+            <div className="organizer-events__header-actions">
+              <button
+                type="button"
+                className="organizer-events__btn-secondary"
+                onClick={loadEvents}
+                disabled={isLoading}
+                title="Reload events from database"
+                aria-label="Refresh events list"
+              >
+                <span aria-hidden="true">↻</span> Refresh
+              </button>
+              <button
+                type="button"
+                className="organizer-events__btn-primary"
+                onClick={handleOpenCreateModal}
+                aria-label="Create new event"
+              >
+                <span aria-hidden="true">＋</span> Create New Event
+              </button>
+            </div>
+          </div>
         }
       />
 
-      <div className="organizer-page-content-panel">
-        {isLoading ? (
-          <div className="detail-info-item">
-            <span>Loading</span>
-            <strong>Fetching events from database…</strong>
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="organizer-events__alert organizer-events__alert--error" role="alert">
+          <div className="organizer-events__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
           </div>
-        ) : error ? (
-          <div className="organizer-events__alert organizer-events__alert--error">
-            <p>{error}</p>
-            <button type="button" className="button button--secondary" onClick={loadEvents} style={{ marginTop: '0.5rem' }}>
-              Retry
-            </button>
+          <button type="button" className="organizer-events__alert-close" onClick={() => setError('')} aria-label="Dismiss error">×</button>
+        </div>
+      )}
+
+      {/* SUCCESS BANNER */}
+      {success && (
+        <div className="organizer-events__alert organizer-events__alert--success" role="status">
+          <div className="organizer-events__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="organizer-events__alert-close" onClick={() => setSuccess('')} aria-label="Dismiss message">×</button>
+        </div>
+      )}
+
+      {/* SUMMARY KPI STRIP */}
+      <div className="organizer-events__summary-strip">
+        <div className="organizer-events__metric-item organizer-events__metric-item--total">
+          <span className="organizer-events__metric-label">Total Events</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : totalCount}</span>
+          <span className="organizer-events__metric-desc">Configured sessions</span>
+        </div>
+        <div className="organizer-events__metric-item organizer-events__metric-item--active">
+          <span className="organizer-events__metric-label">Active Access</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : activeCount}</span>
+          <span className="organizer-events__metric-desc">Open for attendance</span>
+        </div>
+        <div className="organizer-events__metric-item organizer-events__metric-item--closed">
+          <span className="organizer-events__metric-label">Closed Access</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : closedCount}</span>
+          <span className="organizer-events__metric-desc">Access restricted</span>
+        </div>
+        <div className="organizer-events__metric-item organizer-events__metric-item--upcoming">
+          <span className="organizer-events__metric-label">Upcoming Schedule</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : upcomingCount}</span>
+          <span className="organizer-events__metric-desc">Strictly future dates</span>
+        </div>
+        <div className="organizer-events__metric-item organizer-events__metric-item--hackathon">
+          <span className="organizer-events__metric-label">Hackathons</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : hackathonCount}</span>
+          <span className="organizer-events__metric-desc">Team problem tracks</span>
+        </div>
+        <div className="organizer-events__metric-item">
+          <span className="organizer-events__metric-label">Workshops & Webinars</span>
+          <span className="organizer-events__metric-value">{isLoading ? '—' : workshopCount}</span>
+          <span className="organizer-events__metric-desc">Learning tracks</span>
+        </div>
+      </div>
+
+      {/* MAIN DATA PANEL */}
+      <div className="organizer-events__panel">
+        {/* TOOLBAR */}
+        <div className="organizer-events__toolbar">
+          <div className="organizer-events__toolbar-top">
+            {/* SEARCH */}
+            <div className="organizer-events__search-wrap">
+              <span className="organizer-events__search-icon" aria-hidden="true">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                className="organizer-events__search-input"
+                placeholder="Search by name, ID, venue, or type…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search events"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="organizer-events__search-clear"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* FILTER TABS */}
+            <div className="organizer-events__filter-tabs" role="tablist" aria-label="Event filter tabs">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'ALL'}
+                className={`organizer-events__tab-btn ${filterTab === 'ALL' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('ALL')}
+              >
+                All <span className="organizer-events__tab-count">{totalCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'ACTIVE'}
+                className={`organizer-events__tab-btn ${filterTab === 'ACTIVE' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('ACTIVE')}
+              >
+                Active <span className="organizer-events__tab-count">{activeCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'CLOSED'}
+                className={`organizer-events__tab-btn ${filterTab === 'CLOSED' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('CLOSED')}
+              >
+                Closed <span className="organizer-events__tab-count">{closedCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'UPCOMING'}
+                className={`organizer-events__tab-btn ${filterTab === 'UPCOMING' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('UPCOMING')}
+              >
+                Upcoming <span className="organizer-events__tab-count">{upcomingCount}</span>
+              </button>
+              {todayCount > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={filterTab === 'TODAY'}
+                  className={`organizer-events__tab-btn ${filterTab === 'TODAY' ? 'organizer-events__tab-btn--active' : ''}`}
+                  onClick={() => setFilterTab('TODAY')}
+                >
+                  Today <span className="organizer-events__tab-count">{todayCount}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'HACKATHON'}
+                className={`organizer-events__tab-btn ${filterTab === 'HACKATHON' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('HACKATHON')}
+              >
+                Hackathon <span className="organizer-events__tab-count">{hackathonCount}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'WORKSHOP'}
+                className={`organizer-events__tab-btn ${filterTab === 'WORKSHOP' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('WORKSHOP')}
+              >
+                Workshop <span className="organizer-events__tab-count">{events.filter((e) => String(e.eventType || e.event_type || '').toUpperCase() === 'WORKSHOP').length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'WEBINAR'}
+                className={`organizer-events__tab-btn ${filterTab === 'WEBINAR' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('WEBINAR')}
+              >
+                Webinar <span className="organizer-events__tab-count">{events.filter((e) => String(e.eventType || e.event_type || '').toUpperCase() === 'WEBINAR').length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterTab === 'GENERAL'}
+                className={`organizer-events__tab-btn ${filterTab === 'GENERAL' ? 'organizer-events__tab-btn--active' : ''}`}
+                onClick={() => setFilterTab('GENERAL')}
+              >
+                General <span className="organizer-events__tab-count">{events.filter((e) => String(e.eventType || e.event_type || '').toUpperCase() === 'GENERAL').length}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TOOLBAR META */}
+          <div className="organizer-events__toolbar-meta">
+            <span>
+              Showing <strong>{filteredEvents.length}</strong> of <strong>{totalCount}</strong> event{totalCount === 1 ? '' : 's'}
+            </span>
+            {(searchQuery || filterTab !== 'ALL') && (
+              <button
+                type="button"
+                className="organizer-events__clear-filter-link"
+                onClick={() => {
+                  setSearchQuery('')
+                  setFilterTab('ALL')
+                }}
+              >
+                Reset search & filters
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* LOADING SKELETON */}
+        {isLoading ? (
+          <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="organizer-events__skeleton organizer-events__skeleton--line" style={{ width: '40%' }} />
+            <div className="organizer-events__skeleton organizer-events__skeleton--card" />
+            <div className="organizer-events__skeleton organizer-events__skeleton--card" />
+            <div className="organizer-events__skeleton organizer-events__skeleton--card" />
           </div>
         ) : events.length === 0 ? (
-          <div className="detail-info-item">
-            <span>Empty State</span>
-            <strong>No events exist in the database yet. Click "Create New Event" to create the first one.</strong>
+          /* EMPTY STATE (DATABASE EMPTY) */
+          <div className="organizer-events__empty">
+            <span className="organizer-events__empty-icon" aria-hidden="true">📅</span>
+            <h3 className="organizer-events__empty-title">No events configured for this profile</h3>
+            <p className="organizer-events__empty-desc">
+              No sessions exist in the {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'} database yet. Click "Create New Event" above to create the first event.
+            </p>
+            <button
+              type="button"
+              className="organizer-events__btn-primary"
+              style={{ marginTop: '0.5rem' }}
+              onClick={handleOpenCreateModal}
+            >
+              ＋ Create First Event
+            </button>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          /* EMPTY STATE (SEARCH/FILTER EMPTY) */
+          <div className="organizer-events__empty">
+            <span className="organizer-events__empty-icon" aria-hidden="true">🔍</span>
+            <h3 className="organizer-events__empty-title">No matching events found</h3>
+            <p className="organizer-events__empty-desc">
+              None of your configured events matched the current search query or filter criteria.
+            </p>
+            <button
+              type="button"
+              className="organizer-events__btn-secondary"
+              style={{ marginTop: '0.5rem' }}
+              onClick={() => {
+                setSearchQuery('')
+                setFilterTab('ALL')
+              }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
-          <div className="organizer-events__grid">
-            {events.map((evt) => {
-              const eventId = evt.eventId || evt.event_id
-              const timeDisplay = formatTimeRange(evt.startTime || evt.start_time, evt.endTime || evt.end_time)
-              const dateDisplay = formatEventDate(evt.date || evt.event_date)
-              const statusVal = String(evt.status || 'ACTIVE').toUpperCase()
-              const isActive = statusVal === 'ACTIVE'
-              const eventType = String(evt.eventType || evt.event_type || 'GENERAL').toUpperCase()
-              const typeColors = getEventTypeBadgeColor(eventType)
-              const isBusy = actionLoadingId === eventId
+          <>
+            {/* DESKTOP SEMANTIC TABLE (>768px) */}
+            <div className="organizer-events__table-wrap">
+              <table className="organizer-events__table">
+                <thead>
+                  <tr>
+                    <th scope="col">Event Details</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Schedule</th>
+                    <th scope="col">Location</th>
+                    <th scope="col">Capacity</th>
+                    <th scope="col">Access Status</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEvents.map((evt) => {
+                    const eventId = evt.eventId || evt.event_id
+                    const name = evt.name || evt.event_name
+                    const type = String(evt.eventType || evt.event_type || 'GENERAL').toUpperCase()
+                    const dateDisplay = formatEventDate(evt.date || evt.event_date)
+                    const timeDisplay = formatTimeRange(evt.startTime || evt.start_time, evt.endTime || evt.end_time)
+                    const schedStatus = getScheduleStatus(evt.date || evt.event_date)
+                    const accessStatus = String(evt.status || 'ACTIVE').toUpperCase()
+                    const isActive = accessStatus === 'ACTIVE'
+                    const isBusy = actionLoadingId === eventId
 
-              return (
-                <div key={eventId} className={`organizer-event-card ${!isActive ? 'organizer-event-card--closed' : ''}`}>
-                  <div className="organizer-event-card__top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                          letterSpacing: '0.06em',
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '8px',
-                          background: typeColors.bg,
-                          color: typeColors.color,
-                          border: `1px solid ${typeColors.border}`,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {eventType}
+                    return (
+                      <tr key={eventId}>
+                        {/* Event details cell */}
+                        <td>
+                          <div className="organizer-events__name-cell">
+                            <span className="organizer-events__event-name">{name}</span>
+                            <span className="organizer-events__id-code">ID: {eventId}</span>
+                            {evt.description && (
+                              <span className="organizer-events__desc-preview" title={evt.description}>
+                                {evt.description}
+                              </span>
+                            )}
+                            {evt.registrationInfo && (
+                              <span className="organizer-events__reg-note">
+                                <span aria-hidden="true">ℹ</span> {evt.registrationInfo}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Type cell */}
+                        <td>
+                          <span className={`organizer-events__type-pill ${getEventTypeClass(type)}`}>
+                            {type}
+                          </span>
+                        </td>
+
+                        {/* Schedule cell */}
+                        <td>
+                          <div className="organizer-events__schedule-cell">
+                            <span className="organizer-events__date-text">{dateDisplay}</span>
+                            {timeDisplay && (
+                              <span className="organizer-events__time-text">{timeDisplay}</span>
+                            )}
+                            {schedStatus && (
+                              <span
+                                className={`organizer-events__schedule-badge ${
+                                  schedStatus === 'UPCOMING'
+                                    ? 'organizer-events__schedule-badge--upcoming'
+                                    : schedStatus === 'TODAY'
+                                    ? 'organizer-events__schedule-badge--today'
+                                    : 'organizer-events__schedule-badge--concluded'
+                                }`}
+                              >
+                                {schedStatus === 'UPCOMING' ? 'Upcoming' : schedStatus === 'TODAY' ? 'Happening Today' : 'Concluded'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Venue cell */}
+                        <td>
+                          <div className="organizer-events__venue-cell">
+                            {evt.venue || evt.location ? (
+                              <span>📍 {evt.venue || evt.location}</span>
+                            ) : (
+                              <span style={{ color: '#8c82a2', fontStyle: 'italic' }}>Location TBA</span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Capacity cell */}
+                        <td>
+                          <span className="organizer-events__capacity-cell">
+                            {evt.maxParticipants ? `Max: ${evt.maxParticipants}` : 'Open / Unlimited'}
+                          </span>
+                        </td>
+
+                        {/* Access Status cell */}
+                        <td>
+                          <span
+                            className={`organizer-events__status-badge ${
+                              isActive ? 'organizer-events__status-badge--active' : 'organizer-events__status-badge--closed'
+                            }`}
+                          >
+                            {isActive ? '● ACTIVE' : '○ CLOSED'}
+                          </span>
+                        </td>
+
+                        {/* Actions cell */}
+                        <td>
+                          <div className="organizer-events__action-group" style={{ justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              className="organizer-events__action-btn organizer-events__action-btn--edit"
+                              onClick={() => handleOpenEditModal(evt)}
+                              disabled={isBusy}
+                              title="Edit event details"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              className={`organizer-events__action-btn ${
+                                isActive ? 'organizer-events__action-btn--close' : 'organizer-events__action-btn--reopen'
+                              }`}
+                              onClick={() => handleToggleStatus(evt)}
+                              disabled={isBusy}
+                              title={isActive ? 'Close event access' : 'Reopen event access'}
+                            >
+                              {isBusy ? 'Saving…' : isActive ? 'Close Event' : 'Reopen Event'}
+                            </button>
+
+                            <button
+                              type="button"
+                              className="organizer-events__action-btn organizer-events__action-btn--delete"
+                              onClick={() => setDeleteModalEvent(evt)}
+                              disabled={isBusy}
+                              title="Delete event"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* RESPONSIVE MOBILE CARDS (<= 768px down to 390px) */}
+            <div className="organizer-events__mobile-cards">
+              {filteredEvents.map((evt) => {
+                const eventId = evt.eventId || evt.event_id
+                const name = evt.name || evt.event_name
+                const type = String(evt.eventType || evt.event_type || 'GENERAL').toUpperCase()
+                const dateDisplay = formatEventDate(evt.date || evt.event_date)
+                const timeDisplay = formatTimeRange(evt.startTime || evt.start_time, evt.endTime || evt.end_time)
+                const schedStatus = getScheduleStatus(evt.date || evt.event_date)
+                const accessStatus = String(evt.status || 'ACTIVE').toUpperCase()
+                const isActive = accessStatus === 'ACTIVE'
+                const isBusy = actionLoadingId === eventId
+
+                return (
+                  <div
+                    key={eventId}
+                    className={`organizer-events__mobile-card ${!isActive ? 'organizer-events__mobile-card--closed' : ''}`}
+                  >
+                    {/* Top Row: Type and Access Status */}
+                    <div className="organizer-events__mobile-top">
+                      <span className={`organizer-events__type-pill ${getEventTypeClass(type)}`}>
+                        {type}
                       </span>
-                      <span className="organizer-event-card__date">{dateDisplay}</span>
+                      <span
+                        className={`organizer-events__status-badge ${
+                          isActive ? 'organizer-events__status-badge--active' : 'organizer-events__status-badge--closed'
+                        }`}
+                      >
+                        {isActive ? '● ACTIVE' : '○ CLOSED'}
+                      </span>
                     </div>
 
-                    <span
-                      style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 800,
-                        letterSpacing: '0.06em',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '999px',
-                        background: isActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(100, 116, 139, 0.15)',
-                        color: isActive ? '#15803d' : '#475569',
-                        border: `1px solid ${isActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
-                      }}
-                    >
-                      {isActive ? '● ACTIVE' : '○ CLOSED'}
-                    </span>
+                    {/* Title and ID */}
+                    <div>
+                      <h3 className="organizer-events__mobile-title">{name}</h3>
+                      <span className="organizer-events__id-code" style={{ marginTop: '0.25rem' }}>
+                        ID: {eventId}
+                      </span>
+                    </div>
+
+                    {/* Metadata Grid */}
+                    <div className="organizer-events__mobile-grid">
+                      <div className="organizer-events__mobile-meta-item">
+                        <span className="organizer-events__mobile-meta-label">Schedule Date</span>
+                        <span className="organizer-events__mobile-meta-val">{dateDisplay}</span>
+                      </div>
+                      <div className="organizer-events__mobile-meta-item">
+                        <span className="organizer-events__mobile-meta-label">Schedule Timeline</span>
+                        <span className="organizer-events__mobile-meta-val">
+                          {schedStatus === 'UPCOMING' ? 'Upcoming' : schedStatus === 'TODAY' ? 'Happening Today' : 'Concluded'}
+                        </span>
+                      </div>
+                      {timeDisplay && (
+                        <div className="organizer-events__mobile-meta-item">
+                          <span className="organizer-events__mobile-meta-label">Time Window</span>
+                          <span className="organizer-events__mobile-meta-val">{timeDisplay}</span>
+                        </div>
+                      )}
+                      <div className="organizer-events__mobile-meta-item">
+                        <span className="organizer-events__mobile-meta-label">Capacity</span>
+                        <span className="organizer-events__mobile-meta-val">
+                          {evt.maxParticipants ? `${evt.maxParticipants} max` : 'Open / Unlimited'}
+                        </span>
+                      </div>
+                      {(evt.venue || evt.location) && (
+                        <div className="organizer-events__mobile-meta-item" style={{ gridColumn: '1 / -1' }}>
+                          <span className="organizer-events__mobile-meta-label">Venue</span>
+                          <span className="organizer-events__mobile-meta-val">📍 {evt.venue || evt.location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Description preview */}
+                    {evt.description && (
+                      <p className="organizer-events__desc-preview" style={{ margin: 0 }}>
+                        {evt.description}
+                      </p>
+                    )}
+
+                    {/* Registration note */}
+                    {evt.registrationInfo && (
+                      <span className="organizer-events__reg-note">
+                        <span aria-hidden="true">ℹ</span> {evt.registrationInfo}
+                      </span>
+                    )}
+
+                    {/* Mobile Action Buttons (min-height 44px touch targets) */}
+                    <div className="organizer-events__mobile-actions">
+                      <button
+                        type="button"
+                        className="organizer-events__action-btn organizer-events__action-btn--edit"
+                        onClick={() => handleOpenEditModal(evt)}
+                        disabled={isBusy}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`organizer-events__action-btn ${
+                          isActive ? 'organizer-events__action-btn--close' : 'organizer-events__action-btn--reopen'
+                        }`}
+                        onClick={() => handleToggleStatus(evt)}
+                        disabled={isBusy}
+                      >
+                        {isBusy ? 'Saving…' : isActive ? 'Close Event' : 'Reopen Event'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="organizer-events__action-btn organizer-events__action-btn--delete"
+                        onClick={() => setDeleteModalEvent(evt)}
+                        disabled={isBusy}
+                      >
+                        Delete Event
+                      </button>
+                    </div>
                   </div>
-
-                  <h3 className="organizer-event-card__title" style={{ marginTop: '0.85rem' }}>
-                    {evt.name || evt.event_name}
-                  </h3>
-
-                  {evt.description && (
-                    <p className="organizer-event-card__desc">{evt.description}</p>
-                  )}
-
-                  <div className="organizer-event-card__meta">
-                    {(evt.venue || evt.location) && (
-                      <span className="organizer-event-card__meta-item">
-                        <span aria-hidden="true">📍</span> {evt.venue || evt.location}
-                      </span>
-                    )}
-                    {timeDisplay && (
-                      <span className="organizer-event-card__meta-item">
-                        <span aria-hidden="true">⏰</span> {timeDisplay}
-                      </span>
-                    )}
-                    {evt.maxParticipants && (
-                      <span className="organizer-event-card__meta-item">
-                        <span aria-hidden="true">👥</span> Max: {evt.maxParticipants}
-                      </span>
-                    )}
-                    {eventId && (
-                      <span className="organizer-event-card__meta-item organizer-event-card__id">
-                        ID: <code>{eventId}</code>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Actions per requirements */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.06)', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="button button--secondary"
-                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
-                      onClick={() => handleOpenEditModal(evt)}
-                      disabled={isBusy}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      className="button button--secondary"
-                      style={{
-                        padding: '0.45rem 0.85rem',
-                        fontSize: '0.85rem',
-                        color: isActive ? '#c2348a' : '#15803d',
-                        borderColor: isActive ? 'rgba(255, 79, 163, 0.3)' : 'rgba(34, 197, 94, 0.3)',
-                      }}
-                      onClick={() => handleToggleStatus(evt)}
-                      disabled={isBusy}
-                    >
-                      {isBusy ? 'Updating…' : isActive ? 'Close Event' : 'Reopen Event'}
-                    </button>
-
-                    <button
-                      type="button"
-                      className="button"
-                      style={{
-                        padding: '0.45rem 0.85rem',
-                        fontSize: '0.85rem',
-                        background: 'rgba(239, 68, 68, 0.08)',
-                        color: '#dc2626',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        marginLeft: 'auto',
-                      }}
-                      onClick={() => setDeleteModalEvent(evt)}
-                      disabled={isBusy}
-                    >
-                      Delete Event
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
 
       {/* CREATE / EDIT EVENT MODAL */}
       {modalOpen && (
         <div
-          className="organizer-modal__backdrop"
+          className="organizer-events__modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="event-modal-title"
-          onClick={() => setModalOpen(false)}
+          onClick={() => !formLoading && setModalOpen(false)}
         >
-          <div className="organizer-modal__dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div className="organizer-modal__header">
+          <div className="organizer-events__modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="organizer-events__modal-header">
               <div>
-                <p className="page-shell__eyebrow">Database Operation</p>
-                <h3 id="event-modal-title" style={{ margin: 0 }}>
-                  {editingEvent ? 'Edit Event' : 'Create New Event'}
+                <p className="organizer-events__modal-eyebrow">Database Operation</p>
+                <h3 id="event-modal-title" className="organizer-events__modal-title">
+                  {editingEvent ? 'Edit Event Configuration' : 'Create New Event'}
                 </h3>
               </div>
               <button
                 type="button"
-                className="organizer-modal__close-btn"
-                onClick={() => setModalOpen(false)}
+                className="organizer-events__modal-close"
+                onClick={() => !formLoading && setModalOpen(false)}
                 aria-label="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <form className="detail-form organizer-modal__form" onSubmit={handleEventFormSubmit}>
+            <form className="organizer-events__modal-form" onSubmit={handleEventFormSubmit}>
               {formError && (
-                <div className="organizer-events__alert organizer-events__alert--error">
-                  {formError}
+                <div className="organizer-events__alert organizer-events__alert--error" role="alert">
+                  <span>{formError}</span>
                 </div>
               )}
               {formSuccess && (
-                <div className="organizer-events__alert organizer-events__alert--success">
-                  {formSuccess}
+                <div className="organizer-events__alert organizer-events__alert--success" role="status">
+                  <span>{formSuccess}</span>
                 </div>
               )}
 
-              {/* Requirement #1: The first field MUST be Event Type */}
-              <label>
-                <span style={{ fontWeight: 700, color: 'var(--color-primary-strong)' }}>
+              {/* Requirement #1 & Adjustment #2: FIRST FIELD MUST BE EVENT TYPE with ALL valid types */}
+              <div className="organizer-events__field-group organizer-events__field-group--full">
+                <label className="organizer-events__label organizer-events__label--highlight" htmlFor="modal-event-type">
                   Event Type *
-                </span>
+                </label>
                 <select
+                  id="modal-event-type"
                   name="event_type"
                   value={formData.event_type}
                   onChange={handleInputChange}
                   required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 0.9rem',
-                    borderRadius: '12px',
-                    border: '1.5px solid rgba(255, 79, 163, 0.35)',
-                    background: '#fff',
-                    fontSize: '0.98rem',
-                    fontWeight: 600,
-                  }}
+                  className="organizer-events__select organizer-events__select--primary"
                 >
                   <option value="HACKATHON">Hackathon</option>
                   <option value="WORKSHOP">Workshop</option>
                   <option value="WEBINAR">Webinar</option>
                   <option value="BOOTCAMP">Bootcamp</option>
+                  <option value="GENERAL">General</option>
                   <option value="OTHER">Other</option>
                 </select>
-              </label>
+              </div>
 
-              <label>
-                Event Name *
+              {/* Event Name */}
+              <div className="organizer-events__field-group organizer-events__field-group--full">
+                <label className="organizer-events__label" htmlFor="modal-event-name">
+                  Event Name *
+                </label>
                 <input
+                  id="modal-event-name"
                   type="text"
                   name="event_name"
                   value={formData.event_name}
                   onChange={handleInputChange}
                   placeholder="e.g. Qiskit Quantum Hackathon"
                   required
+                  className="organizer-events__input"
                 />
-              </label>
+              </div>
 
-              <label>
-                Description
+              {/* Description */}
+              <div className="organizer-events__field-group organizer-events__field-group--full">
+                <label className="organizer-events__label" htmlFor="modal-event-desc">
+                  Description
+                </label>
                 <textarea
+                  id="modal-event-desc"
                   name="description"
                   rows="3"
                   value={formData.description}
                   onChange={handleInputChange}
-                  placeholder="Brief summary of this session..."
-                  style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255,79,163,0.18)', padding: '0.8rem 0.9rem' }}
+                  placeholder="Brief summary and topics of this session…"
+                  className="organizer-events__textarea"
                 />
-              </label>
+              </div>
 
-              <div className="organizer-modal__form-row">
-                <label>
-                  Event Date *
+              {/* Date & Access Status */}
+              <div className="organizer-events__form-row">
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-event-date">
+                    Event Date *
+                  </label>
                   <input
+                    id="modal-event-date"
                     type="date"
                     name="event_date"
                     value={formData.event_date}
                     onChange={handleInputChange}
                     required
+                    className="organizer-events__input"
                   />
-                </label>
-                <label>
-                  Status
-                  <select name="status" value={formData.status} onChange={handleInputChange}>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="CLOSED">CLOSED</option>
+                </div>
+
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-event-status">
+                    Access Status
+                  </label>
+                  <select
+                    id="modal-event-status"
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="organizer-events__select"
+                  >
+                    <option value="ACTIVE">ACTIVE (Open)</option>
+                    <option value="CLOSED">CLOSED (Restricted)</option>
                   </select>
-                </label>
+                </div>
               </div>
 
-              <div className="organizer-modal__form-row">
-                <label>
-                  Start Time
+              {/* Start & End Time */}
+              <div className="organizer-events__form-row">
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-start-time">
+                    Start Time
+                  </label>
                   <input
+                    id="modal-start-time"
                     type="time"
                     name="start_time"
                     value={formData.start_time}
                     onChange={handleInputChange}
+                    className="organizer-events__input"
                   />
-                </label>
-                <label>
-                  End Time
+                </div>
+
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-end-time">
+                    End Time
+                  </label>
                   <input
+                    id="modal-end-time"
                     type="time"
                     name="end_time"
                     value={formData.end_time}
                     onChange={handleInputChange}
+                    className="organizer-events__input"
                   />
-                </label>
+                </div>
               </div>
 
-              <label>
-                Venue / Location
+              {/* Venue / Location */}
+              <div className="organizer-events__field-group organizer-events__field-group--full">
+                <label className="organizer-events__label" htmlFor="modal-location">
+                  Venue / Location
+                </label>
                 <input
+                  id="modal-location"
                   type="text"
                   name="location"
                   value={formData.location}
                   onChange={handleInputChange}
-                  placeholder="e.g. CUTM-AP Campus Auditorium or Virtual"
+                  placeholder="e.g. CUTM-AP Campus Auditorium or Virtual (Webex)"
+                  className="organizer-events__input"
                 />
-              </label>
+              </div>
 
-              <div className="organizer-modal__form-row">
-                <label>
-                  Maximum Participants (Optional)
+              {/* Capacity & Registration Info */}
+              <div className="organizer-events__form-row">
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-max-participants">
+                    Max Participants (Optional)
+                  </label>
                   <input
+                    id="modal-max-participants"
                     type="number"
                     name="max_participants"
                     min="1"
                     value={formData.max_participants}
                     onChange={handleInputChange}
                     placeholder="e.g. 100"
+                    className="organizer-events__input"
                   />
-                </label>
-                <label>
-                  Registration Information (Optional)
+                </div>
+
+                <div className="organizer-events__field-group">
+                  <label className="organizer-events__label" htmlFor="modal-reg-info">
+                    Registration Info (Optional)
+                  </label>
                   <input
+                    id="modal-reg-info"
                     type="text"
                     name="registration_info"
                     value={formData.registration_info}
                     onChange={handleInputChange}
-                    placeholder="e.g. Open to all registered students"
+                    placeholder="e.g. Open to registered attendees"
+                    className="organizer-events__input"
                   />
-                </label>
+                </div>
               </div>
 
-              <div className="organizer-modal__actions">
+              {/* Actions */}
+              <div className="organizer-events__modal-actions">
                 <button
                   type="button"
-                  className="button button--secondary"
+                  className="organizer-events__btn-secondary"
                   onClick={() => setModalOpen(false)}
                   disabled={formLoading}
                 >
                   Cancel
                 </button>
-                <Button type="submit" kind="primary" disabled={formLoading}>
+                <button
+                  type="submit"
+                  className="organizer-events__btn-primary"
+                  disabled={formLoading}
+                >
                   {formLoading ? 'Saving to Database…' : editingEvent ? 'Update Event' : 'Create Event'}
-                </Button>
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* DELETE EVENT CONFIRMATION DIALOG (Requirement #4) */}
+      {/* DELETE EVENT CONFIRMATION MODAL */}
       {deleteModalEvent && (
         <div
-          className="organizer-modal__backdrop"
+          className="organizer-events__modal-backdrop"
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-event-dialog-title"
           onClick={() => !isDeleting && setDeleteModalEvent(null)}
         >
           <div
-            className="organizer-modal__dialog"
+            className="organizer-events__modal-dialog organizer-events__modal-dialog--destructive"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '480px', textAlign: 'left' }}
           >
-            <div className="organizer-modal__header" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.2)' }}>
+            <div className="organizer-events__modal-header" style={{ borderBottomColor: 'rgba(239, 68, 68, 0.2)' }}>
               <div>
-                <p className="page-shell__eyebrow" style={{ color: '#dc2626' }}>Destructive Action</p>
-                <h3 id="delete-event-dialog-title" style={{ margin: 0, color: '#991b1b' }}>
+                <p className="organizer-events__modal-eyebrow" style={{ color: '#dc2626' }}>
+                  Destructive Action
+                </p>
+                <h3 id="delete-event-dialog-title" className="organizer-events__modal-title" style={{ color: '#991b1b' }}>
                   Delete this event?
                 </h3>
               </div>
               <button
                 type="button"
-                className="organizer-modal__close-btn"
-                onClick={() => setDeleteModalEvent(null)}
+                className="organizer-events__modal-close"
+                onClick={() => !isDeleting && setDeleteModalEvent(null)}
                 disabled={isDeleting}
-                aria-label="Close modal"
+                aria-label="Close dialog"
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ padding: '1.25rem 0' }}>
-              <p style={{ margin: '0 0 1rem', fontSize: '0.98rem', color: '#1f2937', fontWeight: 600 }}>
-                {deleteModalEvent.name || deleteModalEvent.event_name}
+            <div className="organizer-events__modal-body--delete">
+              <p style={{ margin: '0 0 0.5rem 0' }}>
+                Are you sure you want to permanently delete this event record?
               </p>
-              <p style={{ margin: 0, fontSize: '0.92rem', color: '#4b5563', lineHeight: 1.5 }}>
-                Deleting this event will permanently remove the event and its associated data. This action cannot be undone.
+              <div className="organizer-events__delete-target">
+                <span>{deleteModalEvent.name || deleteModalEvent.event_name}</span>
+                <span className="organizer-events__id-code">
+                  ID: {deleteModalEvent.eventId || deleteModalEvent.event_id}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.84rem', color: '#6b7280' }}>
+                This will delete the event and its associated records from the active database. If dependent records exist that prevent deletion, the database will block this operation and leave your data intact.
               </p>
             </div>
 
-            <div className="organizer-modal__actions" style={{ marginTop: '1rem' }}>
+            <div className="organizer-events__modal-actions">
               <button
                 type="button"
-                className="button button--secondary"
+                className="organizer-events__btn-secondary"
                 onClick={() => setDeleteModalEvent(null)}
                 disabled={isDeleting}
               >
@@ -1802,13 +4017,7 @@ const OrganizerEventsPage = () => {
               </button>
               <button
                 type="button"
-                className="button"
-                style={{
-                  background: '#dc2626',
-                  color: '#ffffff',
-                  borderColor: '#dc2626',
-                  fontWeight: 700,
-                }}
+                className="organizer-events__btn-delete-confirm"
                 onClick={handleDeleteEventConfirm}
                 disabled={isDeleting}
               >
@@ -1822,407 +4031,960 @@ const OrganizerEventsPage = () => {
   )
 }
 
+
 const OrganizerPostEventPage = () => {
-  const { refreshPostQiskitConfig } = useEventProfile()
-  const [formData, setFormData] = useState({
-    enabled: false,
-    start_date: '2026-10-05',
-    end_date: '2026-10-10',
+  const { activeProfile, switchProfile, refreshPostQiskitConfig } = useEventProfile()
+
+  const [config, setConfig] = useState(null)
+  const [configForm, setConfigForm] = useState({
+    start_date: '',
+    end_date: '',
+    start_time: '',
+    end_time: '',
+    timezone: '',
     coordinator_name: '',
     coordinator_contact: '',
     venue: '',
     location: '',
-    start_time: '09:00',
-    end_time: '17:00',
-    timezone: 'Asia/Kolkata',
     description: '',
     activities: '',
   })
-  const [status, setStatus] = useState('DISABLED')
+
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isToggling, setIsToggling] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSavingConfig, setIsSavingConfig] = useState(false)
+  const [isTogglingAccess, setIsTogglingAccess] = useState(false)
+  const [isTogglingReg, setIsTogglingReg] = useState(false)
+
+  const [accessModalOpen, setAccessModalOpen] = useState(false)
+  const [registrationModalOpen, setRegistrationModalOpen] = useState(false)
+
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const fetchConfig = async () => {
-    setIsLoading(true)
+  // Load authoritative configuration directly from backend
+  const fetchConfig = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setIsRefreshing(true)
+    } else {
+      setIsLoading(true)
+    }
     setError('')
+
     try {
       const result = await api.getPostEventConfig()
       if (result.success && result.data) {
-        setFormData({
-          enabled: Boolean(result.data.enabled),
-          start_date: result.data.start_date ? String(result.data.start_date).slice(0, 10) : '2026-10-05',
-          end_date: result.data.end_date ? String(result.data.end_date).slice(0, 10) : '2026-10-10',
-          coordinator_name: result.data.coordinator_name || '',
-          coordinator_contact: result.data.coordinator_contact || '',
-          venue: result.data.venue || '',
-          location: result.data.location || '',
-          start_time: result.data.start_time ? String(result.data.start_time).slice(0, 5) : '09:00',
-          end_time: result.data.end_time ? String(result.data.end_time).slice(0, 5) : '17:00',
-          timezone: result.data.timezone || 'Asia/Kolkata',
-          description: result.data.description || '',
-          activities: result.data.activities || '',
+        const d = result.data
+        setConfig(d)
+        setConfigForm({
+          start_date: d.start_date ? String(d.start_date).slice(0, 10) : '',
+          end_date: d.end_date ? String(d.end_date).slice(0, 10) : '',
+          start_time: d.start_time ? String(d.start_time).slice(0, 5) : '',
+          end_time: d.end_time ? String(d.end_time).slice(0, 5) : '',
+          timezone: d.timezone || 'Asia/Kolkata',
+          coordinator_name: d.coordinator_name || '',
+          coordinator_contact: d.coordinator_contact || '',
+          venue: d.venue || '',
+          location: d.location || '',
+          description: d.description || '',
+          activities: d.activities || '',
         })
-        setStatus(result.data.status || (result.data.enabled ? 'UPCOMING' : 'DISABLED'))
+        if (isManualRefresh) {
+          setSuccess('Configuration refreshed from database.')
+        }
       } else {
         setError(result.error?.message || 'Failed to load Post-Event configuration.')
       }
     } catch (_err) {
-      setError('Unable to load Post-Event configuration.')
+      setError('Unable to reach server to load Post-Event configuration.')
     } finally {
       setIsLoading(false)
+      setIsRefreshing(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchConfig()
-  }, [])
+  }, [fetchConfig])
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
-    setError('')
-    setSuccess('')
+  // Accessible keyboard dismissal for modals
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (accessModalOpen && !isTogglingAccess) setAccessModalOpen(false)
+        if (registrationModalOpen && !isTogglingReg) setRegistrationModalOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [accessModalOpen, isTogglingAccess, registrationModalOpen, isTogglingReg])
+
+  // Helper: Get today's YYYY-MM-DD date in a specific timezone
+  const getTodayInTimezone = (tz = 'Asia/Kolkata') => {
+    try {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+      return formatter.format(new Date())
+    } catch {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
   }
 
-  const handleSave = async (e) => {
-    e.preventDefault()
-    setIsSaving(true)
+  // Dynamic schedule status calculated from configured dates and timezone
+  const computeScheduleStatus = (sDate, eDate, tz) => {
+    if (!sDate || !eDate) return 'UPCOMING'
+    const today = getTodayInTimezone(tz || 'Asia/Kolkata')
+    const s = String(sDate).slice(0, 10)
+    const e = String(eDate).slice(0, 10)
+    if (today < s) return 'UPCOMING'
+    if (today > e) return 'CONCLUDED'
+    return 'TODAY'
+  }
+
+  // Formatted date range display helper (e.g. October 5 – 10, 2026)
+  const formatDisplayDateRange = (sDate, eDate) => {
+    if (!sDate) return 'Dates unconfigured'
+    try {
+      const [sY, sM, sD] = String(sDate).slice(0, 10).split('-').map(Number)
+      if (!eDate || String(sDate).slice(0, 10) === String(eDate).slice(0, 10)) {
+        return new Date(Date.UTC(sY, sM - 1, sD)).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC',
+        })
+      }
+      const [eY, eM, eD] = String(eDate).slice(0, 10).split('-').map(Number)
+      const startObj = new Date(Date.UTC(sY, sM - 1, sD))
+      const endObj = new Date(Date.UTC(eY, eM - 1, eD))
+
+      if (sY === eY && sM === eM) {
+        const month = startObj.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' })
+        return `${month} ${sD} – ${eD}, ${sY}`
+      }
+      return `${startObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} – ${endObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+    } catch {
+      return `${sDate} – ${eDate || sDate}`
+    }
+  }
+
+  // Authoritative status values
+  const isEnabled = Boolean(config?.enabled)
+  const isRegistrationOpen = Boolean(config?.registration_open)
+  const scheduleStatus = computeScheduleStatus(config?.start_date, config?.end_date, config?.timezone)
+  const displayDates = formatDisplayDateRange(config?.start_date, config?.end_date)
+  const displayStartTime = config?.start_time ? String(config.start_time).slice(0, 5) : '09:00'
+  const displayEndTime = config?.end_time ? String(config.end_time).slice(0, 5) : '17:00'
+  const displayTimezone = config?.timezone || 'Asia/Kolkata'
+
+  // Form input change handler
+  const handleConfigChange = (e) => {
+    const { name, value } = e.target
+    setConfigForm((prev) => ({ ...prev, [name]: value }))
+    if (error) setError('')
+    if (success) setSuccess('')
+  }
+
+  // Toggle Event Access (Confirmed)
+  const handleConfirmToggleAccess = async () => {
+    setIsTogglingAccess(true)
     setError('')
     setSuccess('')
 
-    if (formData.start_date && formData.end_date && formData.start_date > formData.end_date) {
+    try {
+      const willEnable = !isEnabled
+      const result = willEnable
+        ? await api.enablePostEvent()
+        : await api.disablePostEvent()
+
+      if (result.success) {
+        await fetchConfig()
+        await refreshPostQiskitConfig()
+
+        if (willEnable && activeProfile === 'pre-qiskit') {
+          switchProfile('post-qiskit')
+        } else if (!willEnable && activeProfile === 'post-qiskit') {
+          switchProfile('pre-qiskit')
+        }
+
+        setSuccess(willEnable ? 'Post-Qiskit access enabled.' : 'Post-Qiskit access disabled.')
+      } else {
+        setError(result.error?.message || 'Failed to update event access.')
+      }
+    } catch (_err) {
+      setError('An error occurred while communicating with the server.')
+    } finally {
+      setIsTogglingAccess(false)
+      setAccessModalOpen(false)
+    }
+  }
+
+  // Toggle Registration (Confirmed)
+  const handleConfirmToggleRegistration = async () => {
+    setIsTogglingReg(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const result = isRegistrationOpen
+        ? await api.closePostEventRegistration()
+        : await api.openPostEventRegistration()
+
+      if (result.success) {
+        setSuccess(isRegistrationOpen ? 'Registration closed.' : 'Registration opened.')
+        await fetchConfig()
+        await refreshPostQiskitConfig()
+      } else {
+        setError(result.error?.message || 'Failed to update registration status.')
+      }
+    } catch (_err) {
+      setError('An error occurred while communicating with the server.')
+    } finally {
+      setIsTogglingReg(false)
+      setRegistrationModalOpen(false)
+    }
+  }
+
+  // Save Schedule & Details Configuration
+  const handleSaveConfig = async (e) => {
+    e.preventDefault()
+    setIsSavingConfig(true)
+    setError('')
+    setSuccess('')
+
+    // Validation matching backend contract
+    if (!configForm.start_date || !configForm.end_date) {
+      setError('Start date and end date are required.')
+      setIsSavingConfig(false)
+      return
+    }
+
+    if (configForm.start_date > configForm.end_date) {
       setError('Start date cannot be after end date.')
-      setIsSaving(false)
+      setIsSavingConfig(false)
+      return
+    }
+
+    if (!configForm.timezone.trim()) {
+      setError('Timezone is required.')
+      setIsSavingConfig(false)
       return
     }
 
     try {
-      const result = await api.updatePostEventConfig({
-        start_date: formData.start_date,
-        end_date: formData.end_date,
-        coordinator_name: formData.coordinator_name,
-        coordinator_contact: formData.coordinator_contact,
-        venue: formData.venue,
-        location: formData.location,
-        start_time: formData.start_time,
-        end_time: formData.end_time,
-        timezone: formData.timezone,
-        description: formData.description,
-        activities: formData.activities,
-      })
+      const payload = {
+        start_date: configForm.start_date,
+        end_date: configForm.end_date,
+        start_time: configForm.start_time ? (configForm.start_time.length === 5 ? `${configForm.start_time}:00` : configForm.start_time) : null,
+        end_time: configForm.end_time ? (configForm.end_time.length === 5 ? `${configForm.end_time}:00` : configForm.end_time) : null,
+        timezone: configForm.timezone.trim() || 'Asia/Kolkata',
+        coordinator_name: configForm.coordinator_name.trim() || null,
+        coordinator_contact: configForm.coordinator_contact.trim() || null,
+        venue: configForm.venue.trim() || null,
+        location: configForm.location.trim() || null,
+        description: configForm.description.trim() || null,
+        activities: configForm.activities.trim() || null,
+      }
 
+      const result = await api.updatePostEventConfig(payload)
       if (result.success) {
-        setSuccess('Post-Event configuration saved successfully.')
-        if (result.data?.status) {
-          setStatus(result.data.status)
-        }
+        setSuccess('Event schedule and session details saved successfully.')
+        await fetchConfig()
         await refreshPostQiskitConfig()
       } else {
-        setError(result.error?.message || 'Failed to update configuration.')
+        setError(result.error?.message || 'Failed to save event schedule and session details.')
       }
     } catch (_err) {
-      setError('An unexpected error occurred while saving.')
+      setError('An unexpected error occurred while saving configuration.')
     } finally {
-      setIsSaving(false)
+      setIsSavingConfig(false)
     }
   }
 
-  const handleToggleEnable = async () => {
-    setIsToggling(true)
-    setError('')
-    setSuccess('')
-
-    try {
-      if (formData.enabled) {
-        const result = await api.disablePostEvent()
-        if (result.success) {
-          setFormData((prev) => ({ ...prev, enabled: false }))
-          setStatus('DISABLED')
-          setSuccess('Post-Event has been DISABLED. The landing page Enter button is now inactive.')
-          await refreshPostQiskitConfig()
-        } else {
-          setError(result.error?.message || 'Failed to disable Post-Event.')
-        }
-      } else {
-        const result = await api.enablePostEvent()
-        if (result.success) {
-          setFormData((prev) => ({ ...prev, enabled: true }))
-          setStatus(result.data?.status || 'UPCOMING')
-          setSuccess('Post-Event has been ENABLED! The landing page Enter button is now active.')
-          await refreshPostQiskitConfig()
-        } else {
-          setError(result.error?.message || 'Failed to enable Post-Event.')
-        }
+  // Scroll to Schedule Configuration section
+  const scrollToConfigEditor = () => {
+    const el = document.getElementById('schedule-config-section')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const firstInput = el.querySelector('input')
+      if (firstInput) {
+        firstInput.focus()
       }
-    } catch (_err) {
-      setError('An error occurred while toggling the event status.')
-    } finally {
-      setIsToggling(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="organizer-page-view organizer-post-event-page">
-        <OrganizerPageHeading eyebrow="Phase 2 Control" title="Post-Event Configuration" description="Loading event configuration..." />
-        <div className="organizer-page-content-panel" style={{ padding: '2rem', textAlign: 'center', color: '#8b849c' }}>
-          Loading Post-Event settings...
-        </div>
-      </div>
-    )
+  // Reset form to currently loaded authoritative config
+  const handleResetConfig = () => {
+    if (config) {
+      setConfigForm({
+        start_date: config.start_date ? String(config.start_date).slice(0, 10) : '',
+        end_date: config.end_date ? String(config.end_date).slice(0, 10) : '',
+        start_time: config.start_time ? String(config.start_time).slice(0, 5) : '',
+        end_time: config.end_time ? String(config.end_time).slice(0, 5) : '',
+        timezone: config.timezone || 'Asia/Kolkata',
+        coordinator_name: config.coordinator_name || '',
+        coordinator_contact: config.coordinator_contact || '',
+        venue: config.venue || '',
+        location: config.location || '',
+        description: config.description || '',
+        activities: config.activities || '',
+      })
+      setError('')
+      setSuccess('')
+    }
   }
-
-  const isEnabled = Boolean(formData.enabled)
 
   return (
-    <div className="organizer-page-view organizer-post-event-page">
+    <div className="organizer-page-view organizer-post-event-container">
+      {/* 1. OPERATIONS HEADER */}
       <OrganizerPageHeading
-        eyebrow="Phase 2 Control"
-        title="Post-Event Configuration"
-        description="Configure and manage the independent Post-Qiskit Fall Fest event phase."
+        eyebrow="POST-EVENT OPERATIONS"
+        title="Post-Event"
+        description="Manage Post-Qiskit public access, schedule visibility, and registration availability."
         action={
-          <Button
-            type="button"
-            kind={isEnabled ? 'secondary' : 'primary'}
-            disabled={isToggling}
-            onClick={handleToggleEnable}
-          >
-            {isToggling ? 'Updating…' : isEnabled ? 'Disable Post-Event' : 'Enable Post-Event'}
-          </Button>
+          <div className="organizer-post-event__header-badge">
+            <span className="organizer-post-event__context-pill">
+              <span className="organizer-post-event__context-dot" aria-hidden="true" />
+              Affects: Post-Qiskit Profile
+            </span>
+            <button
+              type="button"
+              className="organizer-post-event__refresh-btn"
+              onClick={() => fetchConfig(true)}
+              disabled={isLoading || isRefreshing}
+              title="Reload authoritative configuration from database"
+              aria-label="Refresh Post-Event settings"
+            >
+              <span aria-hidden="true">{isRefreshing ? '⌛' : '↻'}</span>
+              {isRefreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
         }
       />
 
-      <div className="organizer-page-content-panel">
-        {/* Status indicator bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '1.2rem 1.5rem',
-            borderRadius: '16px',
-            marginBottom: '1.8rem',
-            backgroundColor: isEnabled ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-            border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-            flexWrap: 'wrap',
-            gap: '1rem',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '50%',
-                  backgroundColor: isEnabled ? '#10b981' : '#ef4444',
-                }}
-              />
-              <strong style={{ fontSize: '1rem', color: isEnabled ? '#065f46' : '#991b1b' }}>
-                Status: {status}
-              </strong>
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  backgroundColor: isEnabled ? '#d1fae5' : '#fee2e2',
-                  color: isEnabled ? '#065f46' : '#991b1b',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {isEnabled ? 'Live / Activated' : 'Disabled'}
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="organizer-post-event__alert organizer-post-event__alert--error" role="alert">
+          <div className="organizer-post-event__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          <button type="button" className="organizer-post-event__alert-close" onClick={() => setError('')} aria-label="Dismiss error">×</button>
+        </div>
+      )}
+
+      {/* SUCCESS BANNER */}
+      {success && (
+        <div className="organizer-post-event__alert organizer-post-event__alert--success" role="status">
+          <div className="organizer-post-event__alert-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{success}</span>
+          </div>
+          <button type="button" className="organizer-post-event__alert-close" onClick={() => setSuccess('')} aria-label="Dismiss message">×</button>
+        </div>
+      )}
+
+      {/* LOADING SKELETON */}
+      {isLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 0' }}>
+          <div className="organizer-post-event__skeleton" style={{ height: '80px' }} />
+          <div className="organizer-post-event__skeleton" style={{ height: '260px' }} />
+          <div className="organizer-post-event__skeleton" style={{ height: '240px' }} />
+        </div>
+      ) : (
+        <>
+          {/* 2. CURRENT STATUS SUMMARY (3 Discrete Concepts) */}
+          <div className="organizer-post-event__status-strip">
+            {/* Concept A: Event Access */}
+            <div className={`organizer-post-event__status-card ${isEnabled ? 'organizer-post-event__status-card--access' : 'organizer-post-event__status-card--access-disabled'}`}>
+              <span className="organizer-post-event__status-label">Event Access</span>
+              <div className="organizer-post-event__status-val">
+                <span className={`organizer-post-event__badge ${isEnabled ? 'organizer-post-event__badge--enabled' : 'organizer-post-event__badge--disabled'}`}>
+                  {isEnabled ? '● ENABLED' : '○ DISABLED'}
+                </span>
+              </div>
+              <span className="organizer-post-event__status-desc">
+                {isEnabled ? 'Public visitors can enter Post-Qiskit' : 'Public entry to Post-Qiskit is locked'}
               </span>
             </div>
-            <p style={{ margin: 0, fontSize: '0.88rem', color: isEnabled ? '#047857' : '#b91c1c' }}>
-              {isEnabled
-                ? 'Post-Qiskit is active. Participants can access the Post-Qiskit profile from the landing page.'
-                : 'Post-Qiskit is disabled. The landing page Enter button is locked and /post-qiskit routes are guarded.'}
-            </p>
+
+            {/* Concept B: Schedule */}
+            <div className="organizer-post-event__status-card organizer-post-event__status-card--schedule">
+              <span className="organizer-post-event__status-label">Schedule</span>
+              <div className="organizer-post-event__status-val">
+                <span className="organizer-post-event__badge organizer-post-event__badge--upcoming">
+                  {scheduleStatus}
+                </span>
+              </div>
+              <span className="organizer-post-event__status-desc">
+                {displayDates}
+              </span>
+            </div>
+
+            {/* Concept C: Registration */}
+            <div className={`organizer-post-event__status-card ${isRegistrationOpen ? 'organizer-post-event__status-card--registration-open' : 'organizer-post-event__status-card--registration-closed'}`}>
+              <span className="organizer-post-event__status-label">Registration</span>
+              <div className="organizer-post-event__status-val">
+                <span className={`organizer-post-event__badge ${isRegistrationOpen ? 'organizer-post-event__badge--open' : 'organizer-post-event__badge--closed'}`}>
+                  {isRegistrationOpen ? '● OPEN' : '○ CLOSED'}
+                </span>
+              </div>
+              <span className="organizer-post-event__status-desc">
+                {isRegistrationOpen ? 'Accepting new attendee submissions' : 'Registration submissions closed'}
+              </span>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleToggleEnable}
-            disabled={isToggling}
-            style={{
-              padding: '0.65rem 1.25rem',
-              borderRadius: '10px',
-              border: `1px solid ${isEnabled ? '#f87171' : '#34d399'}`,
-              backgroundColor: isEnabled ? '#ffffff' : '#10b981',
-              color: isEnabled ? '#dc2626' : '#ffffff',
-              fontWeight: 600,
-              fontSize: '0.88rem',
-              cursor: isToggling ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            {isToggling ? 'Saving...' : isEnabled ? 'Click to Disable' : 'Click to Enable'}
-          </button>
+          {/* 3. DISCRETE 3-CARD CONTROL CLUSTER */}
+          <div className="organizer-post-event__control-grid">
+            {/* CARD A: EVENT ACCESS */}
+            <div className="organizer-post-event__card">
+              <div className="organizer-post-event__card-header">
+                <div>
+                  <p className="organizer-post-event__card-eyebrow">Portal Control</p>
+                  <h3 className="organizer-post-event__card-title">Event Access</h3>
+                </div>
+                <span className={`organizer-post-event__badge ${isEnabled ? 'organizer-post-event__badge--enabled' : 'organizer-post-event__badge--disabled'}`}>
+                  {isEnabled ? '● ENABLED' : '○ DISABLED'}
+                </span>
+              </div>
+
+              <div className="organizer-post-event__card-body">
+                <p className="organizer-post-event__card-desc">
+                  {isEnabled
+                    ? 'Post-Qiskit portal is accessible. Public visitors can enter and explore Post-Qiskit event content.'
+                    : 'Post-Qiskit is locked. Public attendees cannot enter the Post-Qiskit portal from the landing page.'}
+                </p>
+
+                <div className="organizer-post-event__card-meta-list">
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Landing Page Enter Button</span>
+                    <span className="organizer-post-event__card-meta-val">{isEnabled ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Registration Dependency</span>
+                    <span className="organizer-post-event__card-meta-val">Independent</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="organizer-post-event__card-footer">
+                <button
+                  type="button"
+                  className={`organizer-post-event__action-btn ${isEnabled ? 'organizer-post-event__action-btn--danger' : 'organizer-post-event__action-btn--primary'}`}
+                  onClick={() => setAccessModalOpen(true)}
+                  disabled={isTogglingAccess}
+                >
+                  {isEnabled ? 'Disable Post-Event' : 'Enable Post-Event'}
+                </button>
+              </div>
+            </div>
+
+            {/* CARD B: SCHEDULE (ORGANIZER-CONFIGURED) */}
+            <div className="organizer-post-event__card">
+              <div className="organizer-post-event__card-header">
+                <div>
+                  <p className="organizer-post-event__card-eyebrow">Event Timeline</p>
+                  <h3 className="organizer-post-event__card-title">Schedule</h3>
+                </div>
+                <span className="organizer-post-event__badge organizer-post-event__badge--upcoming">
+                  {scheduleStatus}
+                </span>
+              </div>
+
+              <div className="organizer-post-event__card-body">
+                <p className="organizer-post-event__card-desc">
+                  Organizer-configured schedule for the Post-Qiskit phase. Schedule status is calculated dynamically from the configured dates and timezone.
+                </p>
+
+                <div className="organizer-post-event__card-meta-list">
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Event Dates</span>
+                    <span className="organizer-post-event__card-meta-val">{displayDates}</span>
+                  </div>
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Daily Operational Window</span>
+                    <span className="organizer-post-event__card-meta-val">{displayStartTime} – {displayEndTime}</span>
+                  </div>
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Timezone</span>
+                    <span className="organizer-post-event__card-meta-val">{displayTimezone}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="organizer-post-event__card-footer">
+                <button
+                  type="button"
+                  className="organizer-post-event__action-btn organizer-post-event__action-btn--secondary"
+                  onClick={scrollToConfigEditor}
+                >
+                  Edit Schedule & Details
+                </button>
+              </div>
+            </div>
+
+            {/* CARD C: REGISTRATION CONTROL */}
+            <div className="organizer-post-event__card">
+              <div className="organizer-post-event__card-header">
+                <div>
+                  <p className="organizer-post-event__card-eyebrow">Registration Gateway</p>
+                  <h3 className="organizer-post-event__card-title">Registration</h3>
+                </div>
+                <span className={`organizer-post-event__badge ${isRegistrationOpen ? 'organizer-post-event__badge--open' : 'organizer-post-event__badge--closed'}`}>
+                  {isRegistrationOpen ? '● OPEN' : '○ CLOSED'}
+                </span>
+              </div>
+
+              <div className="organizer-post-event__card-body">
+                <p className="organizer-post-event__card-desc">
+                  {isRegistrationOpen
+                    ? 'Registration for Post-Qiskit is active. Public attendees can submit new participant registrations.'
+                    : 'Registration for Post-Qiskit is closed. Attendees cannot register. Pre-Qiskit registration remains permanently closed.'}
+                </p>
+
+                <div className="organizer-post-event__card-meta-list">
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Submission Status</span>
+                    <span className="organizer-post-event__card-meta-val">{isRegistrationOpen ? 'Accepting' : 'Blocked'}</span>
+                  </div>
+                  <div className="organizer-post-event__card-meta-item">
+                    <span className="organizer-post-event__card-meta-label">Access Dependency</span>
+                    <span className="organizer-post-event__card-meta-val">Independent</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="organizer-post-event__card-footer">
+                <button
+                  type="button"
+                  className={`organizer-post-event__action-btn ${isRegistrationOpen ? 'organizer-post-event__action-btn--purple-outline' : 'organizer-post-event__action-btn--purple'}`}
+                  onClick={() => setRegistrationModalOpen(true)}
+                  disabled={isTogglingReg}
+                >
+                  {isRegistrationOpen ? 'Close Registration' : 'Open Registration'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. INFORMATIVE OPERATIONAL RULES BOX */}
+          <div className="organizer-post-event__rules-box">
+            <span className="organizer-post-event__rules-icon" aria-hidden="true">💡</span>
+            <div className="organizer-post-event__rules-content">
+              <h4 className="organizer-post-event__rules-title">Decoupled Operational States</h4>
+              <p style={{ margin: 0 }}>
+                <strong>Event Access</strong>, <strong>Schedule</strong>, and <strong>Registration Control</strong> operate completely independently. Changing the schedule does not open/close registration or lock/unlock the portal. Pre-Qiskit records and data remain strictly isolated at all times.
+              </p>
+            </div>
+          </div>
+
+          {/* 5. CONFIGURATION & DETAILS EDITOR */}
+          <div id="schedule-config-section" className="organizer-post-event__metadata-card">
+            <div className="organizer-post-event__metadata-header">
+              <div>
+                <h3 className="organizer-post-event__metadata-title">Event Schedule & Session Details</h3>
+                <p className="organizer-post-event__metadata-desc">
+                  Configure event dates, daily operational hours, timezone, coordinator contact, and session logistics for Post-Qiskit.
+                </p>
+              </div>
+            </div>
+
+            <form className="organizer-post-event__form" onSubmit={handleSaveConfig}>
+              {/* SECTION A: SCHEDULE CONFIGURATION */}
+              <div className="organizer-post-event__form-section">
+                <h4 className="organizer-post-event__section-title">
+                  <span aria-hidden="true">📅</span> Schedule Configuration
+                </h4>
+                <p className="organizer-post-event__section-subtitle">
+                  Set the start date, end date, daily operational window, and timezone for the Post-Qiskit phase.
+                </p>
+
+                <div className="organizer-post-event__form-grid">
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="cfg-start-date">
+                      Post-Event Start Date <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      id="cfg-start-date"
+                      type="date"
+                      name="start_date"
+                      value={configForm.start_date}
+                      onChange={handleConfigChange}
+                      required
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="cfg-end-date">
+                      Post-Event End Date <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      id="cfg-end-date"
+                      type="date"
+                      name="end_date"
+                      value={configForm.end_date}
+                      onChange={handleConfigChange}
+                      required
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+                </div>
+
+                <div className="organizer-post-event__form-grid">
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="cfg-start-time">
+                      Daily Start Time
+                    </label>
+                    <input
+                      id="cfg-start-time"
+                      type="time"
+                      name="start_time"
+                      value={configForm.start_time}
+                      onChange={handleConfigChange}
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="cfg-end-time">
+                      Daily End Time
+                    </label>
+                    <input
+                      id="cfg-end-time"
+                      type="time"
+                      name="end_time"
+                      value={configForm.end_time}
+                      onChange={handleConfigChange}
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+                </div>
+
+                <div className="organizer-post-event__form-grid">
+                  <div className="organizer-post-event__field-group organizer-post-event__field-group--full">
+                    <label className="organizer-post-event__label" htmlFor="cfg-timezone">
+                      Timezone <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      id="cfg-timezone"
+                      type="text"
+                      name="timezone"
+                      list="timezone-datalist"
+                      value={configForm.timezone}
+                      onChange={handleConfigChange}
+                      required
+                      placeholder="e.g. Asia/Kolkata"
+                      className="organizer-post-event__input"
+                    />
+                    <datalist id="timezone-datalist">
+                      <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">America/New_York (EST/EDT)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                      <option value="Europe/London">Europe/London (GMT/BST)</option>
+                      <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                      <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                      <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    </datalist>
+                    <span style={{ fontSize: '0.75rem', color: '#7b6f93', marginTop: '0.2rem' }}>
+                      Standard IANA timezone identifier (e.g. Asia/Kolkata, UTC, America/New_York).
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION B: SUPPORTING SESSION DETAILS */}
+              <div className="organizer-post-event__form-section" style={{ marginTop: '0.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(120, 89, 202, 0.12)' }}>
+                <h4 className="organizer-post-event__section-title">
+                  <span aria-hidden="true">📋</span> Supporting Session Details
+                </h4>
+                <p className="organizer-post-event__section-subtitle">
+                  Update coordinator contacts, campus venue, and session summary for attendee reference.
+                </p>
+
+                <div className="organizer-post-event__form-grid">
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="meta-coordinator-name">
+                      Coordinator Name
+                    </label>
+                    <input
+                      id="meta-coordinator-name"
+                      type="text"
+                      name="coordinator_name"
+                      value={configForm.coordinator_name}
+                      onChange={handleConfigChange}
+                      placeholder="e.g. Dr. Jane Doe"
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="meta-coordinator-contact">
+                      Coordinator Contact / Email
+                    </label>
+                    <input
+                      id="meta-coordinator-contact"
+                      type="text"
+                      name="coordinator_contact"
+                      value={configForm.coordinator_contact}
+                      onChange={handleConfigChange}
+                      placeholder="e.g. coordinator@example.com / +91-9876543210"
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+                </div>
+
+                <div className="organizer-post-event__form-grid">
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="meta-venue">
+                      Venue / Campus Location
+                    </label>
+                    <input
+                      id="meta-venue"
+                      type="text"
+                      name="venue"
+                      value={configForm.venue}
+                      onChange={handleConfigChange}
+                      placeholder="e.g. CUTM-AP Campus Auditorium"
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+
+                  <div className="organizer-post-event__field-group">
+                    <label className="organizer-post-event__label" htmlFor="meta-location">
+                      City / Format
+                    </label>
+                    <input
+                      id="meta-location"
+                      type="text"
+                      name="location"
+                      value={configForm.location}
+                      onChange={handleConfigChange}
+                      placeholder="e.g. Andhra Pradesh / Hybrid"
+                      className="organizer-post-event__input"
+                    />
+                  </div>
+                </div>
+
+                <div className="organizer-post-event__field-group organizer-post-event__field-group--full">
+                  <label className="organizer-post-event__label" htmlFor="meta-description">
+                    Post-Event Description
+                  </label>
+                  <textarea
+                    id="meta-description"
+                    name="description"
+                    rows={3}
+                    value={configForm.description}
+                    onChange={handleConfigChange}
+                    placeholder="Summary of Post-Qiskit Fall Fest event scope, goals, and focus…"
+                    className="organizer-post-event__textarea"
+                  />
+                </div>
+
+                <div className="organizer-post-event__field-group organizer-post-event__field-group--full">
+                  <label className="organizer-post-event__label" htmlFor="meta-activities">
+                    Event Activities & Tracks
+                  </label>
+                  <textarea
+                    id="meta-activities"
+                    name="activities"
+                    rows={3}
+                    value={configForm.activities}
+                    onChange={handleConfigChange}
+                    placeholder="Key activities, workshops, keynote presentations, and hackathon milestones…"
+                    className="organizer-post-event__textarea"
+                  />
+                </div>
+              </div>
+
+              <div className="organizer-post-event__form-actions" style={{ gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="organizer-post-event__reset-btn"
+                  onClick={handleResetConfig}
+                  disabled={isSavingConfig}
+                >
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  className="organizer-post-event__save-btn"
+                  disabled={isSavingConfig}
+                >
+                  {isSavingConfig ? 'Saving Changes…' : 'Save Schedule & Details'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* 6. CONFIRMATION MODAL: EVENT ACCESS */}
+      {accessModalOpen && (
+        <div
+          className="organizer-post-event__modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="access-modal-title"
+          onClick={() => !isTogglingAccess && setAccessModalOpen(false)}
+        >
+          <div className="organizer-post-event__modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="organizer-post-event__modal-header">
+              <div>
+                <p className="organizer-post-event__modal-eyebrow">
+                  {isEnabled ? 'Disable Access' : 'Enable Access'}
+                </p>
+                <h3 id="access-modal-title" className="organizer-post-event__modal-title">
+                  {isEnabled ? 'Disable Post-Qiskit Access?' : 'Enable Post-Qiskit Access?'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="organizer-post-event__modal-close"
+                onClick={() => !isTogglingAccess && setAccessModalOpen(false)}
+                disabled={isTogglingAccess}
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="organizer-post-event__modal-body">
+              <p style={{ margin: 0 }}>
+                {isEnabled
+                  ? 'Disabling Post-Qiskit will lock the portal. Public visitors will no longer be able to enter the Post-Qiskit profile from the landing page.'
+                  : 'Enabling Post-Qiskit will make the event profile publicly accessible. Visitors will be able to enter and view Post-Qiskit content.'}
+              </p>
+
+              <div className="organizer-post-event__modal-callout">
+                <span><strong>Schedule:</strong> {scheduleStatus} ({displayDates})</span>
+                <span><strong>Registration:</strong> Remains {isRegistrationOpen ? 'OPEN' : 'CLOSED'} (unaffected)</span>
+                <span style={{ color: '#7859ca', marginTop: '0.2rem' }}>
+                  ℹ Event access, schedule, and registration are separate controls.
+                </span>
+              </div>
+            </div>
+
+            <div className="organizer-post-event__modal-footer">
+              <button
+                type="button"
+                className="organizer-post-event__modal-cancel"
+                onClick={() => setAccessModalOpen(false)}
+                disabled={isTogglingAccess}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`organizer-post-event__action-btn ${isEnabled ? 'organizer-post-event__action-btn--danger' : 'organizer-post-event__action-btn--primary'}`}
+                style={{ width: 'auto' }}
+                onClick={handleConfirmToggleAccess}
+                disabled={isTogglingAccess}
+              >
+                {isTogglingAccess
+                  ? 'Updating…'
+                  : isEnabled
+                  ? 'Disable Post-Event'
+                  : 'Enable Post-Event'}
+              </button>
+            </div>
+          </div>
         </div>
+      )}
 
-        {error && (
-          <div style={{ padding: '0.8rem 1rem', borderRadius: '12px', background: 'rgba(255,79,163,0.08)', color: '#c2348a', border: '1px solid rgba(255,79,163,0.25)', marginBottom: '1.5rem' }}>
-            {error}
+      {/* 7. CONFIRMATION MODAL: REGISTRATION */}
+      {registrationModalOpen && (
+        <div
+          className="organizer-post-event__modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reg-modal-title"
+          onClick={() => !isTogglingReg && setRegistrationModalOpen(false)}
+        >
+          <div className="organizer-post-event__modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="organizer-post-event__modal-header">
+              <div>
+                <p className="organizer-post-event__modal-eyebrow" style={{ color: '#9333ea' }}>
+                  {isRegistrationOpen ? 'Close Registration' : 'Open Registration'}
+                </p>
+                <h3 id="reg-modal-title" className="organizer-post-event__modal-title">
+                  {isRegistrationOpen ? 'Close Post-Qiskit Registration?' : 'Open Post-Qiskit Registration?'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="organizer-post-event__modal-close"
+                onClick={() => !isTogglingReg && setRegistrationModalOpen(false)}
+                disabled={isTogglingReg}
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="organizer-post-event__modal-body">
+              <p style={{ margin: 0 }}>
+                {isRegistrationOpen
+                  ? 'Closing registration prevents public attendees from submitting new registrations for Post-Qiskit. Existing registrations will remain intact.'
+                  : 'Opening registration allows public attendees to submit registrations for Post-Qiskit Fall Fest.'}
+              </p>
+
+              <div className="organizer-post-event__modal-callout">
+                <span><strong>Event Access:</strong> Remains {isEnabled ? 'ENABLED' : 'DISABLED'} (unaffected)</span>
+                <span><strong>Schedule:</strong> {scheduleStatus} ({displayDates})</span>
+                <span style={{ color: '#9333ea', marginTop: '0.2rem' }}>
+                  ℹ Changing registration does not change Post-Qiskit event access or schedule.
+                </span>
+              </div>
+            </div>
+
+            <div className="organizer-post-event__modal-footer">
+              <button
+                type="button"
+                className="organizer-post-event__modal-cancel"
+                onClick={() => setRegistrationModalOpen(false)}
+                disabled={isTogglingReg}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="organizer-post-event__action-btn organizer-post-event__action-btn--purple"
+                style={{ width: 'auto' }}
+                onClick={handleConfirmToggleRegistration}
+                disabled={isTogglingReg}
+              >
+                {isTogglingReg
+                  ? 'Updating…'
+                  : isRegistrationOpen
+                  ? 'Close Registration'
+                  : 'Open Registration'}
+              </button>
+            </div>
           </div>
-        )}
-
-        {success && (
-          <div style={{ padding: '0.8rem 1rem', borderRadius: '12px', background: 'rgba(42, 190, 120, 0.08)', color: '#1b8f65', border: '1px solid rgba(42, 190, 120, 0.25)', marginBottom: '1.5rem' }}>
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSave} className="detail-form">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            <label>
-              Post-Event Start Date *
-              <input
-                type="date"
-                name="start_date"
-                value={formData.start_date}
-                onChange={handleChange}
-                required
-              />
-            </label>
-
-            <label>
-              Post-Event End Date *
-              <input
-                type="date"
-                name="end_date"
-                value={formData.end_date}
-                onChange={handleChange}
-                required
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            <label>
-              Start Time
-              <input
-                type="time"
-                name="start_time"
-                value={formData.start_time}
-                onChange={handleChange}
-              />
-            </label>
-
-            <label>
-              End Time
-              <input
-                type="time"
-                name="end_time"
-                value={formData.end_time}
-                onChange={handleChange}
-              />
-            </label>
-
-            <label>
-              Timezone
-              <input
-                type="text"
-                name="timezone"
-                value={formData.timezone}
-                onChange={handleChange}
-                placeholder="e.g. Asia/Kolkata"
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            <label>
-              Coordinator Name
-              <input
-                type="text"
-                name="coordinator_name"
-                value={formData.coordinator_name}
-                onChange={handleChange}
-                placeholder="e.g. Dr. Jane Doe"
-              />
-            </label>
-
-            <label>
-              Coordinator Contact / Details
-              <input
-                type="text"
-                name="coordinator_contact"
-                value={formData.coordinator_contact}
-                onChange={handleChange}
-                placeholder="e.g. coordinator@example.com / +91-9876543210"
-              />
-            </label>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
-            <label>
-              Venue / Place
-              <input
-                type="text"
-                name="venue"
-                value={formData.venue}
-                onChange={handleChange}
-                placeholder="e.g. CUTM-AP Campus Auditorium"
-              />
-            </label>
-
-            <label>
-              Location / City
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="e.g. Main Auditorium / Hybrid"
-              />
-            </label>
-          </div>
-
-          <label style={{ marginBottom: '1.25rem' }}>
-            Post-Event Description & Details
-            <textarea
-              name="description"
-              rows={4}
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe the Post-Qiskit event, tracks, hackathon focus, etc."
-              style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255,79,163,0.18)', padding: '0.8rem 0.9rem' }}
-            />
-          </label>
-
-          <label style={{ marginBottom: '1.5rem' }}>
-            Event Schedule / Activities
-            <textarea
-              name="activities"
-              rows={4}
-              value={formData.activities}
-              onChange={handleChange}
-              placeholder="List the key activities, workshops, keynote sessions, and hackathon milestones."
-              style={{ width: '100%', borderRadius: '12px', border: '1px solid rgba(255,79,163,0.18)', padding: '0.8rem 0.9rem' }}
-            />
-          </label>
-
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <Button type="submit" kind="primary" disabled={isSaving}>
-              {isSaving ? 'Saving Settings…' : 'Save Configuration'}
-            </Button>
-          </div>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
+
 const OrganizerHackathonPage = () => {
+  const { activeProfile } = useEventProfile()
   const [hackathonEvents, setHackathonEvents] = useState([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [loadingEvents, setLoadingEvents] = useState(true)
@@ -2241,7 +5003,8 @@ const OrganizerHackathonPage = () => {
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterTab, setFilterTab] = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE', 'AVAILABLE', 'FULL'
+  const [filterTab, setFilterTab] = useState('ALL') // 'ALL', 'ACTIVE', 'AVAILABLE', 'FULL', 'INACTIVE'
+  const [viewMode, setViewMode] = useState('table') // 'table' | 'card'
 
   // Create / Edit Modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -2260,7 +5023,7 @@ const OrganizerHackathonPage = () => {
   const [formError, setFormError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // View Selections Modal
+  // View Selections / Roster Modal
   const [selectionsModal, setSelectionsModal] = useState({
     isOpen: false,
     problem: null,
@@ -2277,26 +5040,20 @@ const OrganizerHackathonPage = () => {
     error: '',
   })
 
-  const loadEvents = async () => {
-    setLoadingEvents(true)
-    try {
-      const res = await api.fetchActiveHackathons()
-      if (res.success && Array.isArray(res.data)) {
-        setHackathonEvents(res.data)
-        if (res.data.length > 0) {
-          const firstId = res.data[0].eventId || res.data[0].event_id
-          return firstId
-        }
+  // Escape key handler for accessible modal dismissal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (modalOpen && !isSubmitting) setModalOpen(false)
+        if (selectionsModal.isOpen) setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })
+        if (deleteModal.isOpen && !deleteModal.isDeleting) setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })
       }
-    } catch (e) {
-      // ignore
-    } finally {
-      setLoadingEvents(false)
     }
-    return ''
-  }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [modalOpen, isSubmitting, selectionsModal.isOpen, deleteModal.isOpen, deleteModal.isDeleting])
 
-  const loadData = async (targetEventId) => {
+  const loadData = useCallback(async (targetEventId) => {
     const eventIdToUse = targetEventId !== undefined ? targetEventId : selectedEventId
     setIsLoading(true)
     setError('')
@@ -2307,7 +5064,13 @@ const OrganizerHackathonPage = () => {
       ])
 
       if (statsRes.success) {
-        setStats(statsRes.data || {})
+        setStats(statsRes.data || {
+          totalProblems: 0,
+          totalTeams: 0,
+          totalSelections: 0,
+          availableProblems: 0,
+          fullProblems: 0,
+        })
       } else {
         setError(statsRes.error?.message || 'Unable to load hackathon statistics.')
       }
@@ -2322,20 +5085,60 @@ const OrganizerHackathonPage = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [selectedEventId])
 
+  // Profile-switch sequence: clean reload sequence
   useEffect(() => {
-    const init = async () => {
-      const firstId = await loadEvents()
-      if (firstId) {
-        setSelectedEventId(firstId)
-        await loadData(firstId)
-      } else {
-        await loadData('')
+    let isMounted = true
+
+    const initProfile = async () => {
+      setSelectedEventId('')
+      setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })
+      setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })
+      setModalOpen(false)
+      setProblems([])
+      setStats({ totalProblems: 0, totalTeams: 0, totalSelections: 0, availableProblems: 0, fullProblems: 0 })
+      setSearchQuery('')
+      setFilterTab('ALL')
+      setError('')
+      setSuccess('')
+      setIsLoading(true)
+      setLoadingEvents(true)
+
+      try {
+        const res = await api.fetchActiveHackathons()
+        if (!isMounted) return
+
+        if (res.success && Array.isArray(res.data)) {
+          setHackathonEvents(res.data)
+          setLoadingEvents(false)
+          if (res.data.length > 0) {
+            const firstId = res.data[0].eventId || res.data[0].event_id
+            setSelectedEventId(firstId)
+            await loadData(firstId)
+          } else {
+            setHackathonEvents([])
+            await loadData('')
+          }
+        } else {
+          setHackathonEvents([])
+          setLoadingEvents(false)
+          await loadData('')
+        }
+      } catch (err) {
+        if (!isMounted) return
+        setLoadingEvents(false)
+        setIsLoading(false)
+        setError('A network error occurred while loading hackathon events.')
       }
     }
-    init()
-  }, [])
+
+    initProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEventChange = (newId) => {
     setSelectedEventId(newId)
@@ -2394,7 +5197,6 @@ const OrganizerHackathonPage = () => {
         errorMsg = `File "${file.name}" exceeds the maximum allowed size of 10 MB.`
         break
       }
-      // Create preview object
       const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
       validNewFiles.push({
         file,
@@ -2444,7 +5246,6 @@ const OrganizerHackathonPage = () => {
           ...prev,
           existingAttachments: prev.existingAttachments.filter((f) => String(f.id) !== String(fileId)),
         }))
-        // Also update the problem in the problems list in real time
         setProblems((prev) =>
           prev.map((p) => {
             if (String(p.id) === String(editingProblem.id)) {
@@ -2546,7 +5347,6 @@ const OrganizerHackathonPage = () => {
         setSuccess(`Problem statement "${trimmedTitle}" created successfully!`)
       }
 
-      // Revoke any created object URLs
       modalForm.pendingFiles.forEach((f) => {
         if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
       })
@@ -2647,37 +5447,147 @@ const OrganizerHackathonPage = () => {
     }
   }
 
-  // Filtered problems
-  const filteredProblems = problems.filter((p) => {
-    // Search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      const matches =
-        p.title?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        String(p.problemNumber).includes(q)
-      if (!matches) return false
-    }
+  // Filtered problems based on search and tab filters
+  const filteredProblems = useMemo(() => {
+    return problems.filter((p) => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim()
+        const matches =
+          p.title?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q) ||
+          String(p.problemNumber).includes(q)
+        if (!matches) return false
+      }
 
-    // Tab filter
-    if (filterTab === 'ACTIVE') return p.isActive
-    if (filterTab === 'INACTIVE') return !p.isActive
-    if (filterTab === 'AVAILABLE') return p.isActive && (!p.isFull) && (p.maxCapacity === null || p.remainingCapacity > 0)
-    if (filterTab === 'FULL') return p.isFull
-    return true
-  })
+      if (filterTab === 'ACTIVE') return p.isActive
+      if (filterTab === 'INACTIVE') return !p.isActive
+      if (filterTab === 'AVAILABLE') return p.isActive && !p.isFull && (p.maxCapacity === null || p.remainingCapacity > 0)
+      if (filterTab === 'FULL') return p.isFull
+      return true
+    })
+  }, [problems, searchQuery, filterTab])
+
+  // Tab counts for badge display
+  const tabCounts = useMemo(() => {
+    return {
+      ALL: problems.length,
+      ACTIVE: problems.filter((p) => p.isActive).length,
+      AVAILABLE: problems.filter((p) => p.isActive && !p.isFull && (p.maxCapacity === null || p.remainingCapacity > 0)).length,
+      FULL: problems.filter((p) => p.isFull).length,
+      INACTIVE: problems.filter((p) => !p.isActive).length,
+    }
+  }, [problems])
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setFilterTab('ALL')
+  }
 
   return (
-    <div className="organizer-page-view organizer-hackathon-page" style={{ width: '100%' }}>
+    <div className="organizer-page-view organizer-hackathon-page">
       {/* PAGE HEADING */}
       <OrganizerPageHeading
-        eyebrow="QISKIT FALL FEST 2026"
-        title="Hackathon Management"
+        eyebrow="HACKATHON"
+        title="Hackathon"
         description="Create and configure problem statements, manage team capacity limits, and monitor live problem selections in real time."
         action={
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-              <label htmlFor="hackathon-event-filter" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#5c4779' }}>
+          <div className="organizer-hackathon__header-actions">
+            <div className="organizer-hackathon__header-badge">
+              <span className="organizer-hackathon__count-pill" aria-label={`Total problems: ${problems.length}`}>
+                {isLoading ? 'Loading…' : `${problems.length} ${problems.length === 1 ? 'problem' : 'problems'}`}
+              </span>
+              <span className="organizer-hackathon__profile-pill" aria-label={`Context: ${activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'}`}>
+                {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => loadData()}
+              disabled={isLoading}
+              title="Refresh hackathon statistics and problem statements"
+            >
+              🔄 Refresh
+            </button>
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={openCreateModal}
+            >
+              + Add Problem Statement
+            </button>
+          </div>
+        }
+      />
+
+      {/* TOAST ALERTS */}
+      {success && (
+        <div className="organizer-hackathon__alert organizer-hackathon__alert--success" role="status">
+          <div className="organizer-hackathon__alert-content">
+            <span aria-hidden="true">✓</span>
+            <span>{success}</span>
+          </div>
+          <button
+            type="button"
+            className="organizer-hackathon__alert-close"
+            onClick={() => setSuccess('')}
+            aria-label="Dismiss message"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert">
+          <div className="organizer-hackathon__alert-content">
+            <span aria-hidden="true">⚠️</span>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            className="organizer-hackathon__alert-close"
+            onClick={() => setError('')}
+            aria-label="Dismiss error"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* 1. SUMMARY KPI STRIP (DIRECT FROM BACKEND STATS) */}
+      <div className="organizer-hackathon__summary-strip" aria-label="Hackathon statistics overview">
+        <div className="organizer-hackathon__metric-item organizer-hackathon__metric-item--total">
+          <span className="organizer-hackathon__metric-label">Total Problems</span>
+          <strong className="organizer-hackathon__metric-value">{stats.totalProblems}</strong>
+        </div>
+        <div className="organizer-hackathon__metric-item">
+          <span className="organizer-hackathon__metric-label">Total Teams</span>
+          <strong className="organizer-hackathon__metric-value">{stats.totalTeams}</strong>
+        </div>
+        <div className="organizer-hackathon__metric-item">
+          <span className="organizer-hackathon__metric-label">Total Selections</span>
+          <strong className="organizer-hackathon__metric-value">{stats.totalSelections}</strong>
+        </div>
+        <div className="organizer-hackathon__metric-item organizer-hackathon__metric-item--available">
+          <span className="organizer-hackathon__metric-label">Available Problems</span>
+          <strong className="organizer-hackathon__metric-value">{stats.availableProblems}</strong>
+        </div>
+        <div className="organizer-hackathon__metric-item organizer-hackathon__metric-item--full">
+          <span className="organizer-hackathon__metric-label">Full Problems</span>
+          <strong className="organizer-hackathon__metric-value">{stats.fullProblems}</strong>
+        </div>
+      </div>
+
+      {/* 2. MAIN OPERATIONS PANEL: TOOLBAR + DATA VIEW */}
+      <div className="organizer-hackathon__panel">
+        {/* TOOLBAR */}
+        <div className="organizer-hackathon__toolbar">
+          <div className="organizer-hackathon__toolbar-row">
+            {/* Event Selector */}
+            <div className="organizer-hackathon__event-select-wrap">
+              <label htmlFor="hackathon-event-filter" className="organizer-hackathon__event-select-label">
                 Event:
               </label>
               <select
@@ -2685,17 +5595,7 @@ const OrganizerHackathonPage = () => {
                 value={selectedEventId}
                 onChange={(e) => handleEventChange(e.target.value)}
                 disabled={loadingEvents || hackathonEvents.length === 0}
-                style={{
-                  padding: '0.55rem 0.85rem',
-                  borderRadius: '12px',
-                  border: '1px solid rgba(255, 79, 163, 0.25)',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  color: '#2d253f',
-                  background: '#ffffff',
-                  cursor: 'pointer',
-                  maxWidth: '280px',
-                }}
+                className="organizer-hackathon__event-select"
               >
                 {hackathonEvents.length === 0 ? (
                   <option value="">No hackathon events</option>
@@ -2708,1092 +5608,707 @@ const OrganizerHackathonPage = () => {
                 )}
               </select>
             </div>
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={() => loadData()}
-              disabled={isLoading}
-              title="Refresh problem statements and statistics"
-            >
-              🔄 Refresh
-            </button>
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={openCreateModal}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
+
+            {/* Search Input */}
+            <div className="organizer-hackathon__search-wrap">
+              <svg className="organizer-hackathon__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
-              Add Problem Statement
-            </button>
-          </div>
-        }
-      />
-
-      {/* TOAST ALERTS */}
-      {success && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.9rem 1.25rem',
-            background: 'rgba(46, 125, 50, 0.1)',
-            border: '1px solid rgba(46, 125, 50, 0.3)',
-            borderRadius: '14px',
-            color: '#2e7d32',
-            fontWeight: 500,
-          }}
-        >
-          <span>✓ {success}</span>
-          <button
-            type="button"
-            onClick={() => setSuccess('')}
-            style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.9rem 1.25rem',
-            background: 'rgba(211, 47, 47, 0.08)',
-            border: '1px solid rgba(211, 47, 47, 0.25)',
-            borderRadius: '14px',
-            color: '#c2185b',
-            fontWeight: 500,
-          }}
-        >
-          <span>⚠️ {error}</span>
-          <button
-            type="button"
-            onClick={() => setError('')}
-            style={{ background: 'none', border: 'none', color: '#c2185b', cursor: 'pointer', fontSize: '1.2rem', padding: 0 }}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* 1. STATISTICS DASHBOARD CARDS */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1.1rem',
-          width: '100%',
-        }}
-      >
-        <div
-          style={{
-            padding: '1.35rem',
-            borderRadius: '20px',
-            border: '1px solid rgba(255, 79, 163, 0.18)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7859ca', fontWeight: 700 }}>
-            Problem Statements
-          </span>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2d253f', marginTop: '0.35rem', lineHeight: 1.1 }}>
-            {stats.totalProblems}
-          </div>
-          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Created for Hackathon</small>
-        </div>
-
-        <div
-          style={{
-            padding: '1.35rem',
-            borderRadius: '20px',
-            border: '1px solid rgba(255, 79, 163, 0.18)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#7859ca', fontWeight: 700 }}>
-            Total Teams
-          </span>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2d253f', marginTop: '0.35rem', lineHeight: 1.1 }}>
-            {stats.totalTeams}
-          </div>
-          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Formed hackathon teams</small>
-        </div>
-
-        <div
-          style={{
-            padding: '1.35rem',
-            borderRadius: '20px',
-            border: '1px solid rgba(255, 79, 163, 0.22)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 8px 24px rgba(255, 79, 163, 0.07)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#ff4fa3', fontWeight: 700 }}>
-            Total Selections
-          </span>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#ff4fa3', marginTop: '0.35rem', lineHeight: 1.1 }}>
-            {stats.totalSelections}
-          </div>
-          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Problem statement picks</small>
-        </div>
-
-        <div
-          style={{
-            padding: '1.35rem',
-            borderRadius: '20px',
-            border: '1px solid rgba(46, 125, 50, 0.22)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 8px 24px rgba(46, 125, 50, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#2e7d32', fontWeight: 700 }}>
-            Available Problems
-          </span>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#2e7d32', marginTop: '0.35rem', lineHeight: 1.1 }}>
-            {stats.availableProblems}
-          </div>
-          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Capacity remaining</small>
-        </div>
-
-        <div
-          style={{
-            padding: '1.35rem',
-            borderRadius: '20px',
-            border: '1px solid rgba(194, 24, 91, 0.22)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            boxShadow: '0 8px 24px rgba(194, 24, 91, 0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#c2185b', fontWeight: 700 }}>
-            Full Problems
-          </span>
-          <div style={{ fontSize: '2.4rem', fontWeight: 800, color: '#c2185b', marginTop: '0.35rem', lineHeight: 1.1 }}>
-            {stats.fullProblems}
-          </div>
-          <small style={{ color: '#8d7ba8', marginTop: '0.4rem' }}>Capacity filled</small>
-        </div>
-      </div>
-
-      {/* 2. SEARCH & FILTER CONTROLS */}
-      <div
-        className="organizer-page-content-panel"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '1.25rem 1.5rem',
-        }}
-      >
-        <div style={{ display: 'flex', flex: '1 1 280px', maxWidth: '480px', position: 'relative' }}>
-          <input
-            type="text"
-            placeholder="Search problem statements by title or keyword..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.65rem 1rem 0.65rem 2.2rem',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 79, 163, 0.2)',
-              fontSize: '0.95rem',
-              background: '#ffffff',
-            }}
-          />
-          <span
-            style={{
-              position: 'absolute',
-              left: '0.75rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#8d7ba8',
-              pointerEvents: 'none',
-            }}
-          >
-            🔍
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
-          {['ALL', 'ACTIVE', 'AVAILABLE', 'FULL', 'INACTIVE'].map((tab) => {
-            const isActiveTab = filterTab === tab
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setFilterTab(tab)}
-                style={{
-                  padding: '0.45rem 0.9rem',
-                  borderRadius: '10px',
-                  border: isActiveTab ? '1px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.16)',
-                  background: isActiveTab ? 'linear-gradient(135deg, #ff4fa3, #e0368b)' : '#ffffff',
-                  color: isActiveTab ? '#ffffff' : '#2d253f',
-                  fontWeight: isActiveTab ? 600 : 500,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.18s ease',
-                }}
-              >
-                {tab.charAt(0) + tab.slice(1).toLowerCase()}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* 3. PROBLEM STATEMENTS LIST */}
-      <div style={{ width: '100%', minHeight: '18rem' }}>
-        {isLoading ? (
-          <div
-            className="organizer-page-content-panel"
-            style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#5c4779' }}
-          >
-            <div style={{ fontSize: '1.6rem', marginBottom: '0.75rem' }}>⏳</div>
-            <h3>Loading hackathon problem statements…</h3>
-          </div>
-        ) : filteredProblems.length === 0 ? (
-          <div
-            className="organizer-page-content-panel"
-            style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#5c4779' }}
-          >
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>💡</div>
-            <h3>No problem statements found</h3>
-            <p style={{ maxWidth: '420px', margin: '0.5rem auto 1.5rem' }}>
-              {searchQuery || filterTab !== 'ALL'
-                ? 'No problem statements match your search query or filter criteria.'
-                : 'No problem statements have been created yet. Get started by adding the first challenge.'}
-            </p>
-            {(!searchQuery && filterTab === 'ALL') && (
-              <button type="button" className="button button--primary" onClick={openCreateModal}>
-                + Add Problem Statement
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 420px), 1fr))', gap: '1.25rem' }}>
-            {filteredProblems.map((problem) => {
-              const numStr = String(problem.problemNumber).padStart(2, '0')
-              const isFull = problem.isFull
-              const isInactive = !problem.isActive
-              const isUnlimited = problem.isUnlimited
-
-              return (
-                <div
-                  key={problem.id}
-                  style={{
-                    padding: '1.5rem',
-                    borderRadius: '22px',
-                    background: '#ffffff',
-                    border: isInactive
-                      ? '1px solid rgba(140, 130, 155, 0.25)'
-                      : isFull
-                      ? '1px solid rgba(255, 79, 163, 0.35)'
-                      : '1px solid rgba(255, 79, 163, 0.18)',
-                    boxShadow: '0 10px 28px rgba(45, 37, 63, 0.05)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    opacity: isInactive ? 0.78 : 1,
-                    transition: 'all 0.2s ease',
-                  }}
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search problem statements..."
+                className="organizer-hackathon__search-input"
+                aria-label="Search problem statements"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="organizer-hackathon__search-clear"
+                  aria-label="Clear search"
                 >
-                  <div>
-                    {/* Header Badges */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                      <span
-                        style={{
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: '#7859ca',
-                          background: 'rgba(120, 89, 202, 0.09)',
-                          padding: '0.25rem 0.65rem',
-                          borderRadius: '8px',
-                        }}
-                      >
-                        Problem {numStr}
-                      </span>
+                  ✕
+                </button>
+              )}
+            </div>
 
-                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                        {/* Status Badge */}
-                        <span
-                          style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.05em',
-                            padding: '0.2rem 0.6rem',
-                            borderRadius: '999px',
-                            background: isInactive ? 'rgba(140, 130, 155, 0.12)' : 'rgba(46, 125, 50, 0.1)',
-                            color: isInactive ? '#685c79' : '#2e7d32',
-                            border: isInactive ? '1px solid rgba(140, 130, 155, 0.2)' : '1px solid rgba(46, 125, 50, 0.2)',
-                          }}
-                        >
-                          {isInactive ? 'INACTIVE' : 'ACTIVE'}
-                        </span>
+            {/* View Mode Toggle (Desktop) */}
+            <div className="organizer-hackathon__view-toggle" role="group" aria-label="View layout switcher">
+              <button
+                type="button"
+                className={`organizer-hackathon__view-btn ${viewMode === 'table' ? 'organizer-hackathon__view-btn--active' : ''}`}
+                onClick={() => setViewMode('table')}
+                title="Table view"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" />
+                </svg>
+                Table
+              </button>
+              <button
+                type="button"
+                className={`organizer-hackathon__view-btn ${viewMode === 'card' ? 'organizer-hackathon__view-btn--active' : ''}`}
+                onClick={() => setViewMode('card')}
+                title="Cards view"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                Cards
+              </button>
+            </div>
+          </div>
 
-                        {/* Capacity Status Badge */}
-                        {isUnlimited ? (
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '999px',
-                              background: 'rgba(120, 89, 202, 0.1)',
-                              color: '#7859ca',
-                              border: '1px solid rgba(120, 89, 202, 0.2)',
-                            }}
-                          >
-                            ∞ UNLIMITED
-                          </span>
-                        ) : isFull ? (
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '999px',
-                              background: 'rgba(194, 24, 91, 0.12)',
-                              color: '#c2185b',
-                              border: '1px solid rgba(194, 24, 91, 0.3)',
-                            }}
-                          >
-                            FULL
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 600,
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '999px',
-                              background: 'rgba(255, 79, 163, 0.08)',
-                              color: '#d81b60',
-                              border: '1px solid rgba(255, 79, 163, 0.2)',
-                            }}
-                          >
-                            {problem.remainingCapacity} Left
-                          </span>
-                        )}
-                        {/* Attachments Count Badge */}
-                        {Array.isArray(problem.attachments) && problem.attachments.length > 0 && (
-                          <span
-                            style={{
-                              fontSize: '0.72rem',
-                              fontWeight: 700,
-                              padding: '0.2rem 0.6rem',
-                              borderRadius: '999px',
-                              background: 'rgba(33, 150, 243, 0.09)',
-                              color: '#1976d2',
-                              border: '1px solid rgba(33, 150, 243, 0.25)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                            }}
-                            title={`${problem.attachments.length} attached file(s)`}
-                          >
-                            📎 {problem.attachments.length} {problem.attachments.length === 1 ? 'file' : 'files'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    <h3 style={{ margin: '0 0 0.6rem', fontSize: '1.25rem', color: '#2d253f', lineHeight: 1.3 }}>
-                      {problem.title}
-                    </h3>
-
-                    {/* Description */}
-                    <p
-                      style={{
-                        margin: '0 0 1.25rem',
-                        fontSize: '0.92rem',
-                        color: '#5c4779',
-                        lineHeight: 1.55,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                      title={problem.description}
-                    >
-                      {problem.description}
-                    </p>
-
-                    {/* Capacity Indicator & Progress Bar */}
-                    <div
-                      style={{
-                        padding: '0.9rem',
-                        borderRadius: '14px',
-                        background: 'rgba(255, 79, 163, 0.04)',
-                        border: '1px solid rgba(255, 79, 163, 0.1)',
-                        marginBottom: '1.25rem',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'baseline',
-                          fontSize: '0.85rem',
-                          marginBottom: '0.45rem',
-                          color: '#2d253f',
-                        }}
-                      >
-                        <span>
-                          Teams Selected: <strong>{problem.selectedTeams}</strong>
-                          {isUnlimited ? ' (Unlimited)' : ` / ${problem.maxCapacity}`}
-                        </span>
-                        <span style={{ fontSize: '0.8rem', color: '#5c4779' }}>
-                          <strong>{problem.selectedParticipants}</strong> participants
-                        </span>
-                      </div>
-
-                      {/* Progress Bar */}
-                      {isUnlimited ? (
-                        <div
-                          style={{
-                            height: '6px',
-                            background: 'rgba(120, 89, 202, 0.2)',
-                            borderRadius: '999px',
-                            width: '100%',
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            height: '6px',
-                            background: 'rgba(255, 79, 163, 0.14)',
-                            borderRadius: '999px',
-                            overflow: 'hidden',
-                            width: '100%',
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.round((problem.selectedTeams / (problem.maxCapacity || 1)) * 100)
-                              )}%`,
-                              height: '100%',
-                              background: isFull
-                                ? '#c2185b'
-                                : 'linear-gradient(90deg, #ff4fa3, #7859ca)',
-                              borderRadius: '999px',
-                              transition: 'width 0.3s ease',
-                            }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions Footer */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '0.5rem',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderTop: '1px solid rgba(255, 79, 163, 0.12)',
-                      paddingTop: '1rem',
-                      marginTop: '0.5rem',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="button button--secondary"
-                      onClick={() => openSelectionsModal(problem)}
-                      style={{
-                        padding: '0.45rem 0.85rem',
-                        fontSize: '0.82rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                      }}
-                    >
-                      👥 View Participants
-                      <span
-                        style={{
-                          background: '#ff4fa3',
-                          color: '#ffffff',
-                          borderRadius: '999px',
-                          padding: '0.1rem 0.45rem',
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {problem.selectedTeams}
-                      </span>
-                    </button>
-
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      {/* Edit Button */}
-                      <button
-                        type="button"
-                        className="button button--secondary"
-                        onClick={() => openEditModal(problem)}
-                        style={{ padding: '0.45rem 0.75rem', fontSize: '0.82rem' }}
-                        title="Edit problem statement details and capacity"
-                      >
-                        ✏️ Edit
-                      </button>
-
-                      {/* Deactivate / Activate Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(problem)}
-                        style={{
-                          padding: '0.45rem 0.75rem',
-                          fontSize: '0.82rem',
-                          borderRadius: '10px',
-                          border: '1px solid rgba(255, 79, 163, 0.2)',
-                          background: isInactive ? 'rgba(46, 125, 50, 0.08)' : 'rgba(211, 47, 47, 0.06)',
-                          color: isInactive ? '#2e7d32' : '#c2185b',
-                          cursor: 'pointer',
-                          fontWeight: 600,
-                        }}
-                        title={isInactive ? 'Activate this problem statement' : 'Deactivate this problem statement'}
-                      >
-                        {isInactive ? 'Activate' : 'Deactivate'}
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        type="button"
-                        onClick={() => openDeleteModal(problem)}
-                        style={{
-                          padding: '0.45rem 0.65rem',
-                          fontSize: '0.82rem',
-                          borderRadius: '10px',
-                          border: '1px solid rgba(211, 47, 47, 0.2)',
-                          background: problem.selectedTeams > 0 ? 'rgba(0,0,0,0.03)' : 'rgba(211, 47, 47, 0.06)',
-                          color: problem.selectedTeams > 0 ? '#999999' : '#d32f2f',
-                          cursor: problem.selectedTeams > 0 ? 'not-allowed' : 'pointer',
-                          fontWeight: 600,
-                        }}
-                        title={
-                          problem.selectedTeams > 0
-                            ? 'Cannot delete: already selected by teams. Deactivate it instead.'
-                            : 'Delete problem statement'
-                        }
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                </div>
+          {/* Filter Tabs */}
+          <div className="organizer-hackathon__filter-tabs" role="tablist" aria-label="Problem statement status filters">
+            {[
+              { key: 'ALL', label: 'All' },
+              { key: 'ACTIVE', label: 'Active' },
+              { key: 'AVAILABLE', label: 'Available' },
+              { key: 'FULL', label: 'Full' },
+              { key: 'INACTIVE', label: 'Inactive' },
+            ].map(({ key, label }) => {
+              const isActive = filterTab === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`organizer-hackathon__tab-btn ${isActive ? 'organizer-hackathon__tab-btn--active' : ''}`}
+                  onClick={() => setFilterTab(key)}
+                >
+                  <span>{label}</span>
+                  <span className="organizer-hackathon__tab-count">{tabCounts[key] || 0}</span>
+                </button>
               )
             })}
           </div>
+        </div>
+
+        {/* 3. DATA VIEWS / STATES */}
+        {isLoading ? (
+          <div className="organizer-hackathon__skeleton-grid" aria-busy="true" aria-label="Loading problem statements">
+            <div className="organizer-hackathon__skeleton-card" />
+            <div className="organizer-hackathon__skeleton-card" />
+            <div className="organizer-hackathon__skeleton-card" />
+          </div>
+        ) : hackathonEvents.length === 0 ? (
+          <div className="organizer-hackathon__empty-state">
+            <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <h3 className="organizer-hackathon__empty-title">No hackathon events configured.</h3>
+            <p className="organizer-hackathon__empty-desc">
+              Create an active event of type "HACKATHON" in Events management to begin adding problem statements.
+            </p>
+          </div>
+        ) : problems.length === 0 ? (
+          <div className="organizer-hackathon__empty-state">
+            <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            <h3 className="organizer-hackathon__empty-title">No problem statements created yet.</h3>
+            <p className="organizer-hackathon__empty-desc">
+              Get started by adding the first challenge for this hackathon event.
+            </p>
+            <button type="button" className="button button--primary organizer-hackathon__reset-btn" onClick={openCreateModal}>
+              + Add Problem Statement
+            </button>
+          </div>
+        ) : filteredProblems.length === 0 ? (
+          <div className="organizer-hackathon__empty-state">
+            <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+            <h3 className="organizer-hackathon__empty-title">No problem statements match your search.</h3>
+            <p className="organizer-hackathon__empty-desc">
+              No problem statements matched your current search query or filter criteria.
+            </p>
+            <button type="button" className="button button--secondary organizer-hackathon__reset-btn" onClick={clearFilters}>
+              Clear search and filters
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* DESKTOP TABLE VIEW (> 768px when viewMode === 'table') */}
+            {viewMode === 'table' && (
+              <div className="organizer-hackathon__table-wrap">
+                <table className="organizer-hackathon__table" aria-label="Hackathon problem statements table">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Problem Statement</th>
+                      <th scope="col">Capacity</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Attachments</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredProblems.map((problem) => {
+                      const numStr = String(problem.problemNumber).padStart(2, '0')
+                      const isFull = problem.isFull
+                      const isInactive = !problem.isActive
+                      const isUnlimited = problem.isUnlimited
+                      const pct = isUnlimited
+                        ? 0
+                        : Math.min(100, Math.round((problem.selectedTeams / (problem.maxCapacity || 1)) * 100))
+
+                      return (
+                        <tr key={problem.id} tabIndex={0}>
+                          <td>
+                            <span className="organizer-hackathon__num-pill">#{numStr}</span>
+                          </td>
+                          <td>
+                            <div className="organizer-hackathon__title-cell">
+                              <span className="organizer-hackathon__problem-title">{problem.title}</span>
+                              <span className="organizer-hackathon__desc-sub" title={problem.description}>
+                                {problem.description}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="organizer-hackathon__capacity-cell">
+                              <div className="organizer-hackathon__capacity-label">
+                                <strong>{problem.selectedTeams}</strong>
+                                <span>{isUnlimited ? '∞ Unlimited' : `/ ${problem.maxCapacity}`}</span>
+                              </div>
+                              <div className="organizer-hackathon__progress-track" aria-hidden="true">
+                                <div
+                                  className={`organizer-hackathon__progress-fill ${isFull ? 'organizer-hackathon__progress-fill--full' : ''}`}
+                                  style={{ width: isUnlimited ? '100%' : `${pct}%`, opacity: isUnlimited ? 0.4 : 1 }}
+                                />
+                              </div>
+                              <small style={{ fontSize: '0.74rem', color: '#7b6f93' }}>
+                                {problem.selectedParticipants} participants
+                              </small>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-start' }}>
+                              <span className={`organizer-hackathon__status-tag ${isInactive ? 'organizer-hackathon__status-tag--inactive' : 'organizer-hackathon__status-tag--active'}`}>
+                                <span className="organizer-hackathon__status-dot" aria-hidden="true" />
+                                <span>{isInactive ? 'INACTIVE' : 'ACTIVE'}</span>
+                              </span>
+
+                              {isUnlimited ? (
+                                <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--unlimited">
+                                  ∞ Unlimited
+                                </span>
+                              ) : isFull ? (
+                                <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--full">
+                                  FULL
+                                </span>
+                              ) : (
+                                <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--available">
+                                  {problem.remainingCapacity} Left
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            {Array.isArray(problem.attachments) && problem.attachments.length > 0 ? (
+                              <span className="organizer-hackathon__attachment-tag" title={`${problem.attachments.length} attached file(s)`}>
+                                📎 {problem.attachments.length}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#a095bd', fontSize: '0.8rem' }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="organizer-hackathon__actions-cell">
+                              <button
+                                type="button"
+                                className="organizer-hackathon__action-btn organizer-hackathon__action-btn--roster"
+                                onClick={() => openSelectionsModal(problem)}
+                                title="View team selections and rosters"
+                              >
+                                👥 Roster
+                                <span className="organizer-hackathon__action-btn--roster-count">
+                                  {problem.selectedTeams}
+                                </span>
+                              </button>
+
+                              <button
+                                type="button"
+                                className="organizer-hackathon__action-btn organizer-hackathon__action-btn--edit"
+                                onClick={() => openEditModal(problem)}
+                                title="Edit problem statement"
+                              >
+                                ✏️ Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                className={`organizer-hackathon__action-btn ${isInactive ? 'organizer-hackathon__action-btn--toggle-active' : 'organizer-hackathon__action-btn--toggle-inactive'}`}
+                                onClick={() => handleToggleActive(problem)}
+                                title={isInactive ? 'Activate this challenge' : 'Deactivate this challenge'}
+                              >
+                                {isInactive ? 'Activate' : 'Deactivate'}
+                              </button>
+
+                              <button
+                                type="button"
+                                className="organizer-hackathon__action-btn organizer-hackathon__action-btn--delete"
+                                onClick={() => openDeleteModal(problem)}
+                                title={problem.selectedTeams > 0 ? 'Cannot delete: selected by teams' : 'Delete problem statement'}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* CARDS VIEW (When viewMode === 'card' on desktop, or ALWAYS on mobile <= 768px) */}
+            <div className="organizer-hackathon__cards-grid" style={{ display: viewMode === 'card' ? 'grid' : undefined }}>
+              {filteredProblems.map((problem) => {
+                const numStr = String(problem.problemNumber).padStart(2, '0')
+                const isFull = problem.isFull
+                const isInactive = !problem.isActive
+                const isUnlimited = problem.isUnlimited
+                const pct = isUnlimited
+                  ? 0
+                  : Math.min(100, Math.round((problem.selectedTeams / (problem.maxCapacity || 1)) * 100))
+
+                return (
+                  <article
+                    key={problem.id}
+                    className={`organizer-hackathon__card ${isInactive ? 'organizer-hackathon__card--inactive' : ''}`}
+                    tabIndex={0}
+                  >
+                    <div>
+                      {/* Card Header Badges */}
+                      <div className="organizer-hackathon__card-header">
+                        <span className="organizer-hackathon__num-pill">Problem #{numStr}</span>
+
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                          <span className={`organizer-hackathon__status-tag ${isInactive ? 'organizer-hackathon__status-tag--inactive' : 'organizer-hackathon__status-tag--active'}`}>
+                            <span className="organizer-hackathon__status-dot" aria-hidden="true" />
+                            <span>{isInactive ? 'INACTIVE' : 'ACTIVE'}</span>
+                          </span>
+
+                          {isUnlimited ? (
+                            <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--unlimited">
+                              ∞ Unlimited
+                            </span>
+                          ) : isFull ? (
+                            <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--full">
+                              FULL
+                            </span>
+                          ) : (
+                            <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--available">
+                              {problem.remainingCapacity} Left
+                            </span>
+                          )}
+
+                          {Array.isArray(problem.attachments) && problem.attachments.length > 0 && (
+                            <span className="organizer-hackathon__attachment-tag">
+                              📎 {problem.attachments.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Title & Description */}
+                      <div className="organizer-hackathon__card-title-group">
+                        <h3 className="organizer-hackathon__card-title">{problem.title}</h3>
+                        <p className="organizer-hackathon__card-desc" title={problem.description}>
+                          {problem.description}
+                        </p>
+                      </div>
+
+                      {/* Capacity Box */}
+                      <div className="organizer-hackathon__card-capacity">
+                        <div className="organizer-hackathon__capacity-label">
+                          <span>
+                            Teams: <strong>{problem.selectedTeams}</strong>
+                            {isUnlimited ? ' (Unlimited)' : ` / ${problem.maxCapacity}`}
+                          </span>
+                          <span style={{ fontSize: '0.78rem', color: '#7b6f93' }}>
+                            <strong>{problem.selectedParticipants}</strong> participants
+                          </span>
+                        </div>
+                        <div className="organizer-hackathon__progress-track" aria-hidden="true" style={{ marginTop: '0.4rem' }}>
+                          <div
+                            className={`organizer-hackathon__progress-fill ${isFull ? 'organizer-hackathon__progress-fill--full' : ''}`}
+                            style={{ width: isUnlimited ? '100%' : `${pct}%`, opacity: isUnlimited ? 0.4 : 1 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Footer */}
+                    <div className="organizer-hackathon__card-footer">
+                      <div className="organizer-hackathon__card-actions">
+                        <button
+                          type="button"
+                          className="organizer-hackathon__action-btn organizer-hackathon__action-btn--roster"
+                          onClick={() => openSelectionsModal(problem)}
+                        >
+                          👥 View Roster
+                          <span className="organizer-hackathon__action-btn--roster-count">
+                            {problem.selectedTeams}
+                          </span>
+                        </button>
+
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            className="organizer-hackathon__action-btn organizer-hackathon__action-btn--edit"
+                            onClick={() => openEditModal(problem)}
+                          >
+                            ✏️ Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`organizer-hackathon__action-btn ${isInactive ? 'organizer-hackathon__action-btn--toggle-active' : 'organizer-hackathon__action-btn--toggle-inactive'}`}
+                            onClick={() => handleToggleActive(problem)}
+                          >
+                            {isInactive ? 'Activate' : 'Deactivate'}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="organizer-hackathon__action-btn organizer-hackathon__action-btn--delete"
+                            onClick={() => openDeleteModal(problem)}
+                            title={problem.selectedTeams > 0 ? 'Cannot delete: selected by teams' : 'Delete'}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
 
       {/* 4. CREATE / EDIT MODAL */}
       {modalOpen && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(25, 18, 38, 0.6)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-          }}
+          className="organizer-hackathon__modal-backdrop"
           onClick={() => !isSubmitting && setModalOpen(false)}
+          role="presentation"
         >
           <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '24px',
-              maxWidth: '580px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '2rem',
-              border: '1px solid rgba(255, 79, 163, 0.25)',
-              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
-            }}
+            className="organizer-hackathon__modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hackathon-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <div className="organizer-hackathon__modal-header">
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#2d253f' }}>
+                <h3 id="hackathon-modal-title" className="organizer-hackathon__modal-title">
                   {editingProblem ? 'Edit Problem Statement' : 'Add Problem Statement'}
                 </h3>
-                <small style={{ color: '#8d7ba8' }}>
+                <p className="organizer-hackathon__modal-subtitle">
                   {editingProblem ? `Updating Problem #${editingProblem.problemNumber}` : 'Create a new hackathon challenge'}
-                </small>
+                </p>
               </div>
               <button
                 type="button"
+                className="organizer-hackathon__modal-close"
                 onClick={() => setModalOpen(false)}
                 disabled={isSubmitting}
-                style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#8d7ba8', cursor: 'pointer' }}
+                aria-label="Close dialog"
               >
                 ×
               </button>
             </div>
 
-            {formError && (
-              <div
-                style={{
-                  padding: '0.8rem 1rem',
-                  background: 'rgba(211, 47, 47, 0.08)',
-                  border: '1px solid rgba(211, 47, 47, 0.25)',
-                  borderRadius: '12px',
-                  color: '#c2185b',
-                  fontSize: '0.9rem',
-                  marginBottom: '1.25rem',
-                }}
-              >
-                ⚠️ {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleModalSubmit} style={{ display: 'grid', gap: '1.25rem' }}>
-              {/* Select Hackathon Event */}
-              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
-                Select Hackathon Event *
-                {hackathonEvents.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '0.75rem 0.95rem',
-                      borderRadius: '12px',
-                      background: 'rgba(211, 47, 47, 0.08)',
-                      border: '1px solid rgba(211, 47, 47, 0.25)',
-                      color: '#c2185b',
-                      fontSize: '0.9rem',
-                      fontWeight: 500,
-                    }}
-                  >
-                    No hackathon events available. Please create a hackathon event first.
+            <form onSubmit={handleModalSubmit}>
+              <div className="organizer-hackathon__modal-body">
+                {formError && (
+                  <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert">
+                    <span>⚠️ {formError}</span>
                   </div>
-                ) : (
-                  <select
-                    value={modalForm.eventId}
-                    onChange={(e) => setModalForm((prev) => ({ ...prev, eventId: e.target.value }))}
-                    required
-                    disabled={Boolean(editingProblem)}
-                    style={{
-                      padding: '0.75rem 0.95rem',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(255, 79, 163, 0.22)',
-                      fontSize: '0.95rem',
-                      background: editingProblem ? '#f8f9fa' : '#ffffff',
-                      color: '#2d253f',
-                      cursor: editingProblem ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    <option value="" disabled>
-                      -- Select Hackathon Event --
-                    </option>
-                    {hackathonEvents.map((evt) => (
-                      <option key={evt.eventId || evt.event_id} value={evt.eventId || evt.event_id}>
-                        {evt.name || evt.event_name}
-                      </option>
-                    ))}
-                  </select>
                 )}
-              </label>
 
-              {/* Title */}
-              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
-                Problem Statement Title *
-                <input
-                  type="text"
-                  placeholder="e.g. Quantum Optimization for Smart Energy Grid"
-                  value={modalForm.title}
-                  onChange={(e) => setModalForm((prev) => ({ ...prev, title: e.target.value }))}
-                  required
-                  style={{
-                    padding: '0.75rem 0.95rem',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 79, 163, 0.22)',
-                    fontSize: '0.95rem',
-                  }}
-                />
-              </label>
-
-              {/* Description */}
-              <label style={{ display: 'grid', gap: '0.4rem', fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
-                Description *
-                <textarea
-                  rows={4}
-                  placeholder="Describe the challenge, goals, technical scope, and expected deliverables..."
-                  value={modalForm.description}
-                  onChange={(e) => setModalForm((prev) => ({ ...prev, description: e.target.value }))}
-                  required
-                  style={{
-                    padding: '0.75rem 0.95rem',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255, 79, 163, 0.22)',
-                    fontSize: '0.95rem',
-                    resize: 'vertical',
-                  }}
-                />
-              </label>
-
-              {/* Capacity Selector (Limited vs Unlimited) */}
-              <div style={{ display: 'grid', gap: '0.65rem' }}>
-                <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
-                  Maximum Capacity (Teams Allowed) *
-                </span>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '0.75rem',
-                  }}
-                >
-                  {/* Unlimited Option */}
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.85rem 1rem',
-                      borderRadius: '14px',
-                      border: !modalForm.isLimited ? '2px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.2)',
-                      background: !modalForm.isLimited ? 'rgba(255, 79, 163, 0.05)' : '#ffffff',
-                      cursor: 'pointer',
-                      fontSize: '0.92rem',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="capacityType"
-                      checked={!modalForm.isLimited}
-                      onChange={() => setModalForm((prev) => ({ ...prev, isLimited: false }))}
-                    />
-                    <div>
-                      <strong>∞ Unlimited</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>No team limit</div>
-                    </div>
+                {/* Event Selector */}
+                <div className="organizer-hackathon__form-group">
+                  <label htmlFor="modal-event-select" className="organizer-hackathon__form-label">
+                    Select Hackathon Event *
                   </label>
-
-                  {/* Limited Option */}
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.85rem 1rem',
-                      borderRadius: '14px',
-                      border: modalForm.isLimited ? '2px solid #ff4fa3' : '1px solid rgba(255, 79, 163, 0.2)',
-                      background: modalForm.isLimited ? 'rgba(255, 79, 163, 0.05)' : '#ffffff',
-                      cursor: 'pointer',
-                      fontSize: '0.92rem',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="capacityType"
-                      checked={modalForm.isLimited}
-                      onChange={() => setModalForm((prev) => ({ ...prev, isLimited: true }))}
-                    />
-                    <div>
-                      <strong>Limited</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>Cap selections</div>
+                  {hackathonEvents.length === 0 ? (
+                    <div className="organizer-hackathon__alert organizer-hackathon__alert--error">
+                      No hackathon events available. Please create a hackathon event first.
                     </div>
-                  </label>
+                  ) : (
+                    <select
+                      id="modal-event-select"
+                      value={modalForm.eventId}
+                      onChange={(e) => setModalForm((prev) => ({ ...prev, eventId: e.target.value }))}
+                      required
+                      disabled={Boolean(editingProblem)}
+                      className="organizer-hackathon__form-select"
+                    >
+                      <option value="" disabled>-- Select Hackathon Event --</option>
+                      {hackathonEvents.map((evt) => (
+                        <option key={evt.eventId || evt.event_id} value={evt.eventId || evt.event_id}>
+                          {evt.name || evt.event_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                {/* Capacity Input if Limited */}
-                {modalForm.isLimited && (
-                  <div style={{ marginTop: '0.25rem' }}>
-                    <label style={{ display: 'grid', gap: '0.35rem', fontSize: '0.88rem', color: '#5c4779' }}>
-                      Maximum Number of Teams Allowed:
+                {/* Title */}
+                <div className="organizer-hackathon__form-group">
+                  <label htmlFor="modal-title-input" className="organizer-hackathon__form-label">
+                    Problem Statement Title *
+                  </label>
+                  <input
+                    id="modal-title-input"
+                    type="text"
+                    placeholder="e.g. Quantum Optimization for Smart Energy Grid"
+                    value={modalForm.title}
+                    onChange={(e) => setModalForm((prev) => ({ ...prev, title: e.target.value }))}
+                    required
+                    className="organizer-hackathon__form-input"
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="organizer-hackathon__form-group">
+                  <label htmlFor="modal-desc-input" className="organizer-hackathon__form-label">
+                    Description *
+                  </label>
+                  <textarea
+                    id="modal-desc-input"
+                    rows={4}
+                    placeholder="Describe the challenge, goals, technical scope, and expected deliverables..."
+                    value={modalForm.description}
+                    onChange={(e) => setModalForm((prev) => ({ ...prev, description: e.target.value }))}
+                    required
+                    className="organizer-hackathon__form-textarea"
+                  />
+                </div>
+
+                {/* Capacity Selector */}
+                <div className="organizer-hackathon__form-group">
+                  <span className="organizer-hackathon__form-label">Maximum Capacity (Teams Allowed) *</span>
+                  <div className="organizer-hackathon__capacity-options">
+                    <label className={`organizer-hackathon__capacity-option ${!modalForm.isLimited ? 'organizer-hackathon__capacity-option--active' : ''}`}>
                       <input
+                        type="radio"
+                        name="capacityType"
+                        checked={!modalForm.isLimited}
+                        onChange={() => setModalForm((prev) => ({ ...prev, isLimited: false }))}
+                      />
+                      <div>
+                        <strong>∞ Unlimited</strong>
+                        <div style={{ fontSize: '0.76rem', color: '#7b6f93' }}>No team limit</div>
+                      </div>
+                    </label>
+
+                    <label className={`organizer-hackathon__capacity-option ${modalForm.isLimited ? 'organizer-hackathon__capacity-option--active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="capacityType"
+                        checked={modalForm.isLimited}
+                        onChange={() => setModalForm((prev) => ({ ...prev, isLimited: true }))}
+                      />
+                      <div>
+                        <strong>Limited Capacity</strong>
+                        <div style={{ fontSize: '0.76rem', color: '#7b6f93' }}>Cap selections</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {modalForm.isLimited && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <label htmlFor="modal-capacity-input" style={{ fontSize: '0.84rem', color: '#4b3d68', display: 'block', marginBottom: '0.25rem' }}>
+                        Maximum Teams Allowed:
+                      </label>
+                      <input
+                        id="modal-capacity-input"
                         type="number"
                         min="0"
                         value={modalForm.maxCapacity}
                         onChange={(e) => setModalForm((prev) => ({ ...prev, maxCapacity: e.target.value }))}
                         required
-                        style={{
-                          padding: '0.65rem 0.9rem',
-                          borderRadius: '12px',
-                          border: '1px solid rgba(255, 79, 163, 0.22)',
-                          fontSize: '0.95rem',
-                          maxWidth: '180px',
-                        }}
+                        className="organizer-hackathon__form-input"
+                        style={{ maxWidth: '160px' }}
                       />
-                      <small style={{ color: '#8d7ba8' }}>
+                      <small style={{ color: '#7b6f93', display: 'block', marginTop: '0.25rem' }}>
                         Set to 0 if temporarily unavailable, or any positive integer (e.g. 10).
                       </small>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Selector */}
+                <div className="organizer-hackathon__form-group">
+                  <span className="organizer-hackathon__form-label">Initial Status</span>
+                  <div style={{ display: 'flex', gap: '1.25rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input
+                        type="radio"
+                        name="modalStatus"
+                        checked={modalForm.isActive}
+                        onChange={() => setModalForm((prev) => ({ ...prev, isActive: true }))}
+                      />
+                      <span style={{ color: '#065f46', fontWeight: 600 }}>Active</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                      <input
+                        type="radio"
+                        name="modalStatus"
+                        checked={!modalForm.isActive}
+                        onChange={() => setModalForm((prev) => ({ ...prev, isActive: false }))}
+                      />
+                      <span style={{ color: '#4b5563', fontWeight: 600 }}>Inactive</span>
                     </label>
                   </div>
-                )}
-              </div>
-
-              {/* Status Selector */}
-              <div style={{ display: 'grid', gap: '0.4rem' }}>
-                <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>Status</span>
-                <div style={{ display: 'flex', gap: '1.25rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.92rem' }}>
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={modalForm.isActive}
-                      onChange={() => setModalForm((prev) => ({ ...prev, isActive: true }))}
-                    />
-                    <span style={{ color: '#2e7d32', fontWeight: 600 }}>Active</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', fontSize: '0.92rem' }}>
-                    <input
-                      type="radio"
-                      name="status"
-                      checked={!modalForm.isActive}
-                      onChange={() => setModalForm((prev) => ({ ...prev, isActive: false }))}
-                    />
-                    <span style={{ color: '#685c79', fontWeight: 600 }}>Inactive</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Supporting File Attachments */}
-              <div style={{ display: 'grid', gap: '0.65rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 600, color: '#2d253f', fontSize: '0.95rem' }}>
-                    Supporting Attachments
-                  </span>
-                  <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>
-                    JPG, PNG, PDF (max 10 MB per file)
-                  </span>
                 </div>
 
-                {/* Existing Attachments in Edit Mode */}
-                {editingProblem && modalForm.existingAttachments.length > 0 && (
-                  <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5c4779' }}>
-                      Current Attachments ({modalForm.existingAttachments.length}):
-                    </span>
-                    <div style={{ display: 'grid', gap: '0.4rem' }}>
-                      {modalForm.existingAttachments.map((file) => {
-                        const isPdf = file.mimeType === 'application/pdf' || file.originalFilename?.toLowerCase().endsWith('.pdf')
-                        const sizeKb = Math.round((file.fileSize || 0) / 1024)
-                        const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
-                        const isDeleting = deletingFileId === file.id
+                {/* Attachments */}
+                <div className="organizer-hackathon__form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span className="organizer-hackathon__form-label">Supporting Attachments</span>
+                    <span style={{ fontSize: '0.76rem', color: '#7b6f93' }}>JPG, PNG, PDF (max 10 MB per file)</span>
+                  </div>
 
-                        return (
-                          <div
-                            key={file.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '0.55rem 0.8rem',
-                              background: '#fbf9fd',
-                              border: '1px solid rgba(255, 79, 163, 0.16)',
-                              borderRadius: '10px',
-                              fontSize: '0.85rem',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, overflow: 'hidden' }}>
-                              <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>
-                                {isPdf ? '📄' : '🖼️'}
-                              </span>
-                              <div style={{ minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontWeight: 600,
-                                    color: '#2d253f',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    maxWidth: '260px',
-                                  }}
-                                  title={file.originalFilename}
-                                >
-                                  {file.originalFilename}
+                  {/* Existing Attachments */}
+                  {editingProblem && modalForm.existingAttachments.length > 0 && (
+                    <div style={{ display: 'grid', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5c4779' }}>
+                        Current Attachments ({modalForm.existingAttachments.length}):
+                      </span>
+                      <div className="organizer-hackathon__file-list">
+                        {modalForm.existingAttachments.map((file) => {
+                          const isPdf = file.mimeType === 'application/pdf' || file.originalFilename?.toLowerCase().endsWith('.pdf')
+                          const sizeKb = Math.round((file.fileSize || 0) / 1024)
+                          const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
+                          const isDeleting = deletingFileId === file.id
+
+                          return (
+                            <div key={file.id} className="organizer-hackathon__file-item">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                <span style={{ fontSize: '1.1rem' }}>{isPdf ? '📄' : '🖼️'}</span>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }} title={file.originalFilename}>
+                                    {file.originalFilename}
+                                  </div>
+                                  <small style={{ color: '#7b6f93' }}>{sizeStr}</small>
                                 </div>
-                                <span style={{ fontSize: '0.75rem', color: '#8d7ba8' }}>
-                                  {sizeStr}
-                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <a
+                                  href={file.viewUrl ? `${file.viewUrl}?token=${api.getOrganizerToken()}` : '#'}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="button button--secondary"
+                                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.74rem' }}
+                                >
+                                  View
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteExistingAttachment(file.id)}
+                                  disabled={isDeleting}
+                                  style={{ background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                                >
+                                  {isDeleting ? 'Deleting…' : '✕ Remove'}
+                                </button>
                               </div>
                             </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                              <a
-                                href={file.viewUrl ? `${file.viewUrl}?token=${api.getOrganizerToken()}` : '#'}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                  fontSize: '0.78rem',
-                                  color: '#ff4fa3',
-                                  textDecoration: 'none',
-                                  fontWeight: 600,
-                                  padding: '0.2rem 0.5rem',
-                                  borderRadius: '6px',
-                                  background: 'rgba(255, 79, 163, 0.08)',
-                                }}
-                              >
-                                View
-                              </a>
+                  {/* Dropzone */}
+                  <label className="organizer-hackathon__dropzone">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                      onChange={handleFileSelect}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={{ fontSize: '1.4rem', marginBottom: '0.25rem' }}>📎</span>
+                    <strong style={{ fontSize: '0.88rem', color: '#241938' }}>Click to select files to attach</strong>
+                    <span style={{ fontSize: '0.76rem', color: '#7b6f93', marginTop: '0.15rem' }}>
+                      Diagrams, datasets, and problem briefs (JPG, PNG, PDF)
+                    </span>
+                  </label>
+
+                  {/* Pending New Files */}
+                  {modalForm.pendingFiles.length > 0 && (
+                    <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.4rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#065f46' }}>
+                        Ready to upload ({modalForm.pendingFiles.length}):
+                      </span>
+                      <div className="organizer-hackathon__file-list">
+                        {modalForm.pendingFiles.map((item, idx) => {
+                          const isPdf = item.type === 'application/pdf' || item.name.toLowerCase().endsWith('.pdf')
+                          const sizeKb = Math.round(item.size / 1024)
+                          const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
+
+                          return (
+                            <div key={idx} className="organizer-hackathon__file-item">
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                                {item.previewUrl ? (
+                                  <img src={item.previewUrl} alt="Preview" style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                                ) : (
+                                  <span style={{ fontSize: '1.1rem' }}>{isPdf ? '📄' : '🖼️'}</span>
+                                )}
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }} title={item.name}>
+                                    {item.name}
+                                  </div>
+                                  <small style={{ color: '#7b6f93' }}>{sizeStr} • New</small>
+                                </div>
+                              </div>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteExistingAttachment(file.id)}
-                                disabled={isDeleting}
-                                style={{
-                                  background: 'rgba(211, 47, 47, 0.08)',
-                                  border: 'none',
-                                  color: '#d32f2f',
-                                  padding: '0.25rem 0.5rem',
-                                  borderRadius: '6px',
-                                  cursor: isDeleting ? 'not-allowed' : 'pointer',
-                                  fontSize: '0.78rem',
-                                  fontWeight: 600,
-                                }}
-                                title="Delete this file"
+                                onClick={() => removePendingFile(idx)}
+                                style={{ background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: '1rem', padding: '0.1rem 0.3rem' }}
+                                title="Remove file"
                               >
-                                {isDeleting ? 'Deleting...' : '✕ Remove'}
+                                ✕
                               </button>
                             </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Upload Area / Dropzone */}
-                <label
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '1.25rem 1rem',
-                    borderRadius: '14px',
-                    border: '2px dashed rgba(255, 79, 163, 0.35)',
-                    background: 'rgba(255, 79, 163, 0.03)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    textAlign: 'center',
-                  }}
-                >
-                  <input
-                    type="file"
-                    multiple
-                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-                    onChange={handleFileSelect}
-                    style={{ display: 'none' }}
-                  />
-                  <span style={{ fontSize: '1.6rem', marginBottom: '0.35rem' }}>📎</span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d253f' }}>
-                    Click to select files to attach
-                  </span>
-                  <span style={{ fontSize: '0.78rem', color: '#8d7ba8', marginTop: '0.2rem' }}>
-                    Support for diagrams, sample datasets, problem briefs (JPG, PNG, PDF)
-                  </span>
-                </label>
-
-                {/* Pending New Files to Upload */}
-                {modalForm.pendingFiles.length > 0 && (
-                  <div style={{ display: 'grid', gap: '0.45rem', marginTop: '0.35rem' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2e7d32' }}>
-                      Ready to upload ({modalForm.pendingFiles.length}):
-                    </span>
-                    {modalForm.pendingFiles.map((item, idx) => {
-                      const isPdf = item.type === 'application/pdf' || item.name.toLowerCase().endsWith('.pdf')
-                      const sizeKb = Math.round(item.size / 1024)
-                      const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
-
-                      return (
-                        <div
-                          key={idx}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '0.45rem 0.75rem',
-                            background: 'rgba(46, 125, 50, 0.05)',
-                            border: '1px solid rgba(46, 125, 50, 0.2)',
-                            borderRadius: '10px',
-                            fontSize: '0.85rem',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0, overflow: 'hidden' }}>
-                            {item.previewUrl ? (
-                              <img
-                                src={item.previewUrl}
-                                alt="Preview"
-                                style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'cover' }}
-                              />
-                            ) : (
-                              <span style={{ fontSize: '1.2rem' }}>{isPdf ? '📄' : '🖼️'}</span>
-                            )}
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontWeight: 600,
-                                  color: '#2d253f',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  maxWidth: '280px',
-                                }}
-                                title={item.name}
-                              >
-                                {item.name}
-                              </div>
-                              <span style={{ fontSize: '0.75rem', color: '#685c79' }}>
-                                {sizeStr} • New
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => removePendingFile(idx)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#d32f2f',
-                              cursor: 'pointer',
-                              fontSize: '1.1rem',
-                              padding: '0.2rem 0.4rem',
-                            }}
-                            title="Remove file"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+              <div className="organizer-hackathon__modal-footer">
                 <button
                   type="button"
                   className="button button--secondary"
@@ -3807,7 +6322,9 @@ const OrganizerHackathonPage = () => {
                   className="button button--primary"
                   disabled={isSubmitting || (!editingProblem && hackathonEvents.length === 0)}
                 >
-                  {isSubmitting ? (modalForm.pendingFiles.length > 0 ? 'Uploading files…' : 'Saving…') : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
+                  {isSubmitting
+                    ? (modalForm.pendingFiles.length > 0 ? 'Uploading files…' : 'Saving…')
+                    : editingProblem ? 'Save Changes' : 'Create Problem Statement'}
                 </button>
               </div>
             </form>
@@ -3815,181 +6332,115 @@ const OrganizerHackathonPage = () => {
         </div>
       )}
 
-      {/* 5. VIEW PARTICIPANTS / SELECTIONS MODAL */}
+      {/* 5. VIEW PARTICIPANTS / SELECTIONS ROSTER MODAL */}
       {selectionsModal.isOpen && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(25, 18, 38, 0.6)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-          }}
+          className="organizer-hackathon__modal-backdrop"
           onClick={() => setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })}
+          role="presentation"
         >
           <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '24px',
-              maxWidth: '720px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '2rem',
-              border: '1px solid rgba(255, 79, 163, 0.25)',
-              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
-            }}
+            className="organizer-hackathon__modal-card organizer-hackathon__modal-card--roster"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="roster-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+            <div className="organizer-hackathon__modal-header">
               <div>
-                <span
-                  style={{
-                    fontSize: '0.78rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    color: '#7859ca',
-                    fontWeight: 700,
-                  }}
-                >
+                <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#553c8b', fontWeight: 700 }}>
                   Selected Teams Roster
                 </span>
-                <h3 style={{ margin: '0.2rem 0 0.4rem', fontSize: '1.35rem', color: '#2d253f' }}>
+                <h3 id="roster-modal-title" className="organizer-hackathon__modal-title">
                   {selectionsModal.problem?.title}
                 </h3>
-                <p style={{ margin: 0, fontSize: '0.9rem', color: '#5c4779' }}>
+                <p className="organizer-hackathon__modal-subtitle">
                   <strong>{selectionsModal.data?.selectedTeamsCount || 0}</strong> Teams Selected (
                   {selectionsModal.data?.selectedParticipantsCount || 0} Participants)
                 </p>
               </div>
               <button
                 type="button"
+                className="organizer-hackathon__modal-close"
                 onClick={() => setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })}
-                style={{ background: 'none', border: 'none', fontSize: '1.6rem', color: '#8d7ba8', cursor: 'pointer' }}
+                aria-label="Close roster"
               >
                 ×
               </button>
             </div>
 
-            {selectionsModal.loading ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#5c4779' }}>
-                <div>⏳</div>
-                <p>Loading teams and participant details…</p>
-              </div>
-            ) : selectionsModal.error ? (
-              <div
-                style={{
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  background: 'rgba(211, 47, 47, 0.08)',
-                  color: '#c2185b',
-                }}
-              >
-                ⚠️ {selectionsModal.error}
-              </div>
-            ) : !selectionsModal.data?.teams || selectionsModal.data.teams.length === 0 ? (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '3rem 1rem',
-                  borderRadius: '16px',
-                  background: 'rgba(255, 79, 163, 0.04)',
-                  border: '1px dashed rgba(255, 79, 163, 0.25)',
-                }}
-              >
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👥</div>
-                <h4 style={{ margin: 0, color: '#2d253f' }}>No teams have selected this problem statement yet.</h4>
-                <p style={{ margin: '0.4rem 0 0', color: '#8d7ba8', fontSize: '0.9rem' }}>
-                  When registered teams select this challenge, their rosters and contact info will appear here.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                {selectionsModal.data.teams.map((t, idx) => (
-                  <div
-                    key={t.teamId}
-                    style={{
-                      padding: '1.25rem',
-                      borderRadius: '16px',
-                      border: '1px solid rgba(255, 79, 163, 0.18)',
-                      background: '#ffffff',
-                      boxShadow: '0 4px 14px rgba(45, 37, 63, 0.04)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'baseline',
-                        borderBottom: '1px solid rgba(255, 79, 163, 0.1)',
-                        paddingBottom: '0.65rem',
-                        marginBottom: '0.75rem',
-                      }}
-                    >
-                      <div>
-                        <span style={{ fontSize: '0.8rem', color: '#7859ca', fontWeight: 600 }}>Team #{idx + 1}</span>
-                        <h4 style={{ margin: '0.1rem 0 0', fontSize: '1.1rem', color: '#2d253f' }}>{t.teamName}</h4>
+            <div className="organizer-hackathon__modal-body">
+              {selectionsModal.loading ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#7b6f93' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>⏳</div>
+                  <p>Loading teams and participant details…</p>
+                </div>
+              ) : selectionsModal.error ? (
+                <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert">
+                  <span>⚠️ {selectionsModal.error}</span>
+                </div>
+              ) : !selectionsModal.data?.teams || selectionsModal.data.teams.length === 0 ? (
+                <div className="organizer-hackathon__empty-state" style={{ padding: '2.5rem 1rem' }}>
+                  <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
+                  <h4 className="organizer-hackathon__empty-title">No teams have selected this problem statement yet.</h4>
+                  <p className="organizer-hackathon__empty-desc">
+                    When registered teams select this challenge, their rosters and contact info will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '0.85rem' }}>
+                  {selectionsModal.data.teams.map((t, idx) => (
+                    <div key={t.teamId} className="organizer-hackathon__roster-team">
+                      <div className="organizer-hackathon__roster-team-header">
+                        <div>
+                          <span style={{ fontSize: '0.74rem', color: '#7859ca', fontWeight: 700, textTransform: 'uppercase' }}>
+                            Team #{idx + 1}
+                          </span>
+                          <h4 style={{ margin: '0.1rem 0 0', fontSize: '1.05rem', color: '#241938' }}>{t.teamName}</h4>
+                        </div>
+                        <span style={{ fontSize: '0.78rem', color: '#7b6f93' }}>
+                          Selected: {new Date(t.selectedAt).toLocaleDateString()} {new Date(t.selectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                      <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>
-                        Selected: {new Date(t.selectedAt).toLocaleDateString()} {new Date(t.selectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
 
-                    <div style={{ display: 'grid', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5c4779' }}>Team Members ({t.members.length}):</span>
                       <div style={{ display: 'grid', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4b3d68' }}>
+                          Members ({t.members.length}):
+                        </span>
                         {t.members.map((m) => (
-                          <div
-                            key={m.registrationId}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: '0.55rem 0.85rem',
-                              borderRadius: '10px',
-                              background: m.isTeamLead ? 'rgba(255, 79, 163, 0.06)' : 'rgba(0, 0, 0, 0.02)',
-                              border: m.isTeamLead ? '1px solid rgba(255, 79, 163, 0.18)' : '1px solid rgba(0, 0, 0, 0.04)',
-                              fontSize: '0.88rem',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                              <span style={{ fontWeight: 600, color: '#2d253f' }}>{m.fullName}</span>
+                          <div key={m.registrationId} className="organizer-hackathon__roster-member">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                              <strong style={{ color: '#241938' }}>{m.fullName}</strong>
                               {m.isTeamLead && (
-                                <span
-                                  style={{
-                                    fontSize: '0.68rem',
-                                    fontWeight: 700,
-                                    padding: '0.15rem 0.45rem',
-                                    borderRadius: '999px',
-                                    background: '#ff4fa3',
-                                    color: '#ffffff',
-                                  }}
-                                >
-                                  LEAD
-                                </span>
+                                <span className="organizer-hackathon__lead-badge">LEAD</span>
                               )}
-                              <span style={{ fontSize: '0.78rem', color: '#8d7ba8' }}>({m.registrationId})</span>
+                              <code style={{ fontSize: '0.74rem', background: '#f4f1fa', padding: '0.1rem 0.35rem', borderRadius: '4px', color: '#553c8b' }}>
+                                {m.registrationId}
+                              </code>
                             </div>
-                            <div style={{ fontSize: '0.82rem', color: '#5c4779', textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.8rem', color: '#7b6f93', textAlign: 'right' }}>
                               <span>{m.email}</span>
                               {m.instituteName && (
-                                <span style={{ marginLeft: '0.5rem', color: '#8d7ba8' }}>• {m.instituteName}</span>
+                                <span style={{ marginLeft: '0.4rem' }}>• {m.instituteName}</span>
                               )}
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+            <div className="organizer-hackathon__modal-footer">
               <button
                 type="button"
                 className="button button--secondary"
@@ -4002,48 +6453,45 @@ const OrganizerHackathonPage = () => {
         </div>
       )}
 
-      {/* 6. DELETE / DEACTIVATE CONFIRMATION DIALOG */}
+      {/* 6. DELETE / DEACTIVATE CONFIRMATION MODAL */}
       {deleteModal.isOpen && deleteModal.problem && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(25, 18, 38, 0.6)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-          }}
+          className="organizer-hackathon__modal-backdrop"
           onClick={() => !deleteModal.isDeleting && setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+          role="presentation"
         >
           <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '22px',
-              maxWidth: '480px',
-              width: '100%',
-              padding: '2rem',
-              border: '1px solid rgba(211, 47, 47, 0.25)',
-              boxShadow: '0 24px 60px rgba(35, 25, 55, 0.25)',
-            }}
+            className="organizer-hackathon__modal-card organizer-hackathon__modal-card--delete"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
             onClick={(e) => e.stopPropagation()}
           >
             {deleteModal.problem.selectedTeams > 0 ? (
-              <div>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#c2185b' }}>⚠️</div>
-                <h3 style={{ margin: '0 0 0.5rem', color: '#2d253f' }}>Cannot Delete Selected Problem</h3>
-                <p style={{ margin: '0 0 1rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
-                  This problem statement has already been selected by{' '}
-                  <strong>{deleteModal.problem.selectedTeams} team(s)</strong>. To prevent corrupting participant data,
-                  direct deletion is disabled.
-                </p>
-                <p style={{ margin: '0 0 1.5rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
-                  Would you like to <strong>Deactivate</strong> it instead so no new teams can select it?
-                </p>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <>
+                <div className="organizer-hackathon__modal-header">
+                  <h3 id="delete-modal-title" className="organizer-hackathon__modal-title" style={{ color: '#c2185b' }}>
+                    Cannot Delete Selected Problem
+                  </h3>
+                  <button
+                    type="button"
+                    className="organizer-hackathon__modal-close"
+                    onClick={() => setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="organizer-hackathon__modal-body">
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b3d68', lineHeight: 1.5 }}>
+                    This problem statement has already been selected by{' '}
+                    <strong>{deleteModal.problem.selectedTeams} team(s)</strong>. Direct deletion is prohibited to preserve participant records.
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b3d68', lineHeight: 1.5 }}>
+                    Would you like to <strong>Deactivate</strong> it instead so no new teams can select it?
+                  </p>
+                </div>
+                <div className="organizer-hackathon__modal-footer">
                   <button
                     type="button"
                     className="button button--secondary"
@@ -4062,32 +6510,36 @@ const OrganizerHackathonPage = () => {
                     Deactivate Problem
                   </button>
                 </div>
-              </div>
+              </>
             ) : (
-              <div>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#d32f2f' }}>🗑️</div>
-                <h3 style={{ margin: '0 0 0.5rem', color: '#2d253f' }}>Delete Problem Statement?</h3>
-                <p style={{ margin: '0 0 1.25rem', color: '#5c4779', fontSize: '0.92rem', lineHeight: 1.5 }}>
-                  Are you sure you want to permanently delete{' '}
-                  <strong>"{deleteModal.problem.title}"</strong>? This action cannot be undone.
-                </p>
-
-                {deleteModal.error && (
-                  <div
-                    style={{
-                      padding: '0.75rem',
-                      borderRadius: '10px',
-                      background: 'rgba(211, 47, 47, 0.08)',
-                      color: '#c2185b',
-                      fontSize: '0.88rem',
-                      marginBottom: '1rem',
-                    }}
+              <>
+                <div className="organizer-hackathon__modal-header">
+                  <h3 id="delete-modal-title" className="organizer-hackathon__modal-title" style={{ color: '#d32f2f' }}>
+                    Delete Problem Statement?
+                  </h3>
+                  <button
+                    type="button"
+                    className="organizer-hackathon__modal-close"
+                    onClick={() => setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })}
+                    disabled={deleteModal.isDeleting}
+                    aria-label="Close"
                   >
-                    ⚠️ {deleteModal.error}
-                  </div>
-                )}
+                    ×
+                  </button>
+                </div>
+                <div className="organizer-hackathon__modal-body">
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b3d68', lineHeight: 1.5 }}>
+                    Are you sure you want to permanently delete{' '}
+                    <strong>"{deleteModal.problem.title}"</strong>? This action cannot be undone.
+                  </p>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                  {deleteModal.error && (
+                    <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert">
+                      <span>⚠️ {deleteModal.error}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="organizer-hackathon__modal-footer">
                   <button
                     type="button"
                     className="button button--secondary"
@@ -4102,7 +6554,7 @@ const OrganizerHackathonPage = () => {
                     disabled={deleteModal.isDeleting}
                     style={{
                       padding: '0.55rem 1.1rem',
-                      borderRadius: '12px',
+                      borderRadius: '8px',
                       border: 'none',
                       background: '#d32f2f',
                       color: '#ffffff',
@@ -4113,7 +6565,7 @@ const OrganizerHackathonPage = () => {
                     {deleteModal.isDeleting ? 'Deleting…' : 'Delete Permanently'}
                   </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>

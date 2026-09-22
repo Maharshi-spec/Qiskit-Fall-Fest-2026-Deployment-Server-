@@ -2,6 +2,7 @@ export const hackathon = [
   {
     title: 'Turn quantum ideas into something real.',
     description:
-      'Participants explore quantum computing through projects, experiment with Qiskit, apply concepts learned during the event, and collaborate through practical problem solving.',
+      'The two-day hackathon runs on Days 2 and 3. Teams identify a quantum computing problem, write circuits in Qiskit, iterate with industry mentor support, and present their finished projects at the Day 4 showcase.',
   },
 ]
+

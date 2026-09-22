@@ -3,11 +3,13 @@ import { motion } from 'framer-motion'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import Button from '../../components/Button'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { api } from '../../services/api'
 import sticker01 from '../../assets/qiskit/Sticker 01.svg'
 
 const Attendance = () => {
-  const { isLoggedIn, userRegistration, isLoading: authLoading } = useAuth()
+  const { isLoggedIn, userRegistration, isLoading: authLoading, openLoginModal } = useAuth()
+  const { getProfilePath } = useEventProfile()
   const [isScanning, setIsScanning] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusResult, setStatusResult] = useState(null)
@@ -87,13 +89,13 @@ const Attendance = () => {
   }
 
   return (
-    <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <motion.section className="detail-page attendance-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div className="container detail-page__header">
         <div className="detail-page__intro">
           <p className="page-shell__eyebrow">Attendance Check-in</p>
           <h1>Mark your attendance.</h1>
           <p>
-            Scan the dynamic QR code displayed by the organizer to automatically record your attendance for the current event session.
+            Scan the dynamic QR code displayed by the session organizer to record your attendance. An active participant account is required to verify check-ins for each session.
           </p>
         </div>
         <div className="detail-page__visual">
@@ -103,17 +105,18 @@ const Attendance = () => {
 
       <div className="container detail-page__panel">
         {!isLoggedIn ? (
-          <div className="detail-page__panel-copy">
-            <p className="page-shell__eyebrow" style={{ color: '#c2348a' }}>Authentication Required</p>
-            <h2>Please sign in to mark attendance</h2>
+          <div className="detail-page__panel-copy" style={{ maxWidth: '100%' }}>
+            <p className="page-shell__eyebrow" style={{ color: 'var(--color-primary-strong)' }}>AUTHENTICATION REQUIRED</p>
+            <h2>Sign in to mark your attendance</h2>
             <p>
-              You must be logged in as a registered participant to mark attendance. Use the top navigation bar or homepage modal to log in.
+              Attendance check-in is linked to your confirmed registration account. Please sign in to enable QR code scanning and record session attendance.
             </p>
             <div style={{ marginTop: '1.25rem' }}>
-              <Button to="/register" kind="primary">Register or Log in →</Button>
+              <Button kind="primary" onClick={openLoginModal}>Sign in to continue</Button>
             </div>
           </div>
         ) : (
+
           <div style={{ display: 'grid', gap: '1.5rem', width: '100%' }}>
             <div className="detail-page__panel-copy">
               <p className="page-shell__eyebrow" style={{ color: '#ff4fa3' }}>✓ Logged in as {userRegistration?.fullName || 'Participant'}</p>
@@ -206,8 +209,8 @@ const Attendance = () => {
       </div>
 
       <div className="container detail-page__cta-row">
-        <Button to="/" kind="secondary">Back to home</Button>
-        <Button to="/certificates" kind="primary">View certificates</Button>
+        <Button to={getProfilePath('')} kind="secondary">Back to home</Button>
+        <Button to={getProfilePath('certificates')} kind="primary">View certificates</Button>
       </div>
     </motion.section>
   )

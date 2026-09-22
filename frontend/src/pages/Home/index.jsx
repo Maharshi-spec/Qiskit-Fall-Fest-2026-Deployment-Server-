@@ -10,6 +10,7 @@ import SpeakerCard from '../../components/SpeakerCard'
 import OrganizerCard from '../../components/OrganizerCard'
 import HorizontalTeamCarousel from '../../components/HorizontalTeamCarousel'
 import { event } from '../../data/event'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { workshops } from '../../data/workshops'
 import { speakers } from '../../data/speakers'
 import { organizers, techTeam } from '../../data/organizers'
@@ -34,24 +35,25 @@ const featureItems = [
   {
     id: 'learn',
     title: '01 — Learn',
-    description: 'Quantum computing fundamentals and Qiskit concepts.',
+    description: 'Build a working understanding of qubits, quantum gates, and circuits through guided bootcamp sessions and expert talks.',
   },
   {
     id: 'build',
     title: '02 — Build',
-    description: 'Hands-on quantum programming and experimentation.',
+    description: 'Write quantum circuits, run experiments in Qiskit, and translate theory into working code across two hackathon days.',
   },
   {
     id: 'explore',
     title: '03 — Explore',
-    description: 'Discover quantum algorithms, circuits, and applications.',
+    description: 'Work with quantum algorithms, the Bloch sphere, and circuit simulations to develop intuition for how quantum computation behaves.',
   },
   {
     id: 'connect',
     title: '04 — Connect',
-    description: 'Meet students, mentors, speakers, and fellow enthusiasts.',
+    description: 'Learn alongside students, mentors, and speakers. Exchange ideas, give feedback, and build connections within the quantum community.',
   },
 ]
+
 
 const quantumConcepts = [
   {
@@ -78,51 +80,53 @@ const quantumSteps = [
   {
     id: 'represent',
     title: '01 — Represent',
-    text: 'Quantum information is represented using qubits, which provide a richer state space than classical bits.',
+    text: 'Qubits are the fundamental unit of quantum information. Unlike classical bits, they can exist in superpositions of |0⟩ and |1⟩, described by probability amplitudes on the Bloch sphere.',
   },
   {
     id: 'operate',
     title: '02 — Operate',
-    text: 'Quantum gates transform the state of a qubit or multiple qubits in carefully designed ways.',
+    text: 'Quantum gates are unitary operations that transform qubit states. Gates such as the Hadamard, Pauli-X, and CNOT form the building blocks of quantum circuits.',
   },
   {
     id: 'entangle',
     title: '03 — Entangle',
-    text: 'Multiple qubits can become correlated so that their combined state has properties beyond independent classical states.',
+    text: 'Entanglement links qubits so that measuring one instantaneously determines information about the other, regardless of distance. Bell states are the canonical example used throughout quantum computing.',
   },
   {
     id: 'measure',
     title: '04 — Measure',
-    text: 'Measurement converts the quantum state into classical information that can be interpreted and analyzed.',
+    text: 'Measurement collapses a quantum state into a classical bit — 0 or 1 — with probabilities determined by the state\'s amplitudes. The measurement outcome is how quantum results become usable.',
   },
 ]
+
 
 const hackathonFeatures = [
   {
     id: 'explore',
     number: '01',
-    title: 'Explore',
-    description: 'Discover quantum computing problems and possibilities through hands-on experimentation.',
+    title: 'Define',
+    description: 'Identify a quantum computing problem, scope a solvable challenge, and design an approach using Qiskit tools and techniques from the bootcamp.',
   },
   {
     id: 'build',
     number: '02',
     title: 'Build',
-    description: 'Create practical experiments using Qiskit and connect concepts to real workflows.',
+    description: 'Write quantum circuits, test algorithms on simulators, and iterate on your implementation across the dedicated hacking sprints.',
   },
   {
     id: 'collaborate',
     number: '03',
     title: 'Collaborate',
-    description: 'Work with other students and quantum enthusiasts to exchange ideas and learn together.',
+    description: 'Work within your team and get structured feedback from industry mentors to refine your technical approach and improve your results.',
   },
   {
     id: 'present',
     number: '04',
     title: 'Present',
-    description: 'Share your ideas, experiments, and results with the broader event community.',
+    description: 'Demonstrate your project to the judging panel and the wider community on Day 4, explaining your approach, results, and what you learned.',
   },
 ]
+
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 28 },
@@ -178,6 +182,7 @@ const StickerAccent = ({ src, alt = '', className = '', rotate = 0, delay = 0 })
 }
 
 const Home = () => {
+  const { getProfilePath, isRegistrationOpen } = useEventProfile()
   const shouldReduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const [selectedQuantumStep, setSelectedQuantumStep] = useState(quantumSteps[0].id)
   const [selectedDay, setSelectedDay] = useState(programDays[0]?.id || 'day-1')
@@ -240,7 +245,7 @@ const Home = () => {
                 description={event.description}
               />
               <div className="section__action-row">
-                <Button to="/hackathon" kind="primary">Explore The Event →</Button>
+                <Button to={getProfilePath('hackathon')} kind="primary">Explore The Event →</Button>
               </div>
             </div>
 
@@ -251,25 +256,27 @@ const Home = () => {
               <EventCard
                 eyebrow="Location"
                 title={event.location}
-                description="A collaborative quantum learning environment designed for students, builders, and curious minds."
+                description="Hosted on the Vizianagaram campus of Centurion University, providing dedicated labs, lecture halls, and collaboration spaces across all four event days."
               />
               <EventCard
                 eyebrow="Focus"
-                title="Learning, experimentation, and community"
-                description="The event brings together introductions to quantum concepts, hands-on practice, and shared discovery."
+                title="Quantum computing through Qiskit"
+                description="Participants move from bootcamp fundamentals through hackathon project work, expert talks, workshops, and a live showcase — all centered on Qiskit and quantum concepts."
               />
+
             </div>
           </div>
         </motion.section>
 
-        <motion.section className="section section--experience" {...sectionMotion}>
+        <motion.section id="home-experience" className="section section--experience" {...sectionMotion}>
           <div className="container section__with-sticker">
             <div className="section__header-row">
               <SectionHeader
                 label="The Experience"
                 title="Learn. Build. Share."
-                description="A practical journey through quantum ideas, experimental learning, and collaboration."
+                description="Qiskit Fall Fest is structured around four connected pillars — giving participants the knowledge, practical skills, creative space, and community to get the most from four days of quantum computing."
               />
+
               <StickerAccent src={sticker02} alt="" className="sticker--experience" rotate={8} delay={0.2} />
             </div>
 
@@ -284,14 +291,15 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--education" {...sectionMotion}>
+        <motion.section id="home-quantum-lab" className="section section--education" {...sectionMotion}>
           <div className="container section__with-sticker">
             <div className="section__header-row">
               <SectionHeader
                 label="Quantum Computing"
-                title="Why Quantum Computing?"
-                description="Quantum computing uses quantum states to represent and process information in ways that differ fundamentally from classical computation. Qubits can occupy superpositions, interact through entanglement, and be manipulated by quantum circuits."
+                title="The foundations behind the event."
+                description="Quantum computing uses the principles of quantum mechanics — superposition, entanglement, and interference — to process information in ways that classical computers cannot. Understanding these ideas is the starting point for everything at Qiskit Fall Fest 2026."
               />
+
               <StickerAccent src={stickerQuantum} alt="" className="sticker--quantum" rotate={-10} delay={0.25} />
             </div>
 
@@ -302,11 +310,12 @@ const Home = () => {
                 </div>
                 <h3 className="bloch-sphere-panel__title">Bloch Sphere</h3>
                 <p className="bloch-sphere-panel__subtitle">
-                  Explore the state of a single qubit in real time.
+                  A geometric representation of a single-qubit pure state.
                 </p>
                 <p className="bloch-sphere-panel__supporting">
-                  The Bloch sphere represents every pure single-qubit state as a point on a unit sphere. Drag to rotate the view, use the presets to explore basis states, or evolve the state dynamically.
+                  Every point on the surface of the Bloch sphere corresponds to a valid qubit state. The north pole is |0⟩, the south pole is |1⟩, and all other points represent superpositions. Drag to rotate the view, select a preset to jump to a basis state, or watch the state evolve dynamically.
                 </p>
+
                 <BlochSphere reducedMotion={shouldReduceMotion} />
               </div>
             </div>
@@ -324,14 +333,15 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--qiskit" {...sectionMotion}>
+        <motion.section id="home-qiskit" className="section section--qiskit" {...sectionMotion}>
           <div className="container section__split">
             <div className="section__split-copy">
               <SectionHeader
                 label="Qiskit"
-                title="Code the Quantum Future."
-                description="Qiskit provides an accessible ecosystem for learning, experimenting, and understanding quantum computing through code and real workflows."
+                title="Write quantum circuits. Run experiments."
+                description="Qiskit is IBM's open-source SDK for quantum computing. It provides the tools to build circuits, run simulations, and experiment with quantum algorithms — the primary tool used across Qiskit Fall Fest 2026."
               />
+
             </div>
 
             <div className="section__visual section__visual--timeline">
@@ -349,16 +359,24 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--how-it-works" {...sectionMotion}>
+        <motion.section id="home-journey" className="section section--how-it-works" {...sectionMotion}>
           <div className="container">
             <SectionHeader
               label="How Quantum Computing Works"
-              title="A practical quantum journey."
-              description="Each stage explores a crucial idea in how quantum information is represented, transformed, and interpreted."
+              title="From qubits to meaningful results."
+              description="Follow the fundamental stages of a quantum computation — from encoding information in qubits, through gate operations and entanglement, to measuring classical outcomes."
             />
 
+
             <div className="journey-steps" role="list" aria-label="Quantum computing concepts">
-              {quantumSteps.map((step) => (
+              {quantumSteps.map((step) => {
+              const previews = {
+                represent: 'How quantum information is encoded in qubits.',
+                operate: 'How quantum gates transform qubit states.',
+                entangle: 'How qubits become correlated through entanglement.',
+                measure: 'How quantum states become classical results.',
+              }
+              return (
                 <button
                   key={step.id}
                   type="button"
@@ -369,22 +387,26 @@ const Home = () => {
                   <span className="journey-step__number">{step.title.split(' — ')[0]}</span>
                   <span className="journey-step__title">{step.title.split(' — ')[1]}</span>
                   <small className="journey-step__description">
-                    {selectedQuantumStep === step.id ? step.text : 'Explore the concept.'}
+                    {selectedQuantumStep === step.id ? step.text : previews[step.id]}
                   </small>
                 </button>
-              ))}
+              )
+            })}
+
             </div>
           </div>
         </motion.section>
 
-        <motion.section id="program" className="section section--program" {...sectionMotion}>
+        <motion.section id="home-program" className="section section--program" {...sectionMotion}>
+          <div id="program" className="anchor-target" aria-hidden="true" />
           <div className="container program-shell">
             <div className="section__header-row section__header-row--program">
               <SectionHeader
                 label="The Program"
-                title="Four days of quantum learning, building, and discovery."
-                description="The event brings together quantum computing fundamentals, Qiskit learning, technical sessions, hands-on workshops, collaborative activities, hackathon work, and community connection."
+                title="Four days. Four formats."
+                description="Day 1 is a Bootcamp introducing quantum computing and Qiskit. Days 2 and 3 are the Hackathon — two full days of team project work and mentorship. Day 4 brings workshops, expert webinars, project presentations, and the closing ceremony."
               />
+
               <StickerAccent src={sticker03} alt="" className="sticker--program" rotate={-8} delay={0.18} />
             </div>
 
@@ -492,17 +514,18 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--hackathon" {...sectionMotion}>
+        <motion.section id="home-hackathon" className="section section--hackathon" {...sectionMotion}>
           <div className="container hackathon-shell">
             <div className="hackathon-intro">
               <div className="section__content">
                 <p className="section-header__label">Hackathon</p>
                 <h2>Turn quantum ideas into something real.</h2>
                 <p>
-                  {hackathon[0]?.description || 'Participants explore quantum computing through projects, experiment with Qiskit, apply concepts learned during the event, and collaborate through practical problem solving.'}
+                  {hackathon[0]?.description || 'The two-day hackathon runs on Days 2 and 3. Teams choose a quantum problem, write circuits in Qiskit, iterate with mentor support, and present finished projects at the Day 4 showcase.'}
                 </p>
+
                 <div className="section__action-row">
-                  <Button to="/hackathon" kind="primary">Explore the Hackathon →</Button>
+                  <Button to={getProfilePath('hackathon')} kind="primary">Explore the Hackathon →</Button>
                 </div>
               </div>
             </div>
@@ -533,14 +556,15 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--workshops" {...sectionMotion}>
+        <motion.section id="home-workshops" className="section section--workshops" {...sectionMotion}>
           <div className="container section__with-sticker">
             <div className="section__header-row">
               <SectionHeader
                 label="Workshops"
-                title="Learn by building."
-                description="Workshops give participants a practical introduction to quantum computing, Qiskit, circuits, algorithms, and experimentation."
+                title="Structured sessions. Practical outcomes."
+                description="Three workshop tracks are offered across the event — from an introductory session on quantum concepts and Qiskit setup, through hands-on circuit building, to an intermediate session on quantum algorithms. Each is designed to build directly on the previous day's learning."
               />
+
               <StickerAccent src={sticker05} alt="" className="sticker--workshops" rotate={-9} delay={0.12} />
             </div>
 
@@ -568,19 +592,20 @@ const Home = () => {
             )}
 
             <div className="section__action-row">
-              <Button to="/workshops" kind="secondary">View Workshops →</Button>
+              <Button to={getProfilePath('workshops')} kind="secondary">View Workshops →</Button>
             </div>
           </div>
         </motion.section>
 
-        <motion.section className="section section--speakers" {...sectionMotion}>
+        <motion.section id="home-speakers" className="section section--speakers" {...sectionMotion}>
           <div className="container section__with-sticker">
             <div className="section__header-row">
               <SectionHeader
                 label="Speakers"
-                title="Meet the people shaping the quantum conversation."
-                description="The event brings together people who can help participants learn about quantum computing, Qiskit, experimentation, and practical applications."
+                title="Researchers, engineers, and educators."
+                description="Qiskit Fall Fest 2026 features a Chief Guest from APSCHE, a keynote by a professor from the Indian Institute of Science, and a keynote from an IBM Quantum Algorithms Engineer — bringing perspectives from academia and industry."
               />
+
               <StickerAccent src={sticker06} alt="" className="sticker--speakers" rotate={10} delay={0.14} />
             </div>
 
@@ -594,14 +619,15 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--organizers" {...sectionMotion}>
+        <motion.section id="home-team" className="section section--organizers" {...sectionMotion}>
   <div className="container section__with-sticker">
     <div className="section__header-row">
       <SectionHeader
         label="Our Team"
         title="The people behind Qiskit Fall Fest."
-        description="Meet the organizers and technology team working together to make Qiskit Fall Fest 2026 happen."
+        description="Qiskit Fall Fest 2026 is organized and run by a student team from Centurion University — a dedicated group of organizers managing the event logistics and a technology team responsible for the platform, registration system, and digital infrastructure."
       />
+
       <StickerAccent
         src={sticker07}
         alt=""
@@ -627,7 +653,7 @@ const Home = () => {
   </div>
 </motion.section>
 
-        <motion.section className="section section--venue" {...sectionMotion}>
+        <motion.section id="home-venue" className="section section--venue" {...sectionMotion}>
           <div className="container venue-shell">
             <div className="venue-panel">
               <div className="venue-panel__body">
@@ -668,16 +694,30 @@ const Home = () => {
           </div>
         </motion.section>
 
-        <motion.section className="section section--final-cta" {...sectionMotion}>
+        <motion.section id="home-register" className="section section--final-cta" {...sectionMotion}>
           <div className="container final-cta-wrap">
             <div className="final-cta-copy">
-              <p className="section-header__label">Register</p>
-              <h2>Ready to explore quantum?</h2>
-              <p>Learn. Build. Experiment. Connect.</p>
+              <p className="section-header__label">{isRegistrationOpen ? 'Register' : 'Registration Status'}</p>
+              <h2>{isRegistrationOpen ? 'Join Qiskit Fall Fest 2026.' : 'Registration is Closed'}</h2>
+              <p>
+                {isRegistrationOpen
+                  ? 'Four days of quantum computing fundamentals, hands-on Qiskit programming, collaborative hackathon work, and expert talks — hosted at Centurion University, Vizianagaram.'
+                  : 'Registration for Qiskit Fall Fest 2026 has closed. The full four-day program schedule, session details, and workshop tracks remain available to browse.'}
+              </p>
             </div>
+
             <div className="final-cta-actions">
-              <Button to="/register" kind="primary">Register for Qiskit Fall Fest →</Button>
-              <Button to="/day-1" kind="secondary">Explore the Program →</Button>
+              {isRegistrationOpen ? (
+                <>
+                  <Button to={getProfilePath('register')} kind="primary">Register for Qiskit Fall Fest →</Button>
+                  <Button to={getProfilePath('day-1')} kind="secondary">Explore the Program →</Button>
+                </>
+              ) : (
+                <>
+                  <Button to={getProfilePath('day-1')} kind="primary">Explore the Program →</Button>
+                  <Button to={getProfilePath('workshops')} kind="secondary">View Workshops →</Button>
+                </>
+              )}
             </div>
             <StickerAccent src={sticker09} alt="" className="sticker--final" rotate={-7} delay={0.2} />
           </div>

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import Button from '../../components/Button'
 import { api } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import sticker01 from '../../assets/qiskit/Sticker 01.svg'
 import sticker02 from '../../assets/qiskit/Sticker 02.svg'
 
@@ -12,23 +13,28 @@ const audience = [
   'Researchers, enthusiasts, and curious community members',
 ]
 
-const registrationHighlights = [
-  {
-    title: 'What to expect',
-    text: 'A welcoming environment for learning, experimentation, workshops, and community discussion around quantum computing.',
-  },
-  {
-    title: 'What you will learn',
-    text: 'Foundational quantum concepts, key Qiskit ideas, hands-on experimentation, and ways to connect with others in the field.',
-  },
-  {
-    title: 'Registration status',
-    text: 'Live registration is now active. Complete the form below to secure your spot at Qiskit Fall Fest 2026.',
-  },
-]
-
 const Registration = () => {
   const { isLoggedIn, userRegistration, isLoading: isAuthLoading, login, logout } = useAuth()
+  const { status, getProfilePath, activeProfile, isRegistrationOpen } = useEventProfile()
+
+  const isRegistrationClosed = !isRegistrationOpen
+
+  const registrationHighlights = [
+    {
+      title: 'What to expect',
+      text: 'A welcoming environment for learning, experimentation, workshops, and community discussion around quantum computing.',
+    },
+    {
+      title: 'What you will learn',
+      text: 'Foundational quantum concepts, key Qiskit ideas, hands-on experimentation, and ways to connect with others in the field.',
+    },
+    {
+      title: 'Registration status',
+      text: isRegistrationClosed
+        ? `Registration for ${activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'} Fall Fest 2026 is currently closed.`
+        : 'Live registration is now active. Complete the form below to secure your spot at Qiskit Fall Fest 2026.',
+    },
+  ]
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -101,113 +107,46 @@ const Registration = () => {
     }
   }
 
-  const validateForm = () => {
-    const newErrors = {}
-
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required'
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address'
-    }
-
-    if (!formData.mobileNumber.trim()) {
-      newErrors.mobileNumber = 'Mobile number is required'
-    }
-
-    if (!formData.role) {
-      newErrors.role = 'Please select your role'
-    }
-
-    if (!formData.instituteName.trim()) {
-      newErrors.instituteName = 'Institution name is required'
-    }
-
-    if (!formData.department.trim()) {
-      newErrors.department = 'Department is required'
-    }
-
-    if (!idCard) {
-      newErrors.idCard = 'ID card is required'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (isRegistrationClosed) return
     setApiError(null)
 
-    if (!validateForm()) {
+    const newErrors = {}
+    if (!formData.fullName.trim()) newErrors.fullName = 'Full Name is required.'
+    if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Valid Email is required.'
+    if (!formData.mobileNumber.trim()) newErrors.mobileNumber = 'Mobile Number is required.'
+    if (!formData.role) newErrors.role = 'Please select your role.'
+    if (!formData.instituteName.trim()) newErrors.instituteName = 'Institute / Organization is required.'
+    if (!formData.department.trim()) newErrors.department = 'Department / Stream is required.'
+    if (!idCard) newErrors.idCard = 'ID Card / Document upload is required.'
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
       return
     }
 
     setIsLoading(true)
-
     try {
-      const data = new FormData()
-      data.append('fullName', formData.fullName)
-      data.append('email', formData.email)
-      data.append('mobileNumber', formData.mobileNumber)
-      data.append('role', formData.role)
-      data.append('instituteName', formData.instituteName)
-      data.append('department', formData.department)
-      data.append('knowsPython', String(formData.knowsPython))
-      data.append('aicteQuantumCourse', String(formData.aicteQuantumCourse))
-      data.append('knowsQuantumBasics', String(formData.knowsQuantumBasics))
-      data.append('usedQiskitBefore', String(formData.usedQiskitBefore))
-      if (idCard) {
-        data.append('idCard', idCard)
-      }
+      const payload = new FormData()
+      Object.entries(formData).forEach(([key, val]) => {
+        payload.append(key, String(val))
+      })
+      payload.append('idCard', idCard)
 
-      const result = await api.submitRegistration(data)
-
-      if (result.success) {
-        const regData = result.data.registration || {
-          registrationId: result.data.registrationId,
-          status: result.data.status,
-          idCardUrl: result.data.idCardUrl,
-          fullName: formData.fullName,
-          email: formData.email,
-          instituteName: formData.instituteName,
-          role: formData.role,
+      const result = await api.submitRegistration(payload)
+      if (result.success && result.data) {
+        const token = result.data.token || result.token
+        const registration = result.data.registration || result.registration || result.data
+        if (token) {
+          login(token, registration)
         }
-
-        setSubmittedData(regData)
-        if (result.data.token) {
-          login(result.data.token, regData)
-        }
-
-        setFormData({
-          fullName: '',
-          email: '',
-          mobileNumber: '',
-          role: '',
-          instituteName: '',
-          department: '',
-          knowsPython: false,
-          aicteQuantumCourse: false,
-          knowsQuantumBasics: false,
-          usedQiskitBefore: false,
-        })
-        setIdCard(null)
-        setIdCardName('')
+        setSubmittedData(registration)
       } else {
-        const errorCode = result.error?.code
-        const errorMessage = result.error?.message
-
-        if (errorCode === 'EMAIL_ALREADY_REGISTERED') {
-          setApiError('This email is already registered.')
-        } else if (errorCode === 'FILE_TOO_LARGE') {
-          setErrors({ ...errors, idCard: errorMessage || 'File size must not exceed 500 KB.' })
-        } else {
-          setApiError(errorMessage || 'Registration failed. Please try again.')
-        }
+        setApiError(result.error?.message || 'Registration failed. Please try again.')
       }
+    } catch (err) {
+      setApiError(err.message || 'Registration failed. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -215,8 +154,7 @@ const Registration = () => {
 
   if (isAuthLoading) {
     return (
-      <div className="detail-page container" style={{ paddingTop: '5rem', paddingBottom: '5rem', textAlign: 'center' }}>
-        <p className="page-shell__eyebrow">Registration</p>
+      <div className="container" style={{ padding: '6rem 0', textAlign: 'center' }}>
         <h2 style={{ color: '#3d2f59' }}>Verifying session...</h2>
       </div>
     )
@@ -256,7 +194,7 @@ const Registration = () => {
       </div>
 
       {activeRegistration ? (
-        <div className="container detail-page__panel">
+        <div className="container detail-page__panel detail-page__panel--registration">
           <div className="detail-page__panel-copy">
             <p className="page-shell__eyebrow" style={{ color: '#ff4fa3' }}>✓ Registration Confirmed</p>
             <h2 style={{ color: '#3d2f59' }}>You're all set!</h2>
@@ -304,8 +242,8 @@ const Registration = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <Button to="/" kind="primary">Back to home</Button>
-            <Button to="/#program" kind="secondary">View the program</Button>
+            <Button to={getProfilePath('')} kind="primary">Back to home</Button>
+            <Button to={getProfilePath('day-1')} kind="secondary">View schedule</Button>
             <button
               type="button"
               onClick={logout}
@@ -325,8 +263,27 @@ const Registration = () => {
             </button>
           </div>
         </div>
+      ) : isRegistrationClosed ? (
+        <div className="container registration-closed-wrapper">
+          <div className="registration-closed-card">
+            <span className="status-badge status-badge--neutral registration-closed-card__badge">
+              <span className="status-badge__dot" />
+              Registration Closed
+            </span>
+            <h2 id="registration-anchor-heading" className="registration-closed-card__heading">
+              Registration for {activeProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'} Fall Fest 2026 is Closed
+            </h2>
+            <p className="registration-closed-card__description">
+              Registration has ended for this event. Explore the program, workshops, hackathon, and session schedule to see what the festival offers.
+            </p>
+            <div className="registration-closed-card__actions">
+              <Button to={getProfilePath('')} kind="primary">Explore Event</Button>
+              <Button to={getProfilePath('day-1')} kind="secondary">View Schedule</Button>
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="container detail-page__panel">
+        <div className="container detail-page__panel detail-page__panel--registration">
           <div className="detail-page__panel-copy">
             <p className="page-shell__eyebrow">Registration form</p>
             <h2 id="registration-anchor-heading">Secure your spot today.</h2>
@@ -338,182 +295,163 @@ const Registration = () => {
           <div className="detail-page__form-shell">
             <form className="detail-form" onSubmit={handleSubmit}>
               {apiError && (
-                <div style={{
-                  padding: '0.9rem',
-                  borderRadius: '12px',
-                  background: 'rgba(255, 79, 163, 0.08)',
-                  border: '1px solid rgba(255, 79, 163, 0.2)',
-                  color: '#c2348a',
-                  fontSize: '0.95rem',
-                  marginBottom: '1rem',
-                }}>
-                  {apiError}
+                <div className="detail-form__error-banner" role="alert">
+                  <span className="detail-form__error-icon" aria-hidden="true">⚠️</span>
+                  <div className="detail-form__error-text">{apiError}</div>
                 </div>
               )}
 
               <label>
-                Full name *
+                <span>Full Name *</span>
                 <input
                   type="text"
                   name="fullName"
-                  placeholder="Your name"
+                  placeholder="e.g. Ada Lovelace"
                   value={formData.fullName}
                   onChange={handleInputChange}
                   disabled={isLoading}
                 />
-                {errors.fullName && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.fullName}</span>}
+                {errors.fullName && <span className="field-error">{errors.fullName}</span>}
               </label>
 
               <label>
-                Email address *
+                <span>Email Address *</span>
                 <input
                   type="email"
                   name="email"
-                  placeholder="you@example.com"
+                  placeholder="e.g. ada@example.com"
                   value={formData.email}
                   onChange={handleInputChange}
                   disabled={isLoading}
                 />
-                {errors.email && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.email}</span>}
+                {errors.email && <span className="field-error">{errors.email}</span>}
               </label>
 
               <label>
-                Mobile number *
+                <span>Mobile Number *</span>
                 <input
                   type="tel"
                   name="mobileNumber"
-                  placeholder="+91 XXXXX XXXXX"
+                  placeholder="e.g. +91 98765 43210"
                   value={formData.mobileNumber}
                   onChange={handleInputChange}
                   disabled={isLoading}
                 />
-                {errors.mobileNumber && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.mobileNumber}</span>}
+                {errors.mobileNumber && <span className="field-error">{errors.mobileNumber}</span>}
               </label>
 
               <label>
-                Role *
-                <select name="role" value={formData.role} onChange={handleInputChange} disabled={isLoading}>
+                <span>Role *</span>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                >
                   <option value="">Select your role</option>
                   <option value="STUDENT">Student</option>
                   <option value="FACULTY">Faculty</option>
-                  <option value="PROFESSIONAL">Professional</option>
+                  <option value="PROFESSIONAL">Industry Professional / Researcher</option>
                   <option value="OTHER">Other</option>
                 </select>
-                {errors.role && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.role}</span>}
+                {errors.role && <span className="field-error">{errors.role}</span>}
               </label>
 
               <label>
-                Institution name *
+                <span>Institute / Organization *</span>
                 <input
                   type="text"
                   name="instituteName"
-                  placeholder="Your institution"
+                  placeholder="e.g. ABC Institute of Technology"
                   value={formData.instituteName}
                   onChange={handleInputChange}
                   disabled={isLoading}
                 />
-                {errors.instituteName && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.instituteName}</span>}
+                {errors.instituteName && <span className="field-error">{errors.instituteName}</span>}
               </label>
 
               <label>
-                Department *
+                <span>Department / Stream *</span>
                 <input
                   type="text"
                   name="department"
-                  placeholder="Your department"
+                  placeholder="e.g. Computer Science & Engineering"
                   value={formData.department}
                   onChange={handleInputChange}
                   disabled={isLoading}
                 />
-                {errors.department && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.department}</span>}
+                {errors.department && <span className="field-error">{errors.department}</span>}
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  name="knowsPython"
-                  checked={formData.knowsPython}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  style={{ cursor: 'pointer', width: '1.1rem', height: '1.1rem' }}
-                />
-                <span style={{ color: '#4d2f74', fontWeight: 600 }}>I know Python</span>
-              </label>
+              <fieldset className="detail-form__fieldset">
+                <legend>Background & Experience</legend>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="knowsPython"
+                    checked={formData.knowsPython}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                  <span>I have basic knowledge of Python programming</span>
+                </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  name="aicteQuantumCourse"
-                  checked={formData.aicteQuantumCourse}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  style={{ cursor: 'pointer', width: '1.1rem', height: '1.1rem' }}
-                />
-                <span style={{ color: '#4d2f74', fontWeight: 600 }}>I have completed an AICTE quantum course</span>
-              </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="aicteQuantumCourse"
+                    checked={formData.aicteQuantumCourse}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                  <span>I have enrolled in / completed an AICTE or university Quantum course</span>
+                </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  name="knowsQuantumBasics"
-                  checked={formData.knowsQuantumBasics}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  style={{ cursor: 'pointer', width: '1.1rem', height: '1.1rem' }}
-                />
-                <span style={{ color: '#4d2f74', fontWeight: 600 }}>I know quantum computing basics</span>
-              </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="knowsQuantumBasics"
+                    checked={formData.knowsQuantumBasics}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                  <span>I am familiar with basic Quantum Computing concepts (qubits, superposition, etc.)</span>
+                </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.85rem' }}>
-                <input
-                  type="checkbox"
-                  name="usedQiskitBefore"
-                  checked={formData.usedQiskitBefore}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  style={{ cursor: 'pointer', width: '1.1rem', height: '1.1rem' }}
-                />
-                <span style={{ color: '#4d2f74', fontWeight: 600 }}>I have used Qiskit before</span>
-              </label>
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="usedQiskitBefore"
+                    checked={formData.usedQiskitBefore}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                  <span>I have used Qiskit SDK before</span>
+                </label>
+              </fieldset>
 
-              <label>
-                ID card (upload image or PDF) — Max 500 KB *
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.85rem',
-                  marginTop: '0.45rem',
-                }}>
+              <div className="detail-form__field">
+                <span className="detail-form__field-label">Student / Institutional ID Card (Image or PDF, max 500 KB) *</span>
+                <div className="detail-form__file-wrap">
                   <input
                     type="file"
-                    accept=".jpg,.jpeg,.png,.pdf"
+                    accept="image/*,.pdf"
                     onChange={handleFileChange}
                     disabled={isLoading}
-                    style={{ display: 'none' }}
                     id="idCardInput"
+                    style={{ display: 'none' }}
                   />
                   <label
                     htmlFor="idCardInput"
-                    style={{
-                      flex: 1,
-                      padding: '0.8rem 0.9rem',
-                      border: `1px solid ${errors.idCard ? '#c2348a' : 'rgba(255, 79, 163, 0.18)'}`,
-                      borderRadius: '12px',
-                      background: 'rgba(255, 255, 255, 0.9)',
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      color: '#5a5d6b',
-                      fontSize: '0.95rem',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
+                    className={`detail-form__file-button ${errors.idCard ? 'detail-form__file-button--error' : ''}`}
+                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                   >
-                    {idCardName || 'Choose ID card file'}
+                    📁 {idCardName || 'Choose ID card file'}
                   </label>
                 </div>
-                <span style={{ display: 'block', color: '#5a5d6b', fontSize: '0.8rem', marginTop: '0.3rem' }}>Maximum file size: 500 KB.</span>
-                {errors.idCard && <span style={{ color: '#c2348a', fontSize: '0.85rem', marginTop: '0.3rem' }}>{errors.idCard}</span>}
-              </label>
+                <span className="detail-form__hint">Maximum file size: 500 KB. (JPEG, PNG, or PDF)</span>
+                {errors.idCard && <span className="field-error">{errors.idCard}</span>}
+              </div>
 
               <button
                 type="submit"
@@ -536,8 +474,8 @@ const Registration = () => {
       )}
 
       <div className="container detail-page__cta-row">
-        <Button to="/" kind="secondary">Back to home</Button>
-        <Button to="/hackathon" kind="primary">Explore the hackathon</Button>
+        <Button to={getProfilePath('')} kind="secondary">Back to home</Button>
+        <Button to={getProfilePath('hackathon')} kind="primary">Explore the hackathon</Button>
       </div>
 
       <div className="container detail-page__visual-row">

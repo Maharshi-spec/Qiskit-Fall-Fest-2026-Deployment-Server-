@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import Button from '../../components/Button'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { api } from '../../services/api'
 import sticker02 from '../../assets/qiskit/Sticker 02.svg'
 import sticker07 from '../../assets/qiskit/Sticker 07.svg'
@@ -46,14 +47,15 @@ const formatDate = (dateStr) => {
 }
 
 const Certificates = () => {
-  const { isLoggedIn, isLoading: authLoading, openLoginModal } = useAuth()
+  const { isLoggedIn, isLoading: authLoading, openLoginModal, token } = useAuth()
+  const { getProfilePath, isRegistrationOpen } = useEventProfile()
   const [certificates, setCertificates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchCertificates = useCallback(async () => {
-    const token = localStorage.getItem('qff_auth_token')
-    if (!token) {
+    const activeToken = token || api.getParticipantToken()
+    if (!activeToken) {
       setCertificates([])
       setLoading(false)
       return
@@ -88,13 +90,13 @@ const Certificates = () => {
   }, [isLoggedIn, authLoading, fetchCertificates])
 
   return (
-    <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <motion.section className="detail-page certificates-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div className="container detail-page__header">
         <div className="detail-page__intro">
           <p className="page-shell__eyebrow">Certificates</p>
           <h1>Your Qiskit Fall Fest 2026 Certificate.</h1>
           <p>
-            Participants can receive certificates based on their involvement in Qiskit Fall Fest 2026. Whether you attend the main event, take part in the hackathon, join a workshop, or participate in the BootCamp, your participation can be recognized with the corresponding certificate.
+            Official certificates are awarded based on verified event attendance, bootcamp completion, workshop participation, and hackathon achievements during Qiskit Fall Fest 2026.
           </p>
         </div>
         <div className="detail-page__visual">
@@ -116,10 +118,10 @@ const Certificates = () => {
           </div>
         ) : !isLoggedIn ? (
           <div className="certificate-empty-state">
-            <h3>Please log in to view your certificates.</h3>
-            <p>Log in with your registered account to access certificates earned during Qiskit Fall Fest 2026.</p>
+            <h3>Sign in to view your certificates</h3>
+            <p>Sign in with your registered participant account to view and download certificates issued for your Qiskit Fall Fest 2026 participation.</p>
             <div style={{ marginTop: '1.25rem' }}>
-              <Button kind="primary" onClick={openLoginModal}>Log In</Button>
+              <Button kind="primary" onClick={openLoginModal}>Sign In</Button>
             </div>
           </div>
         ) : error ? (
@@ -198,11 +200,16 @@ const Certificates = () => {
       </div>
 
       <div className="container detail-page__cta-row">
-        <Button to="/" kind="secondary">Back to home</Button>
-        {!isLoggedIn && <Button to="/register" kind="primary">Register for the event</Button>}
+        <Button to={getProfilePath('')} kind="secondary">Back to home</Button>
+        {isRegistrationOpen ? (
+          !isLoggedIn && <Button to={getProfilePath('register')} kind="primary">Register for the event</Button>
+        ) : (
+          <Button to={getProfilePath('day-1')} kind="primary">Explore the Program</Button>
+        )}
       </div>
     </motion.section>
   )
 }
+
 
 export default Certificates

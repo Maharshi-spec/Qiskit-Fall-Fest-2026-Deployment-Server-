@@ -16,10 +16,12 @@ const STORAGE_KEY = 'qff_active_profile'
 const EventProfileContext = createContext({
   activeProfile: DEFAULT_PROFILE,
   profileConfig: EVENT_PROFILES[DEFAULT_PROFILE],
-  status: 'GOING',
+  status: 'COMPLETED',
   allProfiles: [],
   postQiskitConfig: null,
   postQiskitEnabled: false,
+  postQiskitScheduleStatus: 'UPCOMING',
+  postQiskitRegistrationOpen: false,
   postQiskitStatus: 'DISABLED',
   refreshPostQiskitConfig: () => {},
   switchProfile: () => {},
@@ -83,20 +85,54 @@ export const EventProfileProvider = ({ children }) => {
     return EVENT_PROFILES[activeProfile] || EVENT_PROFILES[DEFAULT_PROFILE]
   }, [activeProfile])
 
-  const status = useMemo(() => {
-    return calculateProfileStatus(activeProfile)
-  }, [activeProfile])
-
-  // Derive Post-Qiskit enabled and status from backend config
+  // Derive Post-Qiskit enabled, schedule status, and registration state from backend config
   const postQiskitEnabled = useMemo(() => {
     if (!postQiskitConfig) return false
     return Boolean(postQiskitConfig.enabled)
+  }, [postQiskitConfig])
+
+  const postQiskitRegistrationOpen = useMemo(() => {
+    if (!postQiskitConfig) return false
+    return Boolean(postQiskitConfig.registration_open || postQiskitConfig.registrationOpen)
+  }, [postQiskitConfig])
+
+  // Pure date-driven schedule status (UPCOMING, GOING, COMPLETED)
+  const postQiskitScheduleStatus = useMemo(() => {
+    if (!postQiskitConfig) return 'UPCOMING'
+    if (postQiskitConfig.schedule_status) return postQiskitConfig.schedule_status
+    if (postQiskitConfig.start_date && postQiskitConfig.end_date) {
+      return calculateProfileStatus('post-qiskit', new Date(), {
+        startDate: postQiskitConfig.start_date,
+        endDate: postQiskitConfig.end_date,
+        timezone: postQiskitConfig.timezone,
+      })
+    }
+    return calculateProfileStatus('post-qiskit')
   }, [postQiskitConfig])
 
   const postQiskitStatus = useMemo(() => {
     if (!postQiskitConfig) return 'DISABLED'
     return postQiskitConfig.status || 'DISABLED'
   }, [postQiskitConfig])
+
+  // Chronological schedule status for active profile
+  const status = useMemo(() => {
+    if (activeProfile === 'post-qiskit') {
+      return postQiskitScheduleStatus
+    }
+    return calculateProfileStatus(activeProfile)
+  }, [activeProfile, postQiskitScheduleStatus])
+
+  // Registration state: Pre-Qiskit is permanently closed; Post-Qiskit requires both enabled and registration_open
+  const isRegistrationOpen = useMemo(() => {
+    if (activeProfile === 'pre-qiskit') {
+      return false
+    }
+    if (activeProfile === 'post-qiskit') {
+      return postQiskitEnabled && postQiskitRegistrationOpen
+    }
+    return false
+  }, [activeProfile, postQiskitEnabled, postQiskitRegistrationOpen])
 
   const allProfiles = useMemo(() => {
     return getAllProfilesSummary()
@@ -136,13 +172,16 @@ export const EventProfileProvider = ({ children }) => {
     allProfiles,
     postQiskitConfig,
     postQiskitEnabled,
+    postQiskitScheduleStatus,
+    postQiskitRegistrationOpen,
     postQiskitStatus,
     postQiskitConfigLoading,
+    isRegistrationOpen,
     refreshPostQiskitConfig,
     switchProfile,
     getProfilePath,
     isProfileRoute,
-  }), [activeProfile, profileConfig, status, allProfiles, postQiskitConfig, postQiskitEnabled, postQiskitStatus, postQiskitConfigLoading, refreshPostQiskitConfig, switchProfile, getProfilePath, isProfileRoute])
+  }), [activeProfile, profileConfig, status, allProfiles, postQiskitConfig, postQiskitEnabled, postQiskitScheduleStatus, postQiskitRegistrationOpen, postQiskitStatus, postQiskitConfigLoading, isRegistrationOpen, refreshPostQiskitConfig, switchProfile, getProfilePath, isProfileRoute])
 
   return (
     <EventProfileContext.Provider value={value}>

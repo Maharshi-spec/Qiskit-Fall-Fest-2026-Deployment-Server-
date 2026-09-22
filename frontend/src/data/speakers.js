@@ -8,7 +8,7 @@ export const speakers = [
     name: 'Dr. Anil K Pedapati',
     role: 'Chief Guest',
     organization: 'Principal, APSCHE',
-    bio: 'Principal, APSCHE and Chief Guest.',
+    bio: 'Dr. Pedapati brings senior academic leadership from the Andhra Pradesh State Council of Higher Education and joins Qiskit Fall Fest 2026 as Chief Guest.',
     image: anilPhoto,
   },
   {
@@ -16,7 +16,7 @@ export const speakers = [
     name: 'Dr. Srinivas Talabattula',
     role: 'Keynote Speaker',
     organization: 'Professor, EECS, IISc',
-    bio: 'Professor, EECS, IISc and Keynote Speaker.',
+    bio: 'Professor in Electrical, Electronics, and Computer Sciences at the Indian Institute of Science, Bengaluru, delivering the opening keynote on quantum computing.',
     image: srinivasPhoto,
   },
   {
@@ -24,7 +24,7 @@ export const speakers = [
     name: 'Ms. Janani Ananthanarayanan',
     role: 'Keynote Speaker',
     organization: 'Quantum Algo. Engineer, IBM',
-    bio: 'Quantum Algo. Engineer, IBM and Keynote Speaker.',
+    bio: 'Quantum Algorithms Engineer at IBM, working at the intersection of quantum circuit design and practical quantum applications using Qiskit.',
     image: jananiPhoto,
   },
-];
+];

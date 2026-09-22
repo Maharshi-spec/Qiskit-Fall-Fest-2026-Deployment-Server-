@@ -14,9 +14,9 @@ const runWithProfile = (profile, callback) => {
   return profileStorage.run({ profile: targetProfile }, callback)
 }
 
-// Routes that are always public regardless of profile state
+// Routes that are always exempt from profile-disabled blocking (public & administrative config)
 const PUBLIC_PATHS = [
-  '/api/v1/post-event/status',
+  '/api/v1/post-event',
   '/api/v1/profiles',
   '/api/v1/health',
 ]

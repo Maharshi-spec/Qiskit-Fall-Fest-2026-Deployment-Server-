@@ -48,7 +48,7 @@ VALUES (
     '09:00:00',
     '17:00:00',
     'Asia/Kolkata',
-    'Advanced Quantum Applications, grand quantum hackathon showcase, and prestigious awards celebration.',
+    'Explore advanced quantum computing through hands-on workshops and projects.',
     NULL
 )
 ON CONFLICT DO NOTHING;

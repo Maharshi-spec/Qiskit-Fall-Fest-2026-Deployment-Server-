@@ -56,20 +56,23 @@ app.get('/api/v1/profiles', async (req, res) => {
       const startDate = postConfig.start_date ? String(postConfig.start_date) : p.startDate
       const endDate = postConfig.end_date ? String(postConfig.end_date) : p.endDate
 
-      // Dynamic status: depends on BOTH enabled flag AND dates
-      let status = 'DISABLED'
-      if (isEnabled) {
-        const { getTodayInTimezone } = require('./config/eventProfiles')
-        const tz = postConfig.timezone || 'Asia/Kolkata'
-        const today = getTodayInTimezone(tz)
-        if (today < startDate) status = 'UPCOMING'
-        else if (today > endDate) status = 'COMPLETED'
-        else status = 'GOING'
-      }
+      // Pure date-based schedule status
+      const { getTodayInTimezone } = require('./config/eventProfiles')
+      const tz = postConfig.timezone || 'Asia/Kolkata'
+      const today = getTodayInTimezone(tz)
+      let schedule_status = 'UPCOMING'
+      if (today < startDate) schedule_status = 'UPCOMING'
+      else if (today > endDate) schedule_status = 'COMPLETED'
+      else schedule_status = 'GOING'
+
+      // Dynamic status: preserves backward compatibility (DISABLED when !isEnabled, else schedule_status)
+      const status = isEnabled ? schedule_status : 'DISABLED'
 
       return {
         ...p,
         enabled: isEnabled,
+        access_status: isEnabled ? 'ACTIVE' : 'DISABLED',
+        schedule_status,
         status,
         startDate,
         endDate,

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { gsap } from 'gsap'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import heroArtwork from '../../assets/qiskit/hero-1-without-title.png.png'
 import HeroBlochOrbital from '../HeroBlochOrbital'
 
@@ -13,9 +14,10 @@ const Hero = () => {
   const storyRefs = useRef([])
   const navigate = useNavigate()
   const { isLoggedIn } = useAuth()
+  const { isRegistrationOpen, getProfilePath } = useEventProfile()
 
   const handleRegister = () => {
-    navigate('/register')
+    navigate(getProfilePath('register'))
   }
 
   const handleExploreEvent = () => {
@@ -105,11 +107,18 @@ const Hero = () => {
             <span>Vizianagaram</span>
           </p>
           <p className="hero__supporting-copy">
-            Explore quantum computing, learn with Qiskit, build hands-on skills, and connect through workshops, collaboration, and innovation.
+            A four-day quantum computing event at Centurion University, Vizianagaram — covering Qiskit programming, hackathon projects, expert talks, and hands-on workshops.
           </p>
           <div className="hero__actions" aria-label="Hero actions">
             {!isLoggedIn && (
-              <button type="button" className="button button--primary" onClick={handleRegister}>Register</button>
+              isRegistrationOpen ? (
+                <button type="button" className="button button--primary" onClick={handleRegister}>Register</button>
+              ) : (
+                <div className="hero__reg-closed-badge" role="status" aria-label="Registration is currently closed">
+                  <span className="hero__reg-closed-dot" aria-hidden="true" />
+                  <span>Registration Closed</span>
+                </div>
+              )
             )}
             <button type="button" className="button button--secondary" onClick={handleExploreEvent}>Explore Event</button>
           </div>
@@ -119,20 +128,20 @@ const Hero = () => {
       <div className="hero__story" aria-label="Quantum event overview">
         <div className="container hero__story-inner">
           <div className="hero__story-card" ref={(el) => { storyRefs.current[0] = el }}>
-            <span>Explore</span>
+            <span>Learn</span>
             <strong>Quantum computing</strong>
           </div>
           <div className="hero__story-card" ref={(el) => { storyRefs.current[1] = el }}>
-            <span>Learn</span>
+            <span>Build</span>
             <strong>With Qiskit</strong>
           </div>
           <div className="hero__story-card" ref={(el) => { storyRefs.current[2] = el }}>
-            <span>Build</span>
-            <strong>Hands-on skills</strong>
+            <span>Collaborate</span>
+            <strong>On real projects</strong>
           </div>
           <div className="hero__story-card" ref={(el) => { storyRefs.current[3] = el }}>
             <span>Connect</span>
-            <strong>Innovate together</strong>
+            <strong>With the community</strong>
           </div>
         </div>
       </div>
@@ -141,3 +150,4 @@ const Hero = () => {
 }
 
 export default Hero
+

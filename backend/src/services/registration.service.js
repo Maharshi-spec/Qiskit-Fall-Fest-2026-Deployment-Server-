@@ -1,3 +1,4 @@
+require('../config/env')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const nodemailer = require('nodemailer')
@@ -385,23 +386,31 @@ const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value |
 
 const isValidMobileNumber = (value) => /^\+?[0-9\s()-]{7,20}$/.test(String(value || '').trim())
 
+const normalizeMailValue = (value, fallback = '') => String(value ?? fallback).trim()
+const normalizeMailPassword = (value) => normalizeMailValue(value, '').replace(/\s+/g, '')
+
 const getMailConfiguration = () => {
   const environment = process.env.NODE_ENV || 'development'
   const requiredFields = ['MAIL_HOST', 'MAIL_PORT', 'MAIL_USER', 'MAIL_PASSWORD', 'MAIL_FROM']
 
   const config = {
-    host: process.env.MAIL_HOST || (environment === 'production' ? '' : 'localhost'),
+    host: normalizeMailValue(process.env.MAIL_HOST || (environment === 'production' ? '' : 'localhost')),
     port: process.env.MAIL_PORT ? Number(process.env.MAIL_PORT) : (environment === 'production' ? '' : 1025),
-    user: process.env.MAIL_USER || '',
-    password: process.env.MAIL_PASSWORD || '',
-    from: process.env.MAIL_FROM || (environment === 'production' ? '' : 'noreply@qiskitfallfest.com'),
-    fromName: process.env.MAIL_FROM_NAME || 'Qiskit Fall Fest 2026',
+    user: normalizeMailValue(process.env.MAIL_USER),
+    password: normalizeMailPassword(process.env.MAIL_PASSWORD),
+    from: normalizeMailValue(process.env.MAIL_FROM || (environment === 'production' ? '' : 'noreply@qiskitfallfest.com')),
+    fromName: normalizeMailValue(process.env.MAIL_FROM_NAME, 'Qiskit Fall Fest 2026'),
   }
 
-  const missingFields = requiredFields.filter((fieldName) => {
-    const fieldValue = process.env[fieldName]
-    return !fieldValue || String(fieldValue).trim() === ''
-  })
+  const isSandbox = process.env.MAIL_SANDBOX === 'true' || process.env.MAIL_HOST === 'sandbox' || process.env.MAIL_HOST === 'ethereal'
+  const missingFields = isSandbox
+    ? []
+    : requiredFields.filter((fieldName) => {
+        const fieldValue = process.env[fieldName]
+        return !fieldValue || String(fieldValue).trim() === ''
+      })
+
+  const secureMode = Number(config.port || 587) === 465
 
   const summary = {
     MAIL_HOST: Boolean(config.host),
@@ -410,6 +419,9 @@ const getMailConfiguration = () => {
     MAIL_PASSWORD: Boolean(config.password),
     MAIL_FROM: Boolean(config.from),
     MAIL_FROM_NAME: Boolean(config.fromName),
+    configuredHost: config.host,
+    configuredPort: Number(config.port || 587),
+    secureMode,
   }
 
   return {
@@ -628,14 +640,17 @@ const sendMail = async ({ to, subject, text, html }) => {
 
   const safeTo = Array.isArray(to) ? to.join(', ') : String(to || '')
 
-  console.info('[REGISTRATION_EMAIL_DIAGNOSTIC] sendMail start', {
-    toCount: Array.isArray(to) ? to.length : 1,
-    subject,
-    smtpHost: config.host,
-    smtpPort: config.port,
+  const secureMode = Number(config.port || 587) === 465
+  console.info('[REGISTRATION_EMAIL_DIAGNOSTIC] Safe configuration status:', {
+    hasMailHost: Boolean(config.host),
     hasMailUser: Boolean(config.user),
     hasMailPassword: Boolean(config.password),
-    from: config.from,
+    hasMailFrom: Boolean(config.from),
+    configuredHost: config.host,
+    configuredPort: Number(config.port || 587),
+    secureMode,
+    toCount: Array.isArray(to) ? to.length : 1,
+    subject,
   })
 
   if (missingFields.length > 0) {
@@ -658,6 +673,41 @@ const sendMail = async ({ to, subject, text, html }) => {
     auth: config.user && config.password ? { user: config.user, pass: config.password } : undefined,
   })
 
+  const senderAddress = config.fromName
+    ? `${config.fromName} <${config.from}>`
+    : config.from
+
+  if (process.env.MAIL_SANDBOX === 'true' || config.host === 'sandbox' || config.host === 'ethereal') {
+    try {
+      const testAccount = await nodemailer.createTestAccount()
+      const sandboxTransport = nodemailer.createTransport({
+        host: testAccount.smtp.host,
+        port: testAccount.smtp.port,
+        secure: testAccount.smtp.secure,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      })
+      const result = await sandboxTransport.sendMail({
+        from: senderAddress || `Qiskit Fall Fest 2026 <${testAccount.user}>`,
+        to: safeTo,
+        subject,
+        text,
+        html,
+      })
+      const previewUrl = nodemailer.getTestMessageUrl(result)
+      console.info('[REGISTRATION_EMAIL_SANDBOX] Email accepted by Ethereal sandbox:', {
+        messageId: result.messageId,
+        previewUrl,
+        recipient: safeTo,
+        subject,
+        accepted: result.accepted,
+      })
+      return { ...result, previewUrl }
+    } catch (err) {
+      console.error('[REGISTRATION_EMAIL_SANDBOX_ERROR] Sandbox delivery failed:', err.message)
+      throw new AppError(503, 'SMTP_DELIVERY_FAILED', `Sandbox delivery failed: ${err.message}`)
+    }
+  }
+
   if (process.env.NODE_ENV === 'test') {
     return { messageId: `mock-${Date.now()}`, accepted: Array.isArray(to) ? to : [to], rejected: [] }
   }
@@ -667,10 +717,6 @@ const sendMail = async ({ to, subject, text, html }) => {
     console.error('[REGISTRATION_EMAIL_ERROR] SMTP verification failed', { code: error && error.code, message: safeMessage })
     throw new AppError(503, 'SMTP_VERIFICATION_FAILED', safeMessage)
   })
-
-  const senderAddress = config.fromName
-    ? `${config.fromName} <${config.from}>`
-    : config.from
 
   try {
     const result = await transport.sendMail({
@@ -1694,5 +1740,6 @@ module.exports = {
   sendRegistrationConfirmationEmail,
   buildRegistrationConfirmationEmailContent,
   normalizeEmail,
+  getMailConfiguration,
   sendMail,
 }

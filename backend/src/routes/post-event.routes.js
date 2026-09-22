@@ -14,10 +14,9 @@ const loadConfig = async () => {
   return result.rows[0] || null
 }
 
-// ─── Helper: calculate dynamic status from config ────────────────────────────
-const calculatePostQiskitStatus = (config) => {
-  if (!config || !config.enabled) return 'DISABLED'
-  if (!config.start_date || !config.end_date) return 'UPCOMING'
+// ─── Helper: calculate pure date-based schedule status from config ─────────
+const calculatePostQiskitScheduleStatus = (config) => {
+  if (!config || !config.start_date || !config.end_date) return 'UPCOMING'
 
   const timezone = config.timezone || 'Asia/Kolkata'
   const today = getTodayInTimezone(timezone)
@@ -29,9 +28,14 @@ const calculatePostQiskitStatus = (config) => {
   return 'GOING'
 }
 
+// ─── Helper: calculate dynamic status from config (backward compatibility) ──
+const calculatePostQiskitStatus = (config) => {
+  if (!config || !config.enabled) return 'DISABLED'
+  return calculatePostQiskitScheduleStatus(config)
+}
+
 // ─── PUBLIC: GET /api/v1/post-event/status ───────────────────────────────────
-// Returns only safe public information about the Post-Qiskit event.
-// Does NOT expose coordinator contact, passwords, or internal IDs.
+// Returns public information about the Post-Qiskit event and registration state.
 router.get('/post-event/status', async (req, res, next) => {
   try {
     const config = await loadConfig()
@@ -41,6 +45,10 @@ router.get('/post-event/status', async (req, res, next) => {
         success: true,
         data: {
           enabled: false,
+          access_status: 'DISABLED',
+          schedule_status: 'UPCOMING',
+          registration_open: false,
+          registration_status: 'CLOSED',
           status: 'DISABLED',
           start_date: '2026-10-05',
           end_date: '2026-10-10',
@@ -55,12 +63,21 @@ router.get('/post-event/status', async (req, res, next) => {
       })
     }
 
+    const enabled = Boolean(config.enabled)
+    const accessStatus = enabled ? 'ACTIVE' : 'DISABLED'
+    const scheduleStatus = calculatePostQiskitScheduleStatus(config)
     const status = calculatePostQiskitStatus(config)
+    const registrationOpen = Boolean(config.registration_open)
+    const registrationStatus = (enabled && registrationOpen) ? 'OPEN' : 'CLOSED'
 
     return res.status(200).json({
       success: true,
       data: {
-        enabled: config.enabled,
+        enabled,
+        access_status: accessStatus,
+        schedule_status: scheduleStatus,
+        registration_open: registrationOpen,
+        registration_status: registrationStatus,
         status,
         start_date: config.start_date,
         end_date: config.end_date,
@@ -79,7 +96,7 @@ router.get('/post-event/status', async (req, res, next) => {
 })
 
 // ─── ORGANIZER: GET /api/v1/post-event/config ─────────────────────────────────
-// Full config including coordinator_contact (admin only).
+// Full config including coordinator_contact and registration_open (admin only).
 router.get('/post-event/config', requireAdmin, async (req, res, next) => {
   try {
     const config = await loadConfig()
@@ -90,6 +107,11 @@ router.get('/post-event/config', requireAdmin, async (req, res, next) => {
         data: {
           id: null,
           enabled: false,
+          access_status: 'DISABLED',
+          schedule_status: 'UPCOMING',
+          registration_open: false,
+          registration_status: 'CLOSED',
+          status: 'DISABLED',
           start_date: '2026-10-05',
           end_date: '2026-10-10',
           coordinator_name: null,
@@ -106,13 +128,22 @@ router.get('/post-event/config', requireAdmin, async (req, res, next) => {
       })
     }
 
+    const enabled = Boolean(config.enabled)
+    const accessStatus = enabled ? 'ACTIVE' : 'DISABLED'
+    const scheduleStatus = calculatePostQiskitScheduleStatus(config)
     const status = calculatePostQiskitStatus(config)
+    const registrationOpen = Boolean(config.registration_open)
+    const registrationStatus = (enabled && registrationOpen) ? 'OPEN' : 'CLOSED'
 
     return res.status(200).json({
       success: true,
       data: {
         id: config.id,
-        enabled: config.enabled,
+        enabled,
+        access_status: accessStatus,
+        schedule_status: scheduleStatus,
+        registration_open: registrationOpen,
+        registration_status: registrationStatus,
         status,
         start_date: config.start_date,
         end_date: config.end_date,
@@ -134,8 +165,7 @@ router.get('/post-event/config', requireAdmin, async (req, res, next) => {
 })
 
 // ─── ORGANIZER: PUT /api/v1/post-event/config ─────────────────────────────────
-// Update configuration fields. Does NOT change the enabled flag.
-// To enable/disable use the dedicated /enable and /disable endpoints.
+// Update configuration fields.
 router.put('/post-event/config', requireAdmin, async (req, res, next) => {
   try {
     const {
@@ -150,6 +180,7 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
       timezone,
       description,
       activities,
+      registration_open,
     } = req.body
 
     // Validate dates if both supplied
@@ -179,8 +210,9 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
          timezone            = COALESCE($9, timezone),
          description         = $10,
          activities          = $11,
+         registration_open   = COALESCE($12, registration_open),
          updated_at          = NOW(),
-         updated_by          = $12
+         updated_by          = $13
        WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
        RETURNING *`,
       [
@@ -195,6 +227,7 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
         timezone || null,
         description !== undefined ? description : null,
         activities !== undefined ? activities : null,
+        registration_open !== undefined ? Boolean(registration_open) : null,
         organizerId,
       ]
     )
@@ -204,12 +237,25 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
     }
 
     const updated = result.rows[0]
+    const enabled = Boolean(updated.enabled)
+    const accessStatus = enabled ? 'ACTIVE' : 'DISABLED'
+    const scheduleStatus = calculatePostQiskitScheduleStatus(updated)
     const status = calculatePostQiskitStatus(updated)
+    const registrationOpen = Boolean(updated.registration_open)
+    const registrationStatus = (enabled && registrationOpen) ? 'OPEN' : 'CLOSED'
 
     return res.status(200).json({
       success: true,
       message: 'Post-Qiskit configuration updated successfully.',
-      data: { ...updated, status },
+      data: {
+        ...updated,
+        enabled,
+        access_status: accessStatus,
+        schedule_status: scheduleStatus,
+        registration_open: registrationOpen,
+        registration_status: registrationStatus,
+        status,
+      },
     })
   } catch (error) {
     return next(error)
@@ -234,12 +280,22 @@ router.post('/post-event/enable', requireAdmin, async (req, res, next) => {
     }
 
     const updated = result.rows[0]
+    const scheduleStatus = calculatePostQiskitScheduleStatus(updated)
     const status = calculatePostQiskitStatus(updated)
+    const registrationOpen = Boolean(updated.registration_open)
+    const registrationStatus = (updated.enabled && registrationOpen) ? 'OPEN' : 'CLOSED'
 
     return res.status(200).json({
       success: true,
       message: 'Post-Qiskit event is now ENABLED.',
-      data: { enabled: updated.enabled, status },
+      data: {
+        enabled: updated.enabled,
+        access_status: 'ACTIVE',
+        schedule_status: scheduleStatus,
+        registration_open: registrationOpen,
+        registration_status: registrationStatus,
+        status,
+      },
     })
   } catch (error) {
     return next(error)
@@ -263,10 +319,100 @@ router.post('/post-event/disable', requireAdmin, async (req, res, next) => {
       throw new AppError(500, 'CONFIG_NOT_FOUND', 'Post-Qiskit configuration row not found.')
     }
 
+    const updated = result.rows[0]
+    const scheduleStatus = calculatePostQiskitScheduleStatus(updated)
+
     return res.status(200).json({
       success: true,
       message: 'Post-Qiskit event is now DISABLED.',
-      data: { enabled: false, status: 'DISABLED' },
+      data: {
+        enabled: false,
+        access_status: 'DISABLED',
+        schedule_status: scheduleStatus,
+        registration_open: Boolean(updated?.registration_open),
+        registration_status: 'CLOSED',
+        status: 'DISABLED',
+      },
+    })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+// ─── ORGANIZER: POST /api/v1/post-event/registration/open ────────────────────
+router.post('/post-event/registration/open', requireAdmin, async (req, res, next) => {
+  try {
+    const organizerId = req.user?.organizerId || req.user?.userId || null
+
+    const result = await pool.query(
+      `UPDATE post_qiskit_config
+       SET registration_open = TRUE, updated_at = NOW(), updated_by = $1
+       WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
+       RETURNING *`,
+      [organizerId]
+    )
+
+    if (result.rowCount === 0) {
+      throw new AppError(500, 'CONFIG_NOT_FOUND', 'Post-Qiskit configuration row not found.')
+    }
+
+    const updated = result.rows[0]
+    const enabled = Boolean(updated.enabled)
+    const accessStatus = enabled ? 'ACTIVE' : 'DISABLED'
+    const scheduleStatus = calculatePostQiskitScheduleStatus(updated)
+    const status = calculatePostQiskitStatus(updated)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Post-Qiskit registration is now OPEN.',
+      data: {
+        enabled,
+        access_status: accessStatus,
+        schedule_status: scheduleStatus,
+        registration_open: true,
+        registration_status: enabled ? 'OPEN' : 'CLOSED',
+        status,
+      },
+    })
+  } catch (error) {
+    return next(error)
+  }
+})
+
+// ─── ORGANIZER: POST /api/v1/post-event/registration/close ───────────────────
+router.post('/post-event/registration/close', requireAdmin, async (req, res, next) => {
+  try {
+    const organizerId = req.user?.organizerId || req.user?.userId || null
+
+    const result = await pool.query(
+      `UPDATE post_qiskit_config
+       SET registration_open = FALSE, updated_at = NOW(), updated_by = $1
+       WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
+       RETURNING *`,
+      [organizerId]
+    )
+
+    if (result.rowCount === 0) {
+      throw new AppError(500, 'CONFIG_NOT_FOUND', 'Post-Qiskit configuration row not found.')
+    }
+
+    const updated = result.rows[0]
+    const enabled = Boolean(updated.enabled)
+    const accessStatus = enabled ? 'ACTIVE' : 'DISABLED'
+    const scheduleStatus = calculatePostQiskitScheduleStatus(updated)
+    const status = calculatePostQiskitStatus(updated)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Post-Qiskit registration is now CLOSED.',
+      data: {
+        enabled,
+        access_status: accessStatus,
+        schedule_status: scheduleStatus,
+        registration_open: false,
+        registration_status: 'CLOSED',
+        status,
+      },
     })
   } catch (error) {
     return next(error)

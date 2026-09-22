@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 
-const Button = ({ children, type = 'button', to, className = '', kind = 'primary', ...props }) => {
-  const classes = ['button', `button--${kind}`, className].filter(Boolean).join(' ')
+const Button = ({ children, type = 'button', to, className = '', kind = 'primary', size, ...props }) => {
+  const sizeClass = size ? `button--${size}` : ''
+  const classes = ['button', `button--${kind}`, sizeClass, className].filter(Boolean).join(' ')
 
   if (to) {
     return (
@@ -19,3 +20,4 @@ const Button = ({ children, type = 'button', to, className = '', kind = 'primary
 }
 
 export default Button
+

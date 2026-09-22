@@ -21,7 +21,7 @@ export const EVENT_PROFILES = {
     dateLabel: '5 Oct 2026 – 10 Oct 2026',
     shortDateLabel: '5 Oct - 10 Oct',
     timezone: TIMEZONE,
-    description: 'Advanced Quantum Applications, grand quantum hackathon showcase, and prestigious awards celebration.',
+    description: 'Explore advanced quantum computing through hands-on workshops and projects.',
   },
 }
 

@@ -4,51 +4,49 @@ import { EVENT_PROFILES, calculateProfileStatus } from '../../config/eventProfil
 import { useEventProfile } from '../../context/EventProfileContext'
 import qiskitBadge from '../../assets/qiskit/badge-pink.png.png'
 
-// ─── Status badge styles ──────────────────────────────────────────────────────
+// ─── Status badge mapping ───────────────────────────────────────────────────
+// Schedule badges: describe the date-based schedule status — independent of access
 const statusStyles = {
   GOING: {
-    label: 'GOING',
-    bg: '#ecfdf5',
-    color: '#059669',
-    border: '#a7f3d0',
-    dot: '#10b981',
+    label: 'LIVE NOW',
+    className: 'status-badge--success',
   },
   UPCOMING: {
     label: 'UPCOMING',
-    bg: '#eff6ff',
-    color: '#2563eb',
-    border: '#bfdbfe',
-    dot: '#3b82f6',
+    className: 'status-badge--purple',
   },
   COMPLETED: {
     label: 'COMPLETED',
-    bg: '#f3f4f6',
-    color: '#4b5563',
-    border: '#e5e7eb',
-    dot: '#9ca3af',
+    className: 'status-badge--neutral',
   },
   DISABLED: {
-    label: 'UPCOMING',
-    bg: '#f9f5ff',
-    color: '#7c3aed',
-    border: '#ddd6fe',
-    dot: '#8b5cf6',
+    label: 'COMING SOON',
+    className: 'status-badge--purple',
   },
 }
 
-// ─── ProfileSelection ─────────────────────────────────────────────────────────
+// ─── ProfileSelection Component ─────────────────────────────────────────────
 const ProfileSelection = () => {
   const navigate = useNavigate()
   const {
     switchProfile,
     postQiskitEnabled,
-    postQiskitStatus,
+    postQiskitScheduleStatus,
     postQiskitConfig,
     postQiskitConfigLoading,
   } = useEventProfile()
 
   const preProfile = EVENT_PROFILES['pre-qiskit']
   const preStatus = calculateProfileStatus('pre-qiskit')
+
+  // EVENT ACCESS: Post-Qiskit is accessible when the organizer has explicitly enabled it.
+  const isPostActive = !postQiskitConfigLoading && postQiskitEnabled
+  const isPostDisabled = !isPostActive
+
+  // CRITICAL PUBLIC EVENT SWITCHING RULE:
+  // Before Post-Qiskit activation: Pre-Qiskit is enterable; Post-Qiskit is locked.
+  // After Post-Qiskit activation: Post-Qiskit is enterable; Pre-Qiskit is no longer publicly enterable through the selector.
+  const isPreDisabled = isPostActive
 
   // Post-Qiskit display data: prefer backend config over static config
   const postDateLabel = postQiskitConfig?.start_date && postQiskitConfig?.end_date
@@ -71,20 +69,21 @@ const ProfileSelection = () => {
 
   const postDescription = postQiskitConfig?.description || EVENT_PROFILES['post-qiskit'].description
 
-  // The status shown on the card
-  const displayPostStatus = postQiskitConfigLoading ? 'DISABLED' : (postQiskitStatus || 'DISABLED')
-  const isPostEnabled = !postQiskitConfigLoading && postQiskitEnabled
+  // SCHEDULE STATUS: strictly date-derived (UPCOMING, GOING, COMPLETED)
+  const displayPostScheduleStatus = postQiskitScheduleStatus || 'UPCOMING'
 
   const handleSelect = (profileId) => {
-    if (profileId === 'post-qiskit' && !isPostEnabled) return
+    if (profileId === 'pre-qiskit' && isPreDisabled) return
+    if (profileId === 'post-qiskit' && isPostDisabled) return
     switchProfile(profileId)
     navigate(`/${profileId}`)
   }
 
-  const getPreBadge = () => statusStyles[preStatus] || statusStyles.GOING
+  const getPreBadge = () => statusStyles[preStatus] || statusStyles.COMPLETED
   const getPostBadge = () => {
-    if (!isPostEnabled) return statusStyles.DISABLED
-    return statusStyles[displayPostStatus] || statusStyles.DISABLED
+    if (isPostDisabled) return statusStyles.DISABLED
+    // Event is enabled — show real schedule status badge (UPCOMING / GOING / COMPLETED)
+    return statusStyles[displayPostScheduleStatus] || statusStyles.UPCOMING
   }
 
   return (
@@ -108,24 +107,26 @@ const ProfileSelection = () => {
           {/* ── PRE-QISKIT CARD ─────────────────────────────────────────────── */}
           <ProfileCard
             config={preProfile}
-            status={preStatus}
             badge={getPreBadge()}
             dateLabel={preProfile.dateLabel}
             shortDateLabel={preProfile.shortDateLabel}
             description={preProfile.description}
-            disabled={false}
+            disabled={isPreDisabled}
+            disabledNote={isPreDisabled ? 'Pre-Qiskit Fall Fest has concluded.' : null}
+            buttonText={isPreDisabled ? 'CONCLUDED' : 'ENTER'}
             onSelect={() => handleSelect('pre-qiskit')}
           />
 
           {/* ── POST-QISKIT CARD ─────────────────────────────────────────────── */}
           <ProfileCard
             config={EVENT_PROFILES['post-qiskit']}
-            status={displayPostStatus}
             badge={getPostBadge()}
             dateLabel={postDateLabel}
             shortDateLabel={postShortDateLabel}
             description={postDescription}
-            disabled={!isPostEnabled}
+            disabled={isPostDisabled}
+            disabledNote={isPostDisabled ? 'Not yet available — awaiting organizer activation.' : null}
+            buttonText={isPostDisabled ? 'COMING SOON' : 'ENTER EVENT'}
             onSelect={() => handleSelect('post-qiskit')}
           />
         </div>
@@ -134,10 +135,24 @@ const ProfileSelection = () => {
   )
 }
 
-// ─── ProfileCard ──────────────────────────────────────────────────────────────
-const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, description, disabled, onSelect }) => {
-  const handleClick = () => {
-    if (disabled) return
+// ─── ProfileCard Component ──────────────────────────────────────────────────
+const ProfileCard = ({
+  config,
+  badge,
+  dateLabel,
+  shortDateLabel,
+  description,
+  disabled,
+  disabledNote,
+  buttonText,
+  onSelect,
+}) => {
+  const handleClick = (e) => {
+    if (disabled) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     onSelect()
   }
 
@@ -149,12 +164,6 @@ const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, descrip
     }
   }
 
-  const handleEnterClick = (e) => {
-    e.stopPropagation()
-    if (disabled) return
-    onSelect()
-  }
-
   return (
     <motion.div
       className={`profile-card profile-card--${config.id}${disabled ? ' profile-card--disabled' : ''}`}
@@ -162,26 +171,16 @@ const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, descrip
       whileTap={disabled ? {} : { scale: 0.99 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
       onClick={handleClick}
-      role="button"
+      role={disabled ? undefined : 'button'}
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
       onKeyDown={handleKeyDown}
-      style={disabled ? { cursor: 'default', opacity: 0.72 } : {}}
+      style={disabled ? { cursor: 'not-allowed', opacity: 0.75 } : { cursor: 'pointer' }}
     >
       <div className="profile-card__header">
-        <span
-          className="profile-card__badge"
-          style={{
-            backgroundColor: badge.bg,
-            color: badge.color,
-            borderColor: badge.border,
-          }}
-        >
-          <span
-            className="profile-card__badge-dot"
-            style={{ backgroundColor: badge.dot }}
-          />
-          {disabled ? 'COMING SOON' : status}
+        <span className={`profile-card__badge status-badge ${badge.className}`}>
+          <span className="status-badge__dot" />
+          {badge.label}
         </span>
         <span className="profile-card__tag">{shortDateLabel}</span>
       </div>
@@ -191,32 +190,28 @@ const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, descrip
         <div className="profile-card__date-range">{dateLabel}</div>
         <p className="profile-card__desc">{description}</p>
 
-        {/* Show disabled explanation under the description */}
-        {disabled && (
+        {disabled && disabledNote && (
           <p
             className="profile-card__disabled-note"
             style={{
-              fontSize: '0.8rem',
-              color: '#8b849c',
-              marginTop: '0.5rem',
+              fontSize: '0.8125rem',
+              color: 'var(--color-text-muted)',
+              marginTop: '0.6rem',
               fontStyle: 'italic',
             }}
           >
-            Not yet available — awaiting organizer activation.
+            {disabledNote}
           </p>
         )}
       </div>
 
       <div className="profile-card__footer">
-        <button
-          type="button"
-          className={`profile-card__enter-btn button${disabled ? ' button--secondary' : ' button--primary'}`}
-          onClick={handleEnterClick}
-          disabled={disabled}
-          aria-disabled={disabled}
-          style={disabled ? { cursor: 'not-allowed', opacity: 0.5 } : {}}
+        <span
+          className={`profile-card__enter-btn button ${disabled ? 'button--secondary' : 'button--primary'}`}
+          style={disabled ? { cursor: 'not-allowed', opacity: 0.6 } : {}}
+          aria-hidden="true"
         >
-          {disabled ? 'NOT AVAILABLE' : 'ENTER'}
+          {buttonText || (disabled ? 'NOT AVAILABLE' : 'ENTER')}
           {!disabled && (
             <svg
               width="16"
@@ -250,7 +245,7 @@ const ProfileCard = ({ config, status, badge, dateLabel, shortDateLabel, descrip
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           )}
-        </button>
+        </span>
       </div>
     </motion.div>
   )

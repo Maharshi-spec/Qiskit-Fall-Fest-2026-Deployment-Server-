@@ -53,12 +53,24 @@ const parseApiResponse = async (response) => {
   return response.json()
 }
 
+const readParticipantToken = () => {
+  const profile = currentEventProfile || 'pre-qiskit'
+  const key = profile === 'pre-qiskit' ? 'qff_auth_token' : `qff_auth_token_${profile}`
+  const token = localStorage.getItem(key)
+  if (token) return token
+  if (profile === 'pre-qiskit') {
+    return localStorage.getItem('qff_auth_token')
+  }
+  return null
+}
+
 export const api = {
   baseUrl: API_BASE_URL,
   getUrl: resolveApiUrl,
   getOrganizerToken: readOrganizerToken,
   setOrganizerToken: writeOrganizerToken,
   clearOrganizerToken: () => writeOrganizerToken(''),
+  getParticipantToken: readParticipantToken,
   getEventProfile: () => currentEventProfile,
   setEventProfile: (profile) => {
     if (profile) currentEventProfile = profile
@@ -959,7 +971,7 @@ export const api = {
 
   async markAttendance(attendanceToken) {
     try {
-      const token = localStorage.getItem('qff_auth_token') || ''
+      const token = readParticipantToken() || ''
       const response = await profileFetch(resolveApiUrl('/api/v1/attendance/mark'), {
         method: 'POST',
         headers: {
@@ -1079,6 +1091,44 @@ export const api = {
       const data = await parseApiResponse(response)
       if (!response.ok) {
         return { success: false, error: data?.error || { message: 'Failed to disable Post-Qiskit.' } }
+      }
+      return { success: true, data: data?.data || {}, message: data?.message }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
+
+  /** Organizer: open Post-Qiskit registration */
+  async openPostEventRegistration() {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/registration/open'), {
+        method: 'POST',
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to open registration.' } }
+      }
+      return { success: true, data: data?.data || {}, message: data?.message }
+    } catch (_err) {
+      return { success: false, error: { message: 'Network error.' } }
+    }
+  },
+
+  /** Organizer: close Post-Qiskit registration */
+  async closePostEventRegistration() {
+    const token = readOrganizerToken()
+    try {
+      const response = await fetch(resolveApiUrl('/api/v1/post-event/registration/close'), {
+        method: 'POST',
+        headers: buildJsonHeaders({ Authorization: `Bearer ${token}` }),
+        credentials: 'include',
+      })
+      const data = await parseApiResponse(response)
+      if (!response.ok) {
+        return { success: false, error: data?.error || { message: 'Failed to close registration.' } }
       }
       return { success: true, data: data?.data || {}, message: data?.message }
     } catch (_err) {

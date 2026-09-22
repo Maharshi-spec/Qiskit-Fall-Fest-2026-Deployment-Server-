@@ -47,7 +47,8 @@ const Navbar = () => {
   const animatedLogoRef = useRef(null)
   const profileRef = useRef(null)
   const { isLoggedIn, userRegistration, openLoginModal, logout } = useAuth()
-  const { getProfilePath } = useEventProfile()
+  const { getProfilePath, isRegistrationOpen } = useEventProfile()
+  const isRegistrationClosed = !isRegistrationOpen
 
   const accountName = getUserName(userRegistration)
   const initials = getInitials(accountName)
@@ -55,13 +56,18 @@ const Navbar = () => {
 
   const navItems = rawNavItems
     .filter((item) => !isLoggedIn || item.subpath !== 'register')
+    .filter((item) => !isRegistrationClosed || item.subpath !== 'register')
     .map((item) => ({
-    ...item,
-    to: getProfilePath(item.subpath),
+      ...item,
+      to: getProfilePath(item.subpath),
     }))
 
-  const dayNavItems = navItems.filter((item) => item.isDay)
-  const primaryNavItems = navItems.filter((item) => !item.isDay)
+  const desktopOrder = ['hackathon', 'workshops', 'attendance', 'certificates', 'day-1', 'day-2', 'day-3', 'day-4']
+  const desktopNavItems = desktopOrder
+    .map((subpath) => navItems.find((item) => item.subpath === subpath))
+    .filter(Boolean)
+
+  const mobileDrawerNavItems = navItems.filter((item) => !item.isDay)
 
   const authActions = (
     <div className="topbar__actions">
@@ -125,9 +131,23 @@ const Navbar = () => {
           >
             Login
           </button>
-          <NavLink to={getProfilePath('register')} className="topbar__action topbar__action--register">
-            Register
-          </NavLink>
+          {isRegistrationClosed ? (
+            <span
+              className="topbar__action topbar__action--closed"
+              role="status"
+              aria-label="Registration is currently closed"
+              title="Registration is currently closed for this event"
+            >
+              Closed
+            </span>
+          ) : (
+            <NavLink
+              to={getProfilePath('register')}
+              className="topbar__action topbar__action--register"
+            >
+              Register
+            </NavLink>
+          )}
         </>
       )}
 
@@ -184,15 +204,23 @@ const Navbar = () => {
     </motion.nav>
   )
 
+  const menuRef = useRef(null)
+
   useEffect(() => {
     const handlePointerDown = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false)
       }
+      if (menuRef.current && !menuRef.current.contains(event.target) && !event.target.closest('.nav-toggle')) {
+        setIsOpen(false)
+      }
     }
 
     const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setIsProfileOpen(false)
+      if (event.key === 'Escape') {
+        setIsProfileOpen(false)
+        setIsOpen(false)
+      }
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -205,6 +233,7 @@ const Navbar = () => {
 
   useEffect(() => {
     setIsProfileOpen(false)
+    setIsOpen(false)
   }, [isLoggedIn, location.pathname])
 
   useEffect(() => {
@@ -374,13 +403,13 @@ const Navbar = () => {
             <span />
           </button>
 
-          <NavLink to="/" className="brand" aria-label="Qiskit Fall Fest home">
+          <NavLink to={getProfilePath('')} className="brand" aria-label="Qiskit Fall Fest home">
             <img ref={logoRef} src={qiskitBadge} alt="Qiskit Fall Fest 2026 badge" className="brand__logo" />
             <span className="brand__text">Qiskit Fall Fest 2026</span>
           </NavLink>
         </div>
 
-        {renderNav(dayNavItems, 'nav nav--days')}
+        {renderNav(desktopNavItems, 'nav nav--desktop')}
 
         <div className="topbar__right">
           {authActions}
@@ -393,9 +422,19 @@ const Navbar = () => {
 
       <AnimatePresence initial={false}>
         {isOpen && (
-          <div className="nav-panel-wrap">
-            {renderNav(primaryNavItems, 'nav nav--menu nav--open', true)}
-          </div>
+          <>
+            <motion.div
+              className="nav-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setIsOpen(false)}
+            />
+            <div ref={menuRef} className="nav-panel-wrap">
+              {renderNav(mobileDrawerNavItems, 'nav nav--menu nav--open', true)}
+            </div>
+          </>
         )}
       </AnimatePresence>
     </header>

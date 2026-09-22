@@ -88,6 +88,8 @@ test('1. Landing page profiles endpoint returns profile data with dynamic Post-Q
 
   // Post-Qiskit has enabled flag from database
   assert.equal(postProfile.enabled, false)
+  assert.equal(postProfile.access_status, 'DISABLED')
+  assert.equal(postProfile.schedule_status, 'UPCOMING')
   assert.equal(postProfile.status, 'DISABLED')
 })
 
@@ -97,6 +99,8 @@ test('2. Post-Qiskit starts initially disabled in config table and public status
   const data = await res.json()
   assert.equal(data.success, true)
   assert.equal(data.data.enabled, false)
+  assert.equal(data.data.access_status, 'DISABLED')
+  assert.equal(data.data.schedule_status, 'UPCOMING')
   assert.equal(data.data.status, 'DISABLED')
   // Public status must NOT expose sensitive organizer details like coordinator_contact
   assert.equal(data.data.coordinator_contact, undefined)
@@ -201,11 +205,15 @@ test('7. Organizer can explicitly enable Post-Qiskit and it becomes enterable', 
   const enableData = await enableRes.json()
   assert.equal(enableData.success, true)
   assert.equal(enableData.data.enabled, true)
+  assert.equal(enableData.data.access_status, 'ACTIVE')
+  assert.equal(enableData.data.schedule_status, 'UPCOMING')
 
   // Status endpoint now shows enabled = true
   const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
   const statusData = await statusRes.json()
   assert.equal(statusData.data.enabled, true)
+  assert.equal(statusData.data.access_status, 'ACTIVE')
+  assert.equal(statusData.data.schedule_status, 'UPCOMING')
   assert.notEqual(statusData.data.status, 'DISABLED')
 
   // Profiles endpoint shows post-qiskit enabled = true
@@ -213,6 +221,8 @@ test('7. Organizer can explicitly enable Post-Qiskit and it becomes enterable', 
   const profilesData = await profilesRes.json()
   const postProfile = profilesData.data.find((p) => p.id === 'post-qiskit')
   assert.equal(postProfile.enabled, true)
+  assert.equal(postProfile.access_status, 'ACTIVE')
+  assert.equal(postProfile.schedule_status, 'UPCOMING')
 
   // Route guard allows entry when enabled
   const participantsRes = await fetch(`${baseUrl}/api/v1/admin/participants`, {

@@ -128,7 +128,7 @@ const ProblemStatements = () => {
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
-    const token = localStorage.getItem('qff_auth_token')
+    const token = api.getParticipantToken()
 
     try {
       let teamData = null
@@ -191,7 +191,7 @@ const ProblemStatements = () => {
 
   const handleSelectConfirm = async () => {
     if (!activeModalProblem) return
-    const token = localStorage.getItem('qff_auth_token')
+    const token = api.getParticipantToken()
     if (!token) {
       setSubmitError('Authentication expired. Please log in again.')
       return
@@ -1060,7 +1060,7 @@ const ProblemStatements = () => {
                           const isImage = file.mimeType?.startsWith('image/') || !isPdf
                           const sizeKb = Math.round((file.fileSize || 0) / 1024)
                           const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`
-                          const userToken = localStorage.getItem('qff_auth_token') || ''
+                          const userToken = api.getParticipantToken() || ''
                           const fileViewUrl = file.viewUrl ? `${file.viewUrl}?token=${encodeURIComponent(userToken)}` : '#'
                           const fileDownloadUrl = file.downloadUrl ? `${file.downloadUrl}?token=${encodeURIComponent(userToken)}` : '#'
 

@@ -11,3 +11,5 @@ uploads/
 backend/uploads/
 *.pdf
 backend/scripts/import-results.csv
+
+backend/database.sqlite

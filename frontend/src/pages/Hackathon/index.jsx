@@ -49,24 +49,24 @@ const AlertTriangle = ({ className = '', style = {} }) => (
 const hackathonSteps = [
   {
     title: 'Explore the challenge',
-    text: 'Look at the problem space and think through how quantum ideas could be used in a practical context.',
+    text: 'Analyze the problem tracks, scope technical requirements, and formulate an algorithmic approach using Qiskit.',
   },
   {
     title: 'Build with Qiskit',
-    text: 'Use Qiskit concepts, experimentation, and coding workflows to turn ideas into demonstrable exploration.',
+    text: 'Develop quantum circuits, test algorithms on simulators, and refine code throughout the two-day hackathon sprint.',
   },
   {
     title: 'Collaborate and refine',
-    text: 'Work with peers, share feedback, and improve the direction of your approach through hands-on iteration.',
+    text: 'Work closely with teammates and consult technical mentors to debug circuits and optimize project performance.',
   },
   {
     title: 'Share your results',
-    text: 'Present your progress and learning outcomes to the broader event community in a clear, accessible way.',
+    text: 'Demonstrate your completed project, technical architecture, and simulation results to judges at the Day 4 showcase.',
   },
 ]
 
 const Hackathon = () => {
-  const { isLoggedIn, userRegistration, isLoading: authLoading, openLoginModal } = useAuth()
+  const { isLoggedIn, userRegistration, isLoading: authLoading, openLoginModal, logout, token } = useAuth()
   const { getProfilePath } = useEventProfile()
   const [team, setTeam] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -115,8 +115,8 @@ const Hackathon = () => {
   }, [loadActiveHackathons])
 
   const loadTeam = useCallback(async () => {
-    const token = localStorage.getItem('qff_auth_token')
-    if (!token) {
+    const activeToken = token || api.getParticipantToken()
+    if (!activeToken) {
       setTeam(null)
       setLoading(false)
       return
@@ -126,13 +126,17 @@ const Hackathon = () => {
     setError(null)
 
     try {
-      const res = await api.fetchMyTeam(token)
+      const res = await api.fetchMyTeam(activeToken)
       if (res.success) {
         setTeam(res.data)
         setError(null)
       } else if (res.error?.code === 'REGISTRATION_NOT_FOUND' || res.error?.code === 'TEAM_NOT_FOUND' || res.error?.code === 'NOT_FOUND') {
         setTeam(null)
         setError(null)
+      } else if (res.status === 401 || res.error?.code === 'UNAUTHORIZED' || res.error?.code === 'INVALID_TOKEN') {
+        setTeam(null)
+        setError('Authentication session expired. Please log in again.')
+        logout()
       } else {
         setError(res.error?.message || 'Unable to load team details.')
       }
@@ -141,7 +145,7 @@ const Hackathon = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token, logout])
 
   useEffect(() => {
     if (!authLoading) {
@@ -210,9 +214,22 @@ const Hackathon = () => {
 
     setter((prev) => ({ ...prev, email: trimmed, status: 'loading', error: '' }))
 
-    const token = localStorage.getItem('qff_auth_token')
+    const activeToken = token || api.getParticipantToken()
+    if (!activeToken) {
+      setter({
+        email: trimmed,
+        fullName: '',
+        collegeName: '',
+        status: 'error',
+        error: 'Authentication session expired. Please log in again.'
+      })
+      logout()
+      openLoginModal()
+      return false
+    }
+
     try {
-      const res = await api.verifyHackathonParticipant(token, trimmed)
+      const res = await api.verifyHackathonParticipant(activeToken, trimmed)
       if (res.success && res.data) {
         setter({
           email: trimmed,
@@ -222,6 +239,17 @@ const Hackathon = () => {
           error: ''
         })
         return true
+      } else if (res.status === 401 || res.error?.code === 'UNAUTHORIZED' || res.error?.code === 'INVALID_TOKEN') {
+        setter({
+          email: trimmed,
+          fullName: '',
+          collegeName: '',
+          status: 'error',
+          error: 'Authentication session expired. Please log in again.'
+        })
+        logout()
+        openLoginModal()
+        return false
       } else {
         const msg = res.error?.message || 'Participant not found. All team members must be registered.'
         setter({
@@ -269,9 +297,11 @@ const Hackathon = () => {
       return
     }
 
-    const token = localStorage.getItem('qff_auth_token')
-    if (!token) {
+    const activeToken = token || api.getParticipantToken()
+    if (!activeToken || !isLoggedIn) {
       setSubmitError('Authentication session expired. Please log in again.')
+      logout()
+      openLoginModal()
       return
     }
 
@@ -317,7 +347,7 @@ const Hackathon = () => {
     }
 
     try {
-      const res = await api.createTeam(token, { teamName: teamName.trim(), members, eventId: selectedHackathonId })
+      const res = await api.createTeam(activeToken, { teamName: teamName.trim(), members, eventId: selectedHackathonId })
       if (res.success && res.data) {
         setTeam(res.data)
         setIsCreateOpen(false)
@@ -325,6 +355,10 @@ const Hackathon = () => {
         setMember2(initialMemberState)
         setMember3(initialMemberState)
         setMember4(initialMemberState)
+      } else if (res.status === 401 || res.error?.code === 'UNAUTHORIZED' || res.error?.code === 'INVALID_TOKEN') {
+        setSubmitError('Authentication session expired. Please log in again.')
+        logout()
+        openLoginModal()
       } else {
         setSubmitError(res.error?.message || 'Unable to create hackathon team.')
       }
@@ -441,12 +475,12 @@ const Hackathon = () => {
   }
 
   return (
-    <motion.section className="detail-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+    <motion.section className="detail-page hackathon-page" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
       <div className="container detail-page__header">
         <div className="detail-page__intro">
           <p className="page-shell__eyebrow">Hackathon</p>
           <h1>Build something quantum.</h1>
-          <p>{hackathon[0]?.description || 'Participants explore quantum computing through projects, experiment with Qiskit, and collaborate through practical problem solving.'}</p>
+          <p>{hackathon[0]?.description || 'The two-day hackathon runs on Days 2 and 3. Teams identify a quantum computing problem, write circuits in Qiskit, iterate with industry mentor support, and present their finished projects at the Day 4 showcase.'}</p>
         </div>
         <div className="detail-page__visual">
           <img src={sticker04} alt="" className="detail-page__sticker" />
@@ -464,20 +498,22 @@ const Hackathon = () => {
       </div>
 
       {/* MY HACKATHON TEAM SECTION */}
-      <div className="container detail-page__panel" style={{ marginTop: '2.5rem', marginBottom: '2.5rem' }}>
+      <div className="container detail-page__panel" style={{ marginTop: '1.75rem', marginBottom: '1.75rem' }}>
         <div className="detail-page__panel-copy" style={{ maxWidth: '100%', width: '100%' }}>
           <p className="page-shell__eyebrow">Team Management</p>
-          <h2>MY HACKATHON TEAM</h2>
 
           {authLoading || loading ? (
             <div style={{ padding: '1.5rem 0' }}>
               <p>Loading team information...</p>
             </div>
           ) : !isLoggedIn ? (
-            <div style={{ padding: '1rem 0' }}>
-              <p>Please log in with your participant account to view or create your hackathon team.</p>
+            <div style={{ padding: '0.5rem 0' }}>
+              <h2 style={{ fontSize: '1.4rem', marginBottom: '0.5rem', color: '#3d2f59' }}>Sign in to manage your hackathon team.</h2>
+              <p style={{ margin: 0, color: 'var(--color-text-muted)' }}>
+                Authentication is required to view your current team, register a new team, or select a hackathon problem statement.
+              </p>
               <div style={{ marginTop: '1.25rem' }}>
-                <Button kind="primary" onClick={openLoginModal}>Log In</Button>
+                <Button kind="primary" onClick={openLoginModal}>Sign in to continue</Button>
               </div>
             </div>
           ) : error ? (
@@ -489,6 +525,8 @@ const Hackathon = () => {
             </div>
           ) : team ? (
             <div>
+
+
               <div className="detail-page__info-stack" style={{ marginBottom: '2rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                 <div className="detail-info-item">
                   <span>Team Name</span>
@@ -762,9 +800,24 @@ const Hackathon = () => {
                         borderRadius: 'var(--radius-sm)',
                         marginBottom: '1.5rem',
                         fontSize: '0.95rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.75rem',
                       }}
                     >
-                      {submitError}
+                      <span>{submitError}</span>
+                      {submitError.includes('log in') && (
+                        <button
+                          type="button"
+                          onClick={openLoginModal}
+                          className="button button--primary button--sm"
+                          style={{ fontSize: '0.85rem', padding: '0.4rem 0.9rem' }}
+                        >
+                          Log In
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -1015,8 +1068,8 @@ const Hackathon = () => {
       </div>
 
       <div className="container detail-page__cta-row">
-        {!isLoggedIn && <Button to="/register" kind="primary">Register your interest</Button>}
-        <Button to="/workshops" kind="secondary">Browse workshops</Button>
+        {!isLoggedIn && <Button to={getProfilePath('register')} kind="primary">Register your interest</Button>}
+        <Button to={getProfilePath('workshops')} kind="secondary">Browse workshops</Button>
       </div>
     </motion.section>
   )

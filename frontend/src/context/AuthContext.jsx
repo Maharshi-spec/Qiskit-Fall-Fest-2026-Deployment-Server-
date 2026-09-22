@@ -5,22 +5,24 @@ import { useEventProfile } from './EventProfileContext'
 const AuthContext = createContext({
   isLoggedIn: false,
   userRegistration: null,
+  token: null,
   isLoading: true,
   isLoginModalOpen: false,
   openLoginModal: () => {},
   closeLoginModal: () => {},
   login: () => {},
   logout: () => {},
+  getStoredToken: () => null,
 })
 
 const BASE_AUTH_TOKEN_KEY = 'qff_auth_token'
 
-const getProfileTokenKey = () => {
+export const getProfileTokenKey = () => {
   const profile = api.getEventProfile?.() || 'pre-qiskit'
   return profile === 'pre-qiskit' ? BASE_AUTH_TOKEN_KEY : `${BASE_AUTH_TOKEN_KEY}_${profile}`
 }
 
-const getStoredToken = () => {
+export const getStoredToken = () => {
   const key = getProfileTokenKey()
   const token = localStorage.getItem(key)
   if (token) return token
@@ -35,18 +37,20 @@ export const AuthProvider = ({ children }) => {
   const { activeProfile } = useEventProfile()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userRegistration, setUserRegistration] = useState(null)
+  const [token, setToken] = useState(() => getStoredToken())
   const [isLoading, setIsLoading] = useState(true)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
 
   const openLoginModal = useCallback(() => setIsLoginModalOpen(true), [])
   const closeLoginModal = useCallback(() => setIsLoginModalOpen(false), [])
 
-  const login = useCallback((token, registrationData) => {
-    if (token) {
-      localStorage.setItem(getProfileTokenKey(), token)
+  const login = useCallback((newToken, registrationData) => {
+    if (newToken) {
+      localStorage.setItem(getProfileTokenKey(), newToken)
       if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
-        localStorage.setItem(BASE_AUTH_TOKEN_KEY, token)
+        localStorage.setItem(BASE_AUTH_TOKEN_KEY, newToken)
       }
+      setToken(newToken)
     }
     setIsLoggedIn(true)
     setUserRegistration(registrationData)
@@ -58,14 +62,16 @@ export const AuthProvider = ({ children }) => {
     if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
       localStorage.removeItem(BASE_AUTH_TOKEN_KEY)
     }
+    setToken(null)
     setIsLoggedIn(false)
     setUserRegistration(null)
   }, [])
 
   const verifySession = useCallback(async () => {
-    const token = getStoredToken()
+    const currentToken = getStoredToken()
+    setToken(currentToken)
 
-    if (!token) {
+    if (!currentToken) {
       setIsLoggedIn(false)
       setUserRegistration(null)
       setIsLoading(false)
@@ -73,7 +79,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const result = await api.getCurrentUser(token)
+      const result = await api.getCurrentUser(currentToken)
 
       if (result.success && result.data?.registration) {
         setIsLoggedIn(true)
@@ -89,6 +95,7 @@ export const AuthProvider = ({ children }) => {
           if ((api.getEventProfile?.() || 'pre-qiskit') === 'pre-qiskit') {
             localStorage.removeItem(BASE_AUTH_TOKEN_KEY)
           }
+          setToken(null)
           setIsLoggedIn(false)
           setUserRegistration(null)
         } else {
@@ -112,12 +119,14 @@ export const AuthProvider = ({ children }) => {
       value={{
         isLoggedIn,
         userRegistration,
+        token,
         isLoading,
         isLoginModalOpen,
         openLoginModal,
         closeLoginModal,
         login,
         logout,
+        getStoredToken,
       }}
     >
       {children}
