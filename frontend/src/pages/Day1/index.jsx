@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import Button from '../../components/Button'
 import { useEventProfile } from '../../context/EventProfileContext'
-import { programDays } from '../../data/program'
+import { programDays, postQiskitProgramDays } from '../../data/program'
 import sticker07 from '../../assets/qiskit/Sticker 07.svg'
 
 const Day1 = () => {
-  const { getProfilePath } = useEventProfile()
-  const day = programDays[0]
+  const { getProfilePath, activeProfile } = useEventProfile()
+  const isPostQiskit = activeProfile === 'post-qiskit'
+  const day = isPostQiskit ? postQiskitProgramDays[0] : programDays[0]
   const [expandedId, setExpandedId] = useState(day?.sessions[0]?.id || null)
 
   useEffect(() => {
@@ -23,11 +24,15 @@ const Day1 = () => {
     >
       <div className="container detail-page__header">
         <div className="detail-page__intro">
-          <p className="page-shell__eyebrow">DAY 1 · BOOTCAMP — SEPTEMBER 7, 2026</p>
-          <h1>{day?.title || 'Start with the fundamentals.'}</h1>
+          <p className="page-shell__eyebrow">
+            {isPostQiskit ? 'DAY 1 — 5 OCTOBER 2026' : 'DAY 1 · BOOTCAMP — SEPTEMBER 7, 2026'}
+          </p>
+          <h1>{day?.title || (isPostQiskit ? 'Welcoming the guests to the dias and Lamp Lighting Ceremony' : 'Start with the fundamentals.')}</h1>
           <p>
             {day?.description ||
-              'A beginner-friendly deep dive into quantum computing, qubits, superposition, quantum circuits, and getting started with Qiskit.'}
+              (isPostQiskit
+                ? 'Welcoming the guests, addresses by dignitaries, and technical sessions.'
+                : 'A beginner-friendly deep dive into quantum computing, qubits, superposition, quantum circuits, and getting started with Qiskit.')}
           </p>
         </div>
         <div className="detail-page__visual">
@@ -40,9 +45,11 @@ const Day1 = () => {
         <div className="day-schedule-header">
           <div>
             <p className="page-shell__eyebrow">Day 1 Schedule</p>
-            <h2>Bootcamp Timetable</h2>
+            <h2>{isPostQiskit ? 'Official Timetable' : 'Bootcamp Timetable'}</h2>
           </div>
-          <span className="day-schedule-badge">5 Sessions · Main Auditorium &amp; Labs</span>
+          <span className="day-schedule-badge">
+            {isPostQiskit ? `${day?.sessions?.length || 9} Sessions` : '5 Sessions · Main Auditorium & Labs'}
+          </span>
         </div>
 
         <div className="detail-page__session-shell">
@@ -96,7 +103,9 @@ const Day1 = () => {
 
       <div className="container detail-page__cta-row">
         <Button to={getProfilePath('')} kind="secondary">← Back to Home</Button>
-        <Button to={getProfilePath('day-2')} kind="primary">Next: Day 2 Hackathon →</Button>
+        <Button to={getProfilePath('day-2')} kind="primary">
+          {isPostQiskit ? 'Next: Day 2 →' : 'Next: Day 2 Hackathon →'}
+        </Button>
       </div>
     </motion.section>
   )

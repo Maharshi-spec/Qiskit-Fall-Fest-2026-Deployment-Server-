@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../context/AuthContext'
+import { useEventProfile } from '../../context/EventProfileContext'
 import { api } from '../../services/api'
 
 const DISMISSED_KEY = 'qff_login_modal_dismissed'
 
 const LoginModal = () => {
   const { isLoggedIn, isLoading, isLoginModalOpen, closeLoginModal, login } = useAuth()
+  const { getProfilePath } = useEventProfile()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -45,7 +47,7 @@ const LoginModal = () => {
     setErrorMessage('')
     if (role === 'ORGANIZER') {
       handleDismiss()
-      navigate('/organizer')
+      navigate(getProfilePath('organizer'))
     } else if (role === 'PARTICIPANT') {
       setStep('participant_form')
     }

@@ -12,10 +12,10 @@ import HorizontalTeamCarousel from '../../components/HorizontalTeamCarousel'
 import { event } from '../../data/event'
 import { useEventProfile } from '../../context/EventProfileContext'
 import { workshops } from '../../data/workshops'
-import { speakers } from '../../data/speakers'
+import { speakers, postQiskitSpeakers } from '../../data/speakers'
 import { organizers, techTeam } from '../../data/organizers'
 import { hackathon } from '../../data/hackathon'
-import { programDays } from '../../data/program'
+import { programDays, postQiskitProgramDays } from '../../data/program'
 import { venue } from '../../data/venue'
 import WorkshopCard from '../../components/WorkshopCard'
 import BlochSphere from '../../components/BlochSphere'
@@ -182,12 +182,20 @@ const StickerAccent = ({ src, alt = '', className = '', rotate = 0, delay = 0 })
 }
 
 const Home = () => {
-  const { getProfilePath, isRegistrationOpen } = useEventProfile()
+  const { getProfilePath, isRegistrationOpen, activeProfile } = useEventProfile()
+  const isPostQiskit = activeProfile === 'post-qiskit'
+  const currentProgramDays = isPostQiskit ? postQiskitProgramDays : programDays
+
   const shouldReduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const [selectedQuantumStep, setSelectedQuantumStep] = useState(quantumSteps[0].id)
-  const [selectedDay, setSelectedDay] = useState(programDays[0]?.id || 'day-1')
+  const [selectedDay, setSelectedDay] = useState(currentProgramDays[0]?.id || 'day-1')
   const [expandedWorkshop, setExpandedWorkshop] = useState(workshops[0]?.id || null)
-  const [expandedSessionId, setExpandedSessionId] = useState(programDays[0]?.sessions[0]?.id || null)
+  const [expandedSessionId, setExpandedSessionId] = useState(currentProgramDays[0]?.sessions[0]?.id || null)
+
+  useEffect(() => {
+    setSelectedDay(currentProgramDays[0]?.id || 'day-1')
+    setExpandedSessionId(currentProgramDays[0]?.sessions[0]?.id || null)
+  }, [isPostQiskit, currentProgramDays])
 
   const workshopCards = useMemo(() => {
     if (workshops.length) return workshops
@@ -195,7 +203,11 @@ const Home = () => {
   }, [])
 
   const speakerCards = useMemo(() => {
-    if (speakers.length) return speakers
+    if (isPostQiskit) {
+      if (postQiskitSpeakers.length) return postQiskitSpeakers
+    } else {
+      if (speakers.length) return speakers
+    }
     return [
       {
         name: 'Speaker lineup coming soon',
@@ -203,26 +215,27 @@ const Home = () => {
         bio: 'The official speaker list will be shared as the program is finalized.',
       },
     ]
-  }, [])
+  }, [isPostQiskit])
 
   const renderSpeakerCard = useCallback(
     (item) => (
       <SpeakerCard
+        key={item.id || item.name}
         name={item.name}
         role={item.role}
-        organization={item.organization}
+        organization={item.organization || item.affiliation}
         bio={item.bio}
         session={item.session}
         link={item.link}
         image={item.image}
-        alt={item.alt}
+        alt={item.alt || item.name}
       />
     ),
     [],
   )
   const activeProgramDay = useMemo(
-    () => programDays.find((day) => day.id === selectedDay) || programDays[0],
-    [selectedDay],
+    () => currentProgramDays.find((day) => day.id === selectedDay) || currentProgramDays[0],
+    [currentProgramDays, selectedDay],
   )
 
   const activeQuantumStep = quantumSteps.find((step) => step.id === selectedQuantumStep) || quantumSteps[0]
@@ -420,7 +433,7 @@ const Home = () => {
             </div>
 
             <div className="program-day-tabs" role="tablist" aria-label="Select event day">
-              {programDays.map((day) => (
+              {currentProgramDays.map((day) => (
                 <motion.button
                   key={day.id}
                   type="button"
@@ -436,7 +449,7 @@ const Home = () => {
                   whileTap={shouldReduceMotion ? undefined : { scale: 0.99 }}
                 >
                   <span>{day.label}</span>
-                  <strong>{day.title}</strong>
+                  <strong>{day.cardTitle || day.title}</strong>
                 </motion.button>
               ))}
             </div>
@@ -489,11 +502,13 @@ const Home = () => {
                             className="program-session__content"
                           >
                             <p>{session.description}</p>
-                            <ul>
-                              {session.points.map((point) => (
-                                <li key={point}>{point}</li>
-                              ))}
-                            </ul>
+                            {session.points && session.points.length > 0 && (
+                              <ul>
+                                {session.points.map((point) => (
+                                  <li key={point}>{point}</li>
+                                ))}
+                              </ul>
+                            )}
                             <div className="program-session__meta">
                               {session.speaker && <span>Speaker: {session.speaker}</span>}
                               {session.location && <span>Location: {session.location}</span>}
@@ -509,7 +524,7 @@ const Home = () => {
             </div>
 
             <div className="section__action-row section__action-row--program">
-              <Button to={activeProgramDay.link} kind="secondary">View {activeProgramDay.dayNumber || activeProgramDay.label} →</Button>
+              <Button to={getProfilePath(activeProgramDay.link.replace(/^\//, ''))} kind="secondary">View {activeProgramDay.dayNumber || activeProgramDay.label} →</Button>
             </div>
           </div>
         </motion.section>
@@ -603,7 +618,11 @@ const Home = () => {
               <SectionHeader
                 label="Speakers"
                 title="Researchers, engineers, and educators."
-                description="Qiskit Fall Fest 2026 features a Chief Guest from APSCHE, a keynote by a professor from the Indian Institute of Science, and a keynote from an IBM Quantum Algorithms Engineer — bringing perspectives from academia and industry."
+                description={
+                  isPostQiskit
+                    ? "Distinguished speakers, researchers, and quantum leaders presenting sessions and keynotes across the 6-day festival."
+                    : "Qiskit Fall Fest 2026 features a Chief Guest from APSCHE, a keynote by a professor from the Indian Institute of Science, and a keynote from an IBM Quantum Algorithms Engineer — bringing perspectives from academia and industry."
+                }
               />
 
               <StickerAccent src={sticker06} alt="" className="sticker--speakers" rotate={10} delay={0.14} />
@@ -612,7 +631,7 @@ const Home = () => {
             <HorizontalTeamCarousel
               items={speakerCards}
               category="speakers"
-              desktopGrid
+              desktopGrid={!isPostQiskit}
               ariaLabel="Speakers"
               renderItem={renderSpeakerCard}
             />

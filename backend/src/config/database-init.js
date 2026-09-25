@@ -45,6 +45,8 @@ const hackathonProblemStatementsMigration = '015_create_hackathon_problem_statem
 const hackathonProblemStatementFilesMigration = '016_create_hackathon_problem_statement_files.sql'
 const eventsSchemaUpdateMigration = '017_update_events_schema.sql'
 const postQiskitRegistrationOpenMigration = '018_add_registration_open_to_post_qiskit_config.sql'
+const postQiskitScheduleUpdateMigration = '019_update_post_qiskit_schedule.sql'
+const postQiskitSingletonMigration = '020_enforce_singleton_post_qiskit_config.sql'
 
 const getMissingTables = async (client, tables) => {
   const result = await client.query(
@@ -90,11 +92,19 @@ const initializeDatabase = async () => {
       } else {
         updates.push(postQiskitSchemaMigration)
       }
-      updates.push(postQiskitConfigMigration)
+
+      // Migration 014 should only run if the post_qiskit_config table is missing.
+      // Once created, migration 014 is never executed again on server restart.
+      if (missingPostTables.includes('post_qiskit_config')) {
+        updates.push(postQiskitConfigMigration)
+      }
+
       updates.push(hackathonProblemStatementsMigration)
       updates.push(hackathonProblemStatementFilesMigration)
       updates.push(eventsSchemaUpdateMigration)
       updates.push(postQiskitRegistrationOpenMigration)
+      updates.push(postQiskitScheduleUpdateMigration)
+      updates.push(postQiskitSingletonMigration)
       filesToApply = updates
     }
 

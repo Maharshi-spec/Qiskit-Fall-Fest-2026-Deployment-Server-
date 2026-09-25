@@ -23,6 +23,8 @@ const generateOrganizerToken = () => {
   )
 }
 
+let savedConfig = null
+
 before(async () => {
   await initializeDatabase()
   server = http.createServer(app)
@@ -30,6 +32,9 @@ before(async () => {
   const port = server.address().port
   baseUrl = `http://127.0.0.1:${port}`
   organizerToken = generateOrganizerToken()
+
+  const current = await pool.query('SELECT * FROM post_qiskit_config ORDER BY id ASC LIMIT 1')
+  savedConfig = current.rows[0] || null
 
   await pool.query(`
     UPDATE post_qiskit_config
@@ -39,11 +44,13 @@ before(async () => {
 })
 
 after(async () => {
-  await pool.query(`
-    UPDATE post_qiskit_config
-    SET enabled = FALSE, registration_open = FALSE
-    WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
-  `)
+  if (savedConfig) {
+    await pool.query(`
+      UPDATE post_qiskit_config
+      SET enabled = $1, registration_open = $2
+      WHERE id = $3
+    `, [savedConfig.enabled, savedConfig.registration_open, savedConfig.id])
+  }
 
   if (server) {
     await new Promise((resolve) => server.close(resolve))

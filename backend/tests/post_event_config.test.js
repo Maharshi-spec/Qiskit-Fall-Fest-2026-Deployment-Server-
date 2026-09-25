@@ -25,6 +25,8 @@ const generateOrganizerToken = () => {
   )
 }
 
+let savedConfig = null
+
 before(async () => {
   // Ensure database schema and migrations are initialized
   await initializeDatabase()
@@ -37,11 +39,16 @@ before(async () => {
 
   organizerToken = generateOrganizerToken()
 
+  // Save current database config to restore on teardown
+  const current = await pool.query('SELECT * FROM post_qiskit_config ORDER BY id ASC LIMIT 1')
+  savedConfig = current.rows[0] || null
+
   // Reset post_qiskit_config to initial default state: enabled = false
   await pool.query(`
     UPDATE post_qiskit_config
     SET
       enabled = FALSE,
+      registration_open = FALSE,
       start_date = '2026-10-05',
       end_date = '2026-10-10',
       coordinator_name = NULL,
@@ -57,12 +64,42 @@ before(async () => {
 })
 
 after(async () => {
-  // Clean up: restore post_qiskit_config to default
-  await pool.query(`
-    UPDATE post_qiskit_config
-    SET enabled = FALSE, start_date = '2026-10-05', end_date = '2026-10-10'
-    WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
-  `)
+  // Clean up: restore post_qiskit_config to pre-test saved state
+  if (savedConfig) {
+    await pool.query(`
+      UPDATE post_qiskit_config
+      SET
+        enabled = $1,
+        registration_open = $2,
+        start_date = $3,
+        end_date = $4,
+        coordinator_name = $5,
+        coordinator_contact = $6,
+        venue = $7,
+        location = $8,
+        start_time = $9,
+        end_time = $10,
+        timezone = $11,
+        description = $12,
+        activities = $13
+      WHERE id = $14
+    `, [
+      savedConfig.enabled,
+      savedConfig.registration_open,
+      savedConfig.start_date,
+      savedConfig.end_date,
+      savedConfig.coordinator_name,
+      savedConfig.coordinator_contact,
+      savedConfig.venue,
+      savedConfig.location,
+      savedConfig.start_time,
+      savedConfig.end_time,
+      savedConfig.timezone,
+      savedConfig.description,
+      savedConfig.activities,
+      savedConfig.id,
+    ])
+  }
 
   if (server) {
     await new Promise((resolve) => server.close(resolve))
@@ -344,3 +381,168 @@ test('13. Events records are independent between Pre and Post', async () => {
   assert.ok(parseInt(preEvents.rows[0].cnt, 10) >= 0)
   assert.ok(parseInt(postEvents.rows[0].cnt, 10) >= 0)
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+// POST-QISKIT PERSISTENCE & INITIALIZATION VERIFICATION SUITE (TESTS A - G)
+// ═════════════════════════════════════════════════════════════════════════════
+
+test('Test A: Enable Post-Qiskit persists in database and returns enabled = true', async () => {
+  const enableRes = await fetch(`${baseUrl}/api/v1/post-event/enable`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  assert.equal(enableRes.status, 200)
+  const enableData = await enableRes.json()
+  assert.equal(enableData.success, true)
+  assert.equal(enableData.data.enabled, true)
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, true)
+})
+
+test('Test B1: Restart simulation via repeated initializeDatabase() preserves enabled = true and singleton integrity', async () => {
+  // Simulate first restart/re-initialization
+  await initializeDatabase()
+  // Simulate second restart/re-initialization
+  await initializeDatabase()
+
+  // Status must remain enabled = true
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, true, 'enabled must remain TRUE across repeated initializeDatabase()')
+
+  // Table must contain exactly 1 row (singleton)
+  const countRes = await pool.query('SELECT COUNT(*) AS cnt FROM post_qiskit_config')
+  assert.equal(parseInt(countRes.rows[0].cnt, 10), 1, 'post_qiskit_config must contain exactly 1 row')
+})
+
+test('Test C: Open Registration persists registration_open = true independently', async () => {
+  const openRes = await fetch(`${baseUrl}/api/v1/post-event/registration/open`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  assert.equal(openRes.status, 200)
+  const openData = await openRes.json()
+  assert.equal(openData.success, true)
+  assert.equal(openData.data.registration_open, true)
+  assert.equal(openData.data.enabled, true)
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.registration_open, true)
+  assert.equal(statusData.data.enabled, true)
+})
+
+test('Test B2: Repeated initializeDatabase() preserves both enabled = true and registration_open = true', async () => {
+  await initializeDatabase()
+  await initializeDatabase()
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, true, 'enabled must survive repeated startup')
+  assert.equal(statusData.data.registration_open, true, 'registration_open must survive repeated startup')
+
+  const countRes = await pool.query('SELECT COUNT(*) AS cnt FROM post_qiskit_config')
+  assert.equal(parseInt(countRes.rows[0].cnt, 10), 1, 'post_qiskit_config must remain exactly 1 row')
+})
+
+test('Test D: Disable Post-Qiskit preserves registration_open = true while setting enabled = false', async () => {
+  const disableRes = await fetch(`${baseUrl}/api/v1/post-event/disable`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  assert.equal(disableRes.status, 200)
+  const disableData = await disableRes.json()
+  assert.equal(disableData.success, true)
+  assert.equal(disableData.data.enabled, false)
+  // registration_open must be preserved in returned data
+  assert.equal(disableData.data.registration_open, true, 'registration_open must remain TRUE when event disabled')
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, false)
+  assert.equal(statusData.data.registration_open, true, 'registration_open state must be preserved in DB')
+  assert.equal(statusData.data.registration_status, 'CLOSED', 'registration_status must be CLOSED when event is disabled')
+})
+
+test('Test E: Re-enable Post-Qiskit restores active status and preserves registration_open = true', async () => {
+  const enableRes = await fetch(`${baseUrl}/api/v1/post-event/enable`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  assert.equal(enableRes.status, 200)
+  const enableData = await enableRes.json()
+  assert.equal(enableData.success, true)
+  assert.equal(enableData.data.enabled, true)
+  assert.equal(enableData.data.registration_open, true)
+  assert.equal(enableData.data.registration_status, 'OPEN')
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, true)
+  assert.equal(statusData.data.registration_open, true)
+})
+
+test('Test F: Update Config via PUT /post-event/config does NOT reset enabled or registration_open', async () => {
+  const putRes = await fetch(`${baseUrl}/api/v1/post-event/config`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${organizerToken}`,
+    },
+    body: JSON.stringify({
+      venue: 'New Main Auditorium',
+      location: 'CUTM AP Campus',
+      start_date: '2026-10-05',
+      end_date: '2026-10-10',
+    }),
+  })
+  assert.equal(putRes.status, 200)
+  const putData = await putRes.json()
+  assert.equal(putData.success, true)
+  assert.equal(putData.data.venue, 'New Main Auditorium')
+  assert.equal(putData.data.enabled, true, 'PUT /config must NOT reset enabled')
+  assert.equal(putData.data.registration_open, true, 'PUT /config must NOT reset registration_open')
+
+  const statusRes = await fetch(`${baseUrl}/api/v1/post-event/status`)
+  const statusData = await statusRes.json()
+  assert.equal(statusData.data.enabled, true)
+  assert.equal(statusData.data.registration_open, true)
+})
+
+test('Test G: Pre-Qiskit data remains 100% untouched throughout all Post-Qiskit operations', async () => {
+  // Capture Pre-Qiskit table row counts
+  const tables = ['events', 'registrations', 'teams', 'team_members', 'attendance', 'certificates']
+  const countsBefore = {}
+  for (const t of tables) {
+    const res = await pool.query(`SELECT COUNT(*) AS cnt FROM ${t}`)
+    countsBefore[t] = parseInt(res.rows[0].cnt, 10)
+  }
+
+  // Perform multiple Post-Qiskit toggles
+  await fetch(`${baseUrl}/api/v1/post-event/disable`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  await fetch(`${baseUrl}/api/v1/post-event/registration/close`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  await fetch(`${baseUrl}/api/v1/post-event/enable`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+  await fetch(`${baseUrl}/api/v1/post-event/registration/open`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${organizerToken}` },
+  })
+
+  // Verify all Pre-Qiskit counts are completely unchanged
+  for (const t of tables) {
+    const res = await pool.query(`SELECT COUNT(*) AS cnt FROM ${t}`)
+    const countAfter = parseInt(res.rows[0].cnt, 10)
+    assert.equal(countAfter, countsBefore[t], `Pre-Qiskit table '${t}' row count must not change`)
+  }
+})
+

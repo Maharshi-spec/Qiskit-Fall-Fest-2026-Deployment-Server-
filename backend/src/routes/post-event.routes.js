@@ -180,7 +180,6 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
       timezone,
       description,
       activities,
-      registration_open,
     } = req.body
 
     // Validate dates if both supplied
@@ -210,9 +209,8 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
          timezone            = COALESCE($9, timezone),
          description         = $10,
          activities          = $11,
-         registration_open   = COALESCE($12, registration_open),
          updated_at          = NOW(),
-         updated_by          = $13
+         updated_by          = $12
        WHERE id = (SELECT id FROM post_qiskit_config ORDER BY id ASC LIMIT 1)
        RETURNING *`,
       [
@@ -227,7 +225,6 @@ router.put('/post-event/config', requireAdmin, async (req, res, next) => {
         timezone || null,
         description !== undefined ? description : null,
         activities !== undefined ? activities : null,
-        registration_open !== undefined ? Boolean(registration_open) : null,
         organizerId,
       ]
     )

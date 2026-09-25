@@ -6,18 +6,6 @@ import { useEventProfile } from '../../context/EventProfileContext'
 import ProfileSwitcher from '../ProfileSwitcher'
 import qiskitBadge from '../../assets/qiskit/badge-pink.png.png'
 
-const rawNavItems = [
-  { label: 'Home', subpath: '' },
-  { label: 'Register', subpath: 'register' },
-  { label: 'Hackathon', subpath: 'hackathon' },
-  { label: 'Workshops', subpath: 'workshops' },
-  { label: 'Attendance', subpath: 'attendance' },
-  { label: 'Day 1', subpath: 'day-1', isDay: true },
-  { label: 'Day 2', subpath: 'day-2', isDay: true },
-  { label: 'Day 3', subpath: 'day-3', isDay: true },
-  { label: 'Day 4', subpath: 'day-4', isDay: true },
-  { label: 'Certificates', subpath: 'certificates' },
-]
 
 const getUserName = (userRegistration) => String(userRegistration?.fullName || '').trim()
 
@@ -47,14 +35,32 @@ const Navbar = () => {
   const animatedLogoRef = useRef(null)
   const profileRef = useRef(null)
   const { isLoggedIn, userRegistration, openLoginModal, logout } = useAuth()
-  const { getProfilePath, isRegistrationOpen } = useEventProfile()
+  const { getProfilePath, isRegistrationOpen, activeProfile } = useEventProfile()
   const isRegistrationClosed = !isRegistrationOpen
+  const isPostQiskit = activeProfile === 'post-qiskit'
 
   const accountName = getUserName(userRegistration)
   const initials = getInitials(accountName)
   const profileImage = getProfileImage(userRegistration)
 
-  const navItems = rawNavItems
+  const currentNavItems = [
+    { label: 'Home', subpath: '' },
+    { label: 'Register', subpath: 'register' },
+    { label: 'Hackathon', subpath: 'hackathon' },
+    { label: 'Workshops', subpath: 'workshops' },
+    { label: 'Attendance', subpath: 'attendance' },
+    { label: 'Day 1', subpath: 'day-1', isDay: true },
+    { label: 'Day 2', subpath: 'day-2', isDay: true },
+    { label: 'Day 3', subpath: 'day-3', isDay: true },
+    { label: 'Day 4', subpath: 'day-4', isDay: true },
+    ...(isPostQiskit ? [
+      { label: 'Day 5', subpath: 'day-5', isDay: true },
+      { label: 'Day 6', subpath: 'day-6', isDay: true },
+    ] : []),
+    { label: 'Certificates', subpath: 'certificates' },
+  ]
+
+  const navItems = currentNavItems
     .filter((item) => !isLoggedIn || item.subpath !== 'register')
     .filter((item) => !isRegistrationClosed || item.subpath !== 'register')
     .map((item) => ({
@@ -62,7 +68,9 @@ const Navbar = () => {
       to: getProfilePath(item.subpath),
     }))
 
-  const desktopOrder = ['hackathon', 'workshops', 'attendance', 'certificates', 'day-1', 'day-2', 'day-3', 'day-4']
+  const desktopOrder = isPostQiskit
+    ? ['hackathon', 'workshops', 'attendance', 'certificates', 'day-1', 'day-2', 'day-3', 'day-4', 'day-5', 'day-6']
+    : ['hackathon', 'workshops', 'attendance', 'certificates', 'day-1', 'day-2', 'day-3', 'day-4']
   const desktopNavItems = desktopOrder
     .map((subpath) => navItems.find((item) => item.subpath === subpath))
     .filter(Boolean)

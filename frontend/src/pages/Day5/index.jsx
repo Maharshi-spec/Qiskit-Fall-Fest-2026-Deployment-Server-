@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react'
+import { useParams, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Button from '../../components/Button'
 import { useEventProfile } from '../../context/EventProfileContext'
-import { programDays, postQiskitProgramDays } from '../../data/program'
-import sticker09 from '../../assets/qiskit/Sticker 09.svg'
+import { postQiskitProgramDays } from '../../data/program'
+import sticker05 from '../../assets/qiskit/Sticker 05.svg'
 
-const Day3 = () => {
+const Day5 = () => {
+  const { profile } = useParams()
   const { getProfilePath, activeProfile } = useEventProfile()
-  const isPostQiskit = activeProfile === 'post-qiskit'
-  const day = isPostQiskit ? postQiskitProgramDays[2] : programDays[2]
+  const isPostQiskit = profile === 'post-qiskit' || activeProfile === 'post-qiskit'
+
+  // Safety guard: Day 5 only exists in Post-Qiskit
+  if (!isPostQiskit) {
+    return <Navigate to="/pre-qiskit/day-4" replace />
+  }
+
+  const day = postQiskitProgramDays[4]
   const [expandedId, setExpandedId] = useState(day?.sessions[0]?.id || null)
 
   useEffect(() => {
@@ -17,68 +25,38 @@ const Day3 = () => {
 
   return (
     <motion.section
-      className="detail-page day-page day3-page"
+      className="detail-page day-page day5-page"
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
       <div className="container detail-page__header">
         <div className="detail-page__intro">
-          <p className="page-shell__eyebrow">
-            {isPostQiskit ? 'DAY 3 — 7 OCTOBER 2026' : 'DAY 3 · HACKATHON — SEPTEMBER 9, 2026'}
-          </p>
-          <h1>{day?.title || (isPostQiskit ? 'MoU Signing, Panel Discussion II & Hackathon Launch' : 'Build, test, and collaborate.')}</h1>
+          <p className="page-shell__eyebrow">DAY 5 — 9 OCTOBER 2026</p>
+          <h1>{day?.title || 'Dr. Santoshi Matam session & Hackathon Evaluations'}</h1>
           <p>
             {day?.description ||
-              (isPostQiskit
-                ? 'Welcome CBIT Team, MoU Signing, Panel Discussion II, Dr. Rukhsan Ul Haq session, Hackathon Launch.'
-                : 'Intensive building day. Finalize project implementations, run circuits on quantum simulators, test code, collaborate with mentors, and prepare project showcase submissions.')}
+              'Dr. Santoshi Matam session, Fun Event - II, Quiz - II, and Hackathon Evaluations.'}
           </p>
         </div>
         <div className="detail-page__visual">
-          <img src={sticker09} alt="" className="detail-page__sticker" />
+          <img src={sticker05} alt="" className="detail-page__sticker" />
         </div>
-      </div>
-
-      <div className="container day-context-banner">
-        {isPostQiskit ? (
-          <>
-            <div className="day-context-banner__content">
-              <span className="day-context-banner__badge">Hackathon Launch</span>
-              <h3>Problem Statements &amp; Hackathon Kickoff</h3>
-              <p>
-                Day 3 officially launches the problem statements and hackathon sprint starting at 2:00pm.
-              </p>
-            </div>
-            <Button to={getProfilePath('hackathon')} kind="primary">My Hackathon Team →</Button>
-          </>
-        ) : (
-          <>
-            <div className="day-context-banner__content">
-              <span className="day-context-banner__badge">Hackathon Day 2 of 2</span>
-              <h3>Final development sprint &amp; submission prep</h3>
-              <p>
-                Day 3 is the intensive building day. Teams execute circuits across quantum simulators, benchmark algorithm accuracy, and finalize showcase deliverables.
-              </p>
-            </div>
-            <Button to={getProfilePath('hackathon/problem-statements')} kind="primary">Select Problem Statement →</Button>
-          </>
-        )}
       </div>
 
       <div className="container day-schedule-container">
         <div className="day-schedule-header">
           <div>
-            <p className="page-shell__eyebrow">Day 3 Schedule</p>
-            <h2>{isPostQiskit ? 'Official Timetable' : 'Hackathon Timetable'}</h2>
+            <p className="page-shell__eyebrow">Day 5 Schedule</p>
+            <h2>Official Timetable</h2>
           </div>
           <span className="day-schedule-badge">
-            {isPostQiskit ? `${day?.sessions?.length || 5} Sessions` : '5 Sessions · Build Sprint & Final Prep'}
+            {day?.sessions?.length || 4} Sessions
           </span>
         </div>
 
         <div className="detail-page__session-shell">
-          {day?.sessions.map((session) => {
+          {day?.sessions?.map((session) => {
             const isExpanded = expandedId === session.id
             return (
               <article
@@ -127,15 +105,11 @@ const Day3 = () => {
       </div>
 
       <div className="container detail-page__cta-row">
-        <Button to={getProfilePath('day-2')} kind="secondary">
-          {isPostQiskit ? '← Day 2' : '← Day 2 Hackathon'}
-        </Button>
-        <Button to={getProfilePath('day-4')} kind="primary">
-          {isPostQiskit ? 'Next: Day 4 →' : 'Next: Day 4 Workshop & Webinar →'}
-        </Button>
+        <Button to={getProfilePath('day-4')} kind="secondary">← Day 4</Button>
+        <Button to={getProfilePath('day-6')} kind="primary">Next: Day 6 Finale →</Button>
       </div>
     </motion.section>
   )
 }
 
-export default Day3
+export default Day5

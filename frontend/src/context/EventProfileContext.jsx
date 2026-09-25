@@ -59,13 +59,24 @@ export const EventProfileProvider = ({ children }) => {
       const result = await api.getPostEventStatus()
       if (result.success && result.data) {
         setPostQiskitConfig(result.data)
+        const isEnabled = Boolean(result.data.enabled)
+        // Only if database confirms Post-Qiskit is disabled, and user is not on a direct URL,
+        // revert active profile if it was set to post-qiskit
+        if (!isEnabled && !detectedFromUrl) {
+          const stored = localStorage.getItem(STORAGE_KEY)
+          if (stored === 'post-qiskit') {
+            setActiveProfile('pre-qiskit')
+            localStorage.setItem(STORAGE_KEY, 'pre-qiskit')
+            api.setEventProfile('pre-qiskit')
+          }
+        }
       }
     } catch (_err) {
       // Silently fail — UI falls back to disabled state
     } finally {
       setPostQiskitConfigLoading(false)
     }
-  }, [])
+  }, [detectedFromUrl])
 
   useEffect(() => {
     refreshPostQiskitConfig()

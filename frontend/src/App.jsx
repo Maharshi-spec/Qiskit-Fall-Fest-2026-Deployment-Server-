@@ -14,6 +14,8 @@ import Day1 from './pages/Day1'
 import Day2 from './pages/Day2'
 import Day3 from './pages/Day3'
 import Day4 from './pages/Day4'
+import Day5 from './pages/Day5'
+import Day6 from './pages/Day6'
 import Certificates from './pages/Certificates'
 import OrganizerPage from './pages/Organizer'
 import Profile from './pages/Profile'
@@ -34,6 +36,38 @@ const AnimatedPage = ({ children }) => (
   </motion.div>
 )
 
+const ProfileRedirect = ({ target }) => {
+  const { activeProfile, postQiskitEnabled, postQiskitConfigLoading } = useEventProfile()
+
+  if (postQiskitConfigLoading) {
+    return null
+  }
+
+  const effectiveProfile = (activeProfile === 'post-qiskit' && postQiskitEnabled)
+    ? 'post-qiskit'
+    : (activeProfile === 'post-qiskit' && !postQiskitEnabled)
+      ? 'pre-qiskit'
+      : (activeProfile || 'pre-qiskit')
+
+  return <Navigate to={`/${effectiveProfile}/${target}`} replace />
+}
+
+const OrganizerRedirect = () => {
+  const { activeProfile, postQiskitEnabled, postQiskitConfigLoading } = useEventProfile()
+
+  if (postQiskitConfigLoading) {
+    return null
+  }
+
+  const effectiveProfile = (activeProfile === 'post-qiskit' && postQiskitEnabled)
+    ? 'post-qiskit'
+    : (activeProfile === 'post-qiskit' && !postQiskitEnabled)
+      ? 'pre-qiskit'
+      : (activeProfile || 'pre-qiskit')
+
+  return <Navigate to={`/${effectiveProfile}/organizer`} replace />
+}
+
 function App() {
   const location = useLocation()
 
@@ -53,18 +87,20 @@ function App() {
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<ProfileSelection />} />
-          <Route path="/register" element={<Navigate to="/pre-qiskit/register" replace />} />
-          <Route path="/attendance" element={<Navigate to="/pre-qiskit/attendance" replace />} />
-          <Route path="/hackathon" element={<Navigate to="/pre-qiskit/hackathon" replace />} />
-          <Route path="/hackathon/problem-statements" element={<Navigate to="/pre-qiskit/hackathon/problem-statements" replace />} />
-          <Route path="/workshops" element={<Navigate to="/pre-qiskit/workshops" replace />} />
-          <Route path="/day-1" element={<Navigate to="/pre-qiskit/day-1" replace />} />
-          <Route path="/day-2" element={<Navigate to="/pre-qiskit/day-2" replace />} />
-          <Route path="/day-3" element={<Navigate to="/pre-qiskit/day-3" replace />} />
-          <Route path="/day-4" element={<Navigate to="/pre-qiskit/day-4" replace />} />
-          <Route path="/certificates" element={<Navigate to="/pre-qiskit/certificates" replace />} />
-          <Route path="/profile" element={<Navigate to="/pre-qiskit/profile" replace />} />
-          <Route path="/organizer/*" element={<Navigate to="/pre-qiskit/organizer" replace />} />
+          <Route path="/register" element={<ProfileRedirect target="register" />} />
+          <Route path="/attendance" element={<ProfileRedirect target="attendance" />} />
+          <Route path="/hackathon" element={<ProfileRedirect target="hackathon" />} />
+          <Route path="/hackathon/problem-statements" element={<ProfileRedirect target="hackathon/problem-statements" />} />
+          <Route path="/workshops" element={<ProfileRedirect target="workshops" />} />
+          <Route path="/day-1" element={<ProfileRedirect target="day-1" />} />
+          <Route path="/day-2" element={<ProfileRedirect target="day-2" />} />
+          <Route path="/day-3" element={<ProfileRedirect target="day-3" />} />
+          <Route path="/day-4" element={<ProfileRedirect target="day-4" />} />
+          <Route path="/day-5" element={<Navigate to="/post-qiskit/day-5" replace />} />
+          <Route path="/day-6" element={<Navigate to="/post-qiskit/day-6" replace />} />
+          <Route path="/certificates" element={<ProfileRedirect target="certificates" />} />
+          <Route path="/profile" element={<ProfileRedirect target="profile" />} />
+          <Route path="/organizer/*" element={<OrganizerRedirect />} />
           <Route path="/:profile" element={<ProfileHome />} />
           <Route path="/:profile/register" element={<ProfilePage><Registration /></ProfilePage>} />
           <Route path="/:profile/attendance" element={<ProfilePage><Attendance /></ProfilePage>} />
@@ -75,6 +111,8 @@ function App() {
           <Route path="/:profile/day-2" element={<ProfilePage><Day2 /></ProfilePage>} />
           <Route path="/:profile/day-3" element={<ProfilePage><Day3 /></ProfilePage>} />
           <Route path="/:profile/day-4" element={<ProfilePage><Day4 /></ProfilePage>} />
+          <Route path="/:profile/day-5" element={<ProfilePage><Day5 /></ProfilePage>} />
+          <Route path="/:profile/day-6" element={<ProfilePage><Day6 /></ProfilePage>} />
           <Route path="/:profile/certificates" element={<ProfilePage><Certificates /></ProfilePage>} />
           <Route path="/:profile/profile" element={<ProfilePage><Profile /></ProfilePage>} />
           <Route path="/:profile/organizer/*" element={<AnimatedPage><OrganizerPage /></AnimatedPage>} />
