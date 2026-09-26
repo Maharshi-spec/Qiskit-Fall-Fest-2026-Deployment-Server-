@@ -1,5 +1,6 @@
 const { test, describe, before, after } = require('node:test')
 const assert = require('node:assert/strict')
+process.env.NODE_ENV = 'test'
 const { pool } = require('../src/config/database')
 const registrationService = require('../src/services/registration.service')
 

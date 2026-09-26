@@ -1305,6 +1305,8 @@ const OrganizerParticipantsPage = () => {
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedRole, setSelectedRole] = useState('ALL')
+  const [selectedAccommodation, setSelectedAccommodation] = useState('ALL')
+  const [selectedTransport, setSelectedTransport] = useState('ALL')
 
   const participantRoleOptions = [
     { value: 'ALL', label: 'All Roles' },
@@ -1312,6 +1314,18 @@ const OrganizerParticipantsPage = () => {
     { value: 'FACULTY', label: 'Faculty' },
     { value: 'PROFESSIONAL', label: 'Professional' },
     { value: 'OTHER', label: 'Other' },
+  ]
+
+  const accommodationOptions = [
+    { value: 'ALL', label: 'All Accommodation' },
+    { value: 'REQUIRED', label: 'Required' },
+    { value: 'NOT_REQUIRED', label: 'Not Required' },
+  ]
+
+  const transportOptions = [
+    { value: 'ALL', label: 'All Local Transport' },
+    { value: 'REQUIRED', label: 'Required' },
+    { value: 'NOT_REQUIRED', label: 'Not Required' },
   ]
 
   const load = useCallback(async () => {
@@ -1337,6 +1351,8 @@ const OrganizerParticipantsPage = () => {
     let faculty = 0
     let professional = 0
     let other = 0
+    let accommodationRequired = 0
+    let localTransportRequired = 0
 
     participants.forEach((p) => {
       const role = String(p.role || '').toUpperCase()
@@ -1344,6 +1360,9 @@ const OrganizerParticipantsPage = () => {
       else if (role === 'FACULTY') faculty++
       else if (role === 'PROFESSIONAL') professional++
       else other++
+
+      if (p.accommodation_required || p.accommodationRequired) accommodationRequired++
+      if (p.local_transport_required || p.localTransportRequired) localTransportRequired++
     })
 
     return {
@@ -1352,6 +1371,8 @@ const OrganizerParticipantsPage = () => {
       faculty,
       professional,
       other,
+      accommodationRequired,
+      localTransportRequired,
     }
   }, [participants])
 
@@ -1360,22 +1381,83 @@ const OrganizerParticipantsPage = () => {
     return participants.filter((p) => {
       const matchesSearch =
         !normalizedSearchTerm ||
-        [p.fullName, p.email, p.registrationId, p.instituteName, p.department].some((val) =>
+        [p.fullName, p.email, p.phone, p.mobileNumber, p.registrationId, p.instituteName, p.department].some((val) =>
           String(val || '').toLowerCase().includes(normalizedSearchTerm)
         )
 
       const role = String(p.role || '').toUpperCase()
       const matchesRole = selectedRole === 'ALL' || role === selectedRole
 
-      return matchesSearch && matchesRole
-    })
-  }, [participants, normalizedSearchTerm, selectedRole])
+      const isAcc = Boolean(p.accommodation_required ?? p.accommodationRequired)
+      const matchesAccommodation =
+        selectedAccommodation === 'ALL' ||
+        (selectedAccommodation === 'REQUIRED' && isAcc) ||
+        (selectedAccommodation === 'NOT_REQUIRED' && !isAcc)
 
-  const hasActiveFilters = Boolean(normalizedSearchTerm) || selectedRole !== 'ALL'
+      const isTrans = Boolean(p.local_transport_required ?? p.localTransportRequired)
+      const matchesTransport =
+        selectedTransport === 'ALL' ||
+        (selectedTransport === 'REQUIRED' && isTrans) ||
+        (selectedTransport === 'NOT_REQUIRED' && !isTrans)
+
+      return matchesSearch && matchesRole && matchesAccommodation && matchesTransport
+    })
+  }, [participants, normalizedSearchTerm, selectedRole, selectedAccommodation, selectedTransport])
+
+  const hasActiveFilters = Boolean(normalizedSearchTerm) || selectedRole !== 'ALL' || selectedAccommodation !== 'ALL' || selectedTransport !== 'ALL'
 
   const handleResetFilters = () => {
     setSearchTerm('')
     setSelectedRole('ALL')
+    setSelectedAccommodation('ALL')
+    setSelectedTransport('ALL')
+  }
+
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
+
+  const handleExportExcel = async () => {
+    setIsExporting(true)
+    setExportError('')
+    try {
+      const queryParams = {}
+      if (normalizedSearchTerm) {
+        queryParams.search = normalizedSearchTerm
+      }
+      if (selectedRole !== 'ALL') {
+        queryParams.role = selectedRole.toLowerCase()
+      }
+      if (selectedAccommodation === 'REQUIRED') {
+        queryParams.accommodation = 'required'
+      } else if (selectedAccommodation === 'NOT_REQUIRED') {
+        queryParams.accommodation = 'not_required'
+      }
+      if (selectedTransport === 'REQUIRED') {
+        queryParams.local_transport = 'required'
+      } else if (selectedTransport === 'NOT_REQUIRED') {
+        queryParams.local_transport = 'not_required'
+      }
+
+      const result = await api.organizerExportParticipants(queryParams)
+      if (!result.success) {
+        setExportError(result.error?.message || 'Failed to export participants to Excel.')
+        return
+      }
+
+      const { blob, filename } = result.data
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || 'Qiskit-Fall-Fest-2026-Participants.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setExportError(err.message || 'An unexpected error occurred while exporting.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const formatParticipantDate = (dateString) => {
@@ -1479,6 +1561,14 @@ const OrganizerParticipantsPage = () => {
               <span className="organizer-participants__metric-label">Other</span>
               <strong className="organizer-participants__metric-value">{metrics.other}</strong>
             </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Accommodation Required</span>
+              <strong className="organizer-participants__metric-value">{metrics.accommodationRequired}</strong>
+            </div>
+            <div className="organizer-participants__metric-item">
+              <span className="organizer-participants__metric-label">Local Transport Required</span>
+              <strong className="organizer-participants__metric-value">{metrics.localTransportRequired}</strong>
+            </div>
           </div>
 
           {/* SEARCH & FILTERS TOOLBAR */}
@@ -1525,6 +1615,34 @@ const OrganizerParticipantsPage = () => {
               </select>
             </div>
 
+            <div className="organizer-participants__filter-group">
+              <label htmlFor="participant-accommodation-filter" className="organizer-participants__filter-label">Accommodation:</label>
+              <select
+                id="participant-accommodation-filter"
+                value={selectedAccommodation}
+                onChange={(e) => setSelectedAccommodation(e.target.value)}
+                className="organizer-participants__role-select"
+              >
+                {accommodationOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="organizer-participants__filter-group">
+              <label htmlFor="participant-transport-filter" className="organizer-participants__filter-label">Local Transport:</label>
+              <select
+                id="participant-transport-filter"
+                value={selectedTransport}
+                onChange={(e) => setSelectedTransport(e.target.value)}
+                className="organizer-participants__role-select"
+              >
+                {transportOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
             {hasActiveFilters && (
               <button
                 type="button"
@@ -1534,7 +1652,48 @@ const OrganizerParticipantsPage = () => {
                 Clear filters
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="button button--secondary organizer-participants__export-btn"
+              title="Export filtered participants to Excel"
+            >
+              {isExporting ? (
+                <>
+                  <span className="organizer-participants__btn-spinner" aria-hidden="true" />
+                  <span>Exporting…</span>
+                </>
+              ) : (
+                <>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Export Excel</span>
+                </>
+              )}
+            </button>
           </div>
+
+          {exportError && (
+            <div className="organizer-participants__alert organizer-participants__alert--error" role="alert" style={{ marginBottom: '1rem' }}>
+              <div className="organizer-participants__alert-content">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <div>
+                  <strong>Export failed.</strong>
+                  <p>{exportError}</p>
+                </div>
+              </div>
+              <button type="button" className="organizer-participants__clear-search" onClick={() => setExportError('')} aria-label="Dismiss error">✕</button>
+            </div>
+          )}
 
           {/* STATUS / COUNT BAR */}
           <div className="organizer-participants__status-bar" aria-live="polite">
@@ -1577,8 +1736,11 @@ const OrganizerParticipantsPage = () => {
                       <th scope="col">Registration ID</th>
                       <th scope="col">Name</th>
                       <th scope="col">Email</th>
+                      <th scope="col">Phone</th>
                       <th scope="col">Role</th>
                       <th scope="col">Institution / Dept</th>
+                      <th scope="col">Accommodation</th>
+                      <th scope="col">Local Transport</th>
                       <th scope="col">Status</th>
                       <th scope="col">Registered At</th>
                     </tr>
@@ -1599,6 +1761,9 @@ const OrganizerParticipantsPage = () => {
                           <td className="organizer-participants__email-cell">
                             {participant.email || '—'}
                           </td>
+                          <td className="organizer-participants__phone-cell">
+                            {participant.phone || participant.mobileNumber || '—'}
+                          </td>
                           <td>
                             <span className={`organizer-participants__role-tag organizer-participants__role-tag--${String(participant.role || 'other').toLowerCase()}`}>
                               {getRoleLabel(participant.role)}
@@ -1609,6 +1774,34 @@ const OrganizerParticipantsPage = () => {
                             {participant.department && (
                               <small className="organizer-participants__dept-name">{participant.department}</small>
                             )}
+                          </td>
+                          <td>
+                            <span
+                              className={`organizer-participants__role-tag ${
+                                participant.accommodation_required || participant.accommodationRequired
+                                  ? 'organizer-participants__role-tag--faculty'
+                                  : 'organizer-participants__role-tag--other'
+                              }`}
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
+                              {participant.accommodation_required || participant.accommodationRequired
+                                ? 'Required'
+                                : 'Not Required'}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`organizer-participants__role-tag ${
+                                participant.local_transport_required || participant.localTransportRequired
+                                  ? 'organizer-participants__role-tag--student'
+                                  : 'organizer-participants__role-tag--other'
+                              }`}
+                              style={{ whiteSpace: 'nowrap' }}
+                            >
+                              {participant.local_transport_required || participant.localTransportRequired
+                                ? 'Required'
+                                : 'Not Required'}
+                            </span>
                           </td>
                           <td>
                             <span className="organizer-participants__status-tag">
@@ -1649,6 +1842,10 @@ const OrganizerParticipantsPage = () => {
                           <code className="organizer-participants__id-code">{participant.registrationId || '—'}</code>
                         </div>
                         <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Phone</span>
+                          <span className="organizer-participants__mobile-value">{participant.phone || participant.mobileNumber || '—'}</span>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
                           <span className="organizer-participants__mobile-label">Role</span>
                           <span className={`organizer-participants__role-tag organizer-participants__role-tag--${String(participant.role || 'other').toLowerCase()}`}>
                             {getRoleLabel(participant.role)}
@@ -1659,6 +1856,34 @@ const OrganizerParticipantsPage = () => {
                           <span className="organizer-participants__mobile-value">
                             {participant.instituteName || '—'}
                             {participant.department ? ` (${participant.department})` : ''}
+                          </span>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Accommodation</span>
+                          <span
+                            className={`organizer-participants__role-tag ${
+                              participant.accommodation_required || participant.accommodationRequired
+                                ? 'organizer-participants__role-tag--faculty'
+                                : 'organizer-participants__role-tag--other'
+                            }`}
+                          >
+                            {participant.accommodation_required || participant.accommodationRequired
+                              ? 'Required'
+                              : 'Not Required'}
+                          </span>
+                        </div>
+                        <div className="organizer-participants__mobile-meta-row">
+                          <span className="organizer-participants__mobile-label">Local Transport</span>
+                          <span
+                            className={`organizer-participants__role-tag ${
+                              participant.local_transport_required || participant.localTransportRequired
+                                ? 'organizer-participants__role-tag--student'
+                                : 'organizer-participants__role-tag--other'
+                            }`}
+                          >
+                            {participant.local_transport_required || participant.localTransportRequired
+                              ? 'Required'
+                              : 'Not Required'}
                           </span>
                         </div>
                         <div className="organizer-participants__mobile-meta-row">
@@ -5040,6 +5265,26 @@ const OrganizerHackathonPage = () => {
     error: '',
   })
 
+  // Hackathon Teams State
+  const [teams, setTeams] = useState([])
+  const [teamStats, setTeamStats] = useState({
+    totalTeams: 0,
+    totalMembers: 0,
+    problemSelectedCount: 0,
+    problemNotSelectedCount: 0,
+  })
+  const [loadingTeams, setLoadingTeams] = useState(true)
+  const [teamsError, setTeamsError] = useState('')
+  const [teamsSearch, setTeamsSearch] = useState('')
+  const [teamsFilter, setTeamsFilter] = useState('ALL') // 'ALL', 'SELECTED', 'NOT_SELECTED'
+  const [teamsProblemFilter, setTeamsProblemFilter] = useState('ALL')
+  const [isExportingTeams, setIsExportingTeams] = useState(false)
+  const [teamsExportError, setTeamsExportError] = useState('')
+  const [selectedTeamModal, setSelectedTeamModal] = useState({
+    isOpen: false,
+    team: null,
+  })
+
   // Escape key handler for accessible modal dismissal
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -5047,11 +5292,35 @@ const OrganizerHackathonPage = () => {
         if (modalOpen && !isSubmitting) setModalOpen(false)
         if (selectionsModal.isOpen) setSelectionsModal({ isOpen: false, problem: null, loading: false, data: null, error: '' })
         if (deleteModal.isOpen && !deleteModal.isDeleting) setDeleteModal({ isOpen: false, problem: null, isDeleting: false, error: '' })
+        if (selectedTeamModal.isOpen) setSelectedTeamModal({ isOpen: false, team: null })
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [modalOpen, isSubmitting, selectionsModal.isOpen, deleteModal.isOpen, deleteModal.isDeleting])
+  }, [modalOpen, isSubmitting, selectionsModal.isOpen, deleteModal.isOpen, deleteModal.isDeleting, selectedTeamModal.isOpen])
+
+  const loadTeams = useCallback(async (targetEventId) => {
+    const eventIdToUse = targetEventId !== undefined ? targetEventId : selectedEventId
+    setLoadingTeams(true)
+    setTeamsError('')
+    try {
+      const params = {}
+      if (eventIdToUse) params.eventId = eventIdToUse
+      const res = await api.organizerFetchHackathonTeams(params)
+      if (res.success) {
+        setTeams(res.data || [])
+        if (res.stats) {
+          setTeamStats(res.stats)
+        }
+      } else {
+        setTeamsError(res.error?.message || 'Unable to load hackathon teams.')
+      }
+    } catch (_err) {
+      setTeamsError('Unable to load hackathon teams.')
+    } finally {
+      setLoadingTeams(false)
+    }
+  }, [selectedEventId])
 
   const loadData = useCallback(async (targetEventId) => {
     const eventIdToUse = targetEventId !== undefined ? targetEventId : selectedEventId
@@ -5061,6 +5330,7 @@ const OrganizerHackathonPage = () => {
       const [statsRes, problemsRes] = await Promise.all([
         api.organizerFetchHackathonStats(eventIdToUse || null),
         api.organizerFetchProblemStatements(eventIdToUse || null),
+        loadTeams(eventIdToUse || null),
       ])
 
       if (statsRes.success) {
@@ -5481,6 +5751,78 @@ const OrganizerHackathonPage = () => {
   const clearFilters = () => {
     setSearchQuery('')
     setFilterTab('ALL')
+  }
+
+  const filteredTeams = useMemo(() => {
+    let list = teams
+
+    if (teamsFilter === 'SELECTED') {
+      list = list.filter((t) => t.problemStatement !== null)
+    } else if (teamsFilter === 'NOT_SELECTED') {
+      list = list.filter((t) => t.problemStatement === null)
+    }
+
+    if (teamsProblemFilter !== 'ALL') {
+      list = list.filter((t) => t.problemStatement?.id === teamsProblemFilter)
+    }
+
+    const q = teamsSearch.trim().toLowerCase()
+    if (q) {
+      list = list.filter((t) => {
+        const matchName = t.teamName && t.teamName.toLowerCase().includes(q)
+        const matchLeader =
+          t.teamLeader &&
+          ((t.teamLeader.name && t.teamLeader.name.toLowerCase().includes(q)) ||
+            (t.teamLeader.email && t.teamLeader.email.toLowerCase().includes(q)) ||
+            (t.teamLeader.registrationId && t.teamLeader.registrationId.toLowerCase().includes(q)))
+        const matchMember = (t.members || []).some(
+          (m) =>
+            (m.name && m.name.toLowerCase().includes(q)) ||
+            (m.fullName && m.fullName.toLowerCase().includes(q)) ||
+            (m.email && m.email.toLowerCase().includes(q)) ||
+            (m.registrationId && m.registrationId.toLowerCase().includes(q)),
+        )
+        const matchProblem =
+          t.problemStatement && t.problemStatement.title && t.problemStatement.title.toLowerCase().includes(q)
+
+        return matchName || matchLeader || matchMember || matchProblem
+      })
+    }
+
+    return list
+  }, [teams, teamsFilter, teamsProblemFilter, teamsSearch])
+
+  const handleExportTeams = async () => {
+    setIsExportingTeams(true)
+    setTeamsExportError('')
+    try {
+      const params = {}
+      if (selectedEventId) params.eventId = selectedEventId
+      if (teamsSearch.trim()) params.search = teamsSearch.trim()
+      if (teamsFilter === 'SELECTED') params.selectionStatus = 'selected'
+      if (teamsFilter === 'NOT_SELECTED') params.selectionStatus = 'not_selected'
+      if (teamsProblemFilter !== 'ALL') params.problemStatementId = teamsProblemFilter
+
+      const res = await api.organizerExportHackathonTeams(params)
+      if (!res.success) {
+        setTeamsExportError(res.error?.message || 'Unable to export hackathon teams.')
+        return
+      }
+
+      const { blob, filename } = res.data
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || 'Qiskit-Fall-Fest-2026-Hackathon-Teams.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setTeamsExportError(err.message || 'Unable to export hackathon teams.')
+    } finally {
+      setIsExportingTeams(false)
+    }
   }
 
   return (
@@ -6009,6 +6351,459 @@ const OrganizerHackathonPage = () => {
           </>
         )}
       </div>
+
+      {/* ========================================================================= */}
+      {/* 2. HACKATHON TEAMS SECTION                                                */}
+      {/* ========================================================================= */}
+      <div className="organizer-page-content-panel organizer-hackathon__panel organizer-hackathon-teams__section">
+        {/* Section Heading */}
+        <div className="organizer-hackathon-teams__header">
+          <div>
+            <h2 className="organizer-hackathon-teams__title">Hackathon Teams</h2>
+            <p className="organizer-hackathon-teams__subtitle">
+              View registered teams, members, and problem-statement selections.
+            </p>
+          </div>
+          <div className="organizer-hackathon-teams__header-actions">
+            <span className="organizer-hackathon__count-pill" aria-label={`Total teams: ${teams.length}`}>
+              {loadingTeams ? 'Loading…' : `${teams.length} ${teams.length === 1 ? 'team' : 'teams'}`}
+            </span>
+          </div>
+        </div>
+
+        {/* Teams Summary Strip */}
+        <div className="organizer-hackathon__summary-strip" aria-label="Hackathon teams summary">
+          <div className="organizer-hackathon__stat-card">
+            <span className="organizer-hackathon__stat-label">Total Teams</span>
+            <strong className="organizer-hackathon__stat-value">{teamStats.totalTeams || teams.length}</strong>
+          </div>
+          <div className="organizer-hackathon__stat-card">
+            <span className="organizer-hackathon__stat-label">Total Participants</span>
+            <strong className="organizer-hackathon__stat-value">{teamStats.totalMembers}</strong>
+          </div>
+          <div className="organizer-hackathon__stat-card">
+            <span className="organizer-hackathon__stat-label">Problem Selected</span>
+            <strong className="organizer-hackathon__stat-value" style={{ color: '#059669' }}>
+              {teamStats.problemSelectedCount}
+            </strong>
+          </div>
+          <div className="organizer-hackathon__stat-card">
+            <span className="organizer-hackathon__stat-label">Problem Not Selected</span>
+            <strong className="organizer-hackathon__stat-value" style={{ color: '#d97706' }}>
+              {teamStats.problemNotSelectedCount}
+            </strong>
+          </div>
+        </div>
+
+        {/* Teams Toolbar */}
+        <div className="organizer-hackathon__toolbar">
+          <div className="organizer-hackathon__search-box">
+            <label htmlFor="teams-search-input" className="visually-hidden">Search teams</label>
+            <div className="organizer-hackathon__search-wrap">
+              <svg className="organizer-hackathon__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                id="teams-search-input"
+                type="search"
+                value={teamsSearch}
+                onChange={(e) => setTeamsSearch(e.target.value)}
+                placeholder="Search by team, leader, member, email, ID..."
+                className="organizer-hackathon__search-input"
+              />
+              {teamsSearch && (
+                <button
+                  type="button"
+                  onClick={() => setTeamsSearch('')}
+                  className="organizer-hackathon__clear-search"
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="organizer-participants__filter-group">
+            <label htmlFor="teams-filter-status" className="organizer-participants__filter-label">Filter:</label>
+            <select
+              id="teams-filter-status"
+              value={teamsFilter}
+              onChange={(e) => setTeamsFilter(e.target.value)}
+              className="organizer-participants__role-select"
+            >
+              <option value="ALL">All Teams</option>
+              <option value="SELECTED">Problem Selected</option>
+              <option value="NOT_SELECTED">Problem Not Selected</option>
+            </select>
+          </div>
+
+          <div className="organizer-participants__filter-group">
+            <label htmlFor="teams-filter-problem" className="organizer-participants__filter-label">Problem:</label>
+            <select
+              id="teams-filter-problem"
+              value={teamsProblemFilter}
+              onChange={(e) => setTeamsProblemFilter(e.target.value)}
+              className="organizer-participants__role-select"
+              style={{ maxWidth: '200px' }}
+            >
+              <option value="ALL">All Problems</option>
+              {problems.map((p) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
+
+          {(teamsSearch || teamsFilter !== 'ALL' || teamsProblemFilter !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => {
+                setTeamsSearch('')
+                setTeamsFilter('ALL')
+                setTeamsProblemFilter('ALL')
+              }}
+              className="organizer-participants__reset-btn"
+            >
+              Clear filters
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleExportTeams}
+            disabled={isExportingTeams}
+            className="button button--secondary organizer-participants__export-btn"
+            title="Export hackathon teams to Excel"
+          >
+            {isExportingTeams ? (
+              <>
+                <span className="organizer-participants__btn-spinner" aria-hidden="true" />
+                <span>Exporting…</span>
+              </>
+            ) : (
+              <>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Export Excel</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {teamsExportError && (
+          <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert" style={{ marginBottom: '1rem' }}>
+            <div className="organizer-hackathon__alert-content">
+              <span>{teamsExportError}</span>
+            </div>
+            <button type="button" className="organizer-hackathon__alert-close" onClick={() => setTeamsExportError('')}>✕</button>
+          </div>
+        )}
+
+        {/* Teams Table or Empty State */}
+        {teamsError ? (
+          <div className="organizer-hackathon__alert organizer-hackathon__alert--error" role="alert">
+            <div className="organizer-hackathon__alert-content">
+              <strong>Unable to load hackathon teams.</strong>
+              <p>{teamsError}</p>
+            </div>
+            <button type="button" className="button button--secondary" onClick={() => loadTeams()}>
+              Retry
+            </button>
+          </div>
+        ) : loadingTeams ? (
+          <div className="organizer-hackathon__loading-wrap" aria-busy="true">
+            <span className="organizer-hackathon__spinner" aria-hidden="true" />
+            <p>Loading hackathon teams...</p>
+          </div>
+        ) : teams.length === 0 ? (
+          <div className="organizer-hackathon__empty-state">
+            <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+              👥
+            </div>
+            <h3 className="organizer-hackathon__empty-title">No hackathon teams registered yet.</h3>
+            <p className="organizer-hackathon__empty-desc">
+              Teams will appear here once attendees create or join teams for this hackathon.
+            </p>
+          </div>
+        ) : filteredTeams.length === 0 ? (
+          <div className="organizer-hackathon__empty-state">
+            <div className="organizer-hackathon__empty-icon" aria-hidden="true">
+              🔍
+            </div>
+            <h3 className="organizer-hackathon__empty-title">No hackathon teams match your search.</h3>
+            <p className="organizer-hackathon__empty-desc">
+              Try adjusting your search terms or clearing your filter selections.
+            </p>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => {
+                setTeamsSearch('')
+                setTeamsFilter('ALL')
+                setTeamsProblemFilter('ALL')
+              }}
+            >
+              Clear search and filters
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table View */}
+            <div className="organizer-hackathon__table-wrap organizer-hackathon-teams__table-wrap">
+              <table className="organizer-hackathon__table organizer-hackathon-teams__table" aria-label="Hackathon teams table">
+                <thead>
+                  <tr>
+                    <th scope="col">Team Name</th>
+                    <th scope="col">Team Leader</th>
+                    <th scope="col">Members</th>
+                    <th scope="col">Problem Statement</th>
+                    <th scope="col">Status / Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTeams.map((team) => {
+                    const hasProblem = Boolean(team.problemStatement)
+                    return (
+                      <tr
+                        key={team.teamId}
+                        className="organizer-hackathon-teams__row--clickable"
+                        tabIndex={0}
+                        onClick={() => setSelectedTeamModal({ isOpen: true, team })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedTeamModal({ isOpen: true, team })
+                          }
+                        }}
+                        aria-label={`View details for team ${team.teamName}`}
+                      >
+                        <td className="organizer-hackathon-teams__name-cell">
+                          <strong>{team.teamName}</strong>
+                        </td>
+                        <td>
+                          <div className="organizer-hackathon-teams__leader-cell">
+                            <span className="organizer-hackathon-teams__leader-name-text">{team.teamLeader?.name || '—'}</span>
+                            {team.teamLeader?.registrationId && (
+                              <small className="organizer-hackathon-teams__reg-id">
+                                {team.teamLeader.registrationId}
+                              </small>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="organizer-hackathon-teams__member-pill">
+                            👥 {team.memberCount} {team.memberCount === 1 ? 'Member' : 'Members'}
+                          </span>
+                        </td>
+                        <td>
+                          {hasProblem ? (
+                            <div className="organizer-hackathon-teams__problem-title" title={team.problemStatement.title}>
+                              {team.problemStatement.title}
+                            </div>
+                          ) : (
+                            <span className="organizer-hackathon-teams__problem-unselected">
+                              Problem Statement Not Selected Yet
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <span className="organizer-hackathon__status-tag organizer-hackathon__status-tag--active">
+                              <span className="organizer-hackathon__status-dot" aria-hidden="true" />
+                              Active
+                            </span>
+                            <span className="organizer-hackathon-teams__view-arrow">View Details →</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="organizer-hackathon-teams__mobile-list">
+              {filteredTeams.map((team) => {
+                const hasProblem = Boolean(team.problemStatement)
+                return (
+                  <article
+                    key={team.teamId}
+                    className="organizer-hackathon-teams__mobile-card"
+                    tabIndex={0}
+                    onClick={() => setSelectedTeamModal({ isOpen: true, team })}
+                  >
+                    <div className="organizer-hackathon-teams__mobile-header">
+                      <strong>{team.teamName}</strong>
+                      <span className="organizer-hackathon-teams__member-pill">
+                        👥 {team.memberCount}
+                      </span>
+                    </div>
+
+                    <div className="organizer-hackathon-teams__mobile-body">
+                      <div className="organizer-hackathon-teams__mobile-row">
+                        <span className="organizer-hackathon-teams__mobile-label">Leader:</span>
+                        <span>{team.teamLeader?.name || '—'}</span>
+                      </div>
+                      <div className="organizer-hackathon-teams__mobile-row">
+                        <span className="organizer-hackathon-teams__mobile-label">Problem:</span>
+                        {hasProblem ? (
+                          <span className="organizer-hackathon-teams__problem-title">{team.problemStatement.title}</span>
+                        ) : (
+                          <span className="organizer-hackathon-teams__problem-unselected">
+                            Problem Statement Not Selected Yet
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="organizer-hackathon-teams__mobile-footer">
+                      <span className="organizer-hackathon-teams__view-arrow">View Full Team Details →</span>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* TEAM DETAILS POPUP / MODAL */}
+      {selectedTeamModal.isOpen && selectedTeamModal.team && (
+        <div
+          className="organizer-hackathon__modal-backdrop"
+          onClick={() => setSelectedTeamModal({ isOpen: false, team: null })}
+          role="presentation"
+        >
+          <div
+            className="organizer-hackathon__modal-card organizer-hackathon-teams__modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="team-details-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="organizer-hackathon__modal-header">
+              <div>
+                <h3 id="team-details-modal-title" className="organizer-hackathon__modal-title">
+                  Team: {selectedTeamModal.team.teamName}
+                </h3>
+                <span className="organizer-hackathon-teams__modal-subtitle">
+                  {selectedTeamModal.team.memberCount} {selectedTeamModal.team.memberCount === 1 ? 'Registered Member' : 'Registered Members'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="organizer-hackathon__modal-close"
+                onClick={() => setSelectedTeamModal({ isOpen: false, team: null })}
+                aria-label="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body with internal scroll */}
+            <div className="organizer-hackathon__modal-body organizer-hackathon-teams__modal-body">
+              {/* Team Leader Box */}
+              <div className="organizer-hackathon-teams__leader-box">
+                <span className="organizer-hackathon-teams__section-title">Team Leader</span>
+                {selectedTeamModal.team.teamLeader ? (
+                  <div className="organizer-hackathon-teams__leader-card">
+                    <div className="organizer-hackathon-teams__leader-name">
+                      <strong>{selectedTeamModal.team.teamLeader.name}</strong>
+                      <span className="organizer-hackathon-teams__role-badge organizer-hackathon-teams__role-badge--lead">
+                        Team Leader
+                      </span>
+                    </div>
+                    {selectedTeamModal.team.teamLeader.email && (
+                      <div className="organizer-hackathon-teams__detail-line">
+                        Email: <span>{selectedTeamModal.team.teamLeader.email}</span>
+                      </div>
+                    )}
+                    {selectedTeamModal.team.teamLeader.registrationId && (
+                      <div className="organizer-hackathon-teams__detail-line">
+                        Registration ID: <code>{selectedTeamModal.team.teamLeader.registrationId}</code>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ color: '#7b6f93', fontStyle: 'italic' }}>No leader assigned</div>
+                )}
+              </div>
+
+              {/* Team Members List */}
+              <div className="organizer-hackathon-teams__members-box">
+                <span className="organizer-hackathon-teams__section-title">Team Members</span>
+                <div className="organizer-hackathon-teams__member-list">
+                  {(selectedTeamModal.team.members || []).map((m, idx) => (
+                    <div key={m.registrationId || idx} className="organizer-hackathon-teams__member-card">
+                      <div className="organizer-hackathon-teams__member-card-header">
+                        <span className="organizer-hackathon-teams__member-num">#{idx + 1}</span>
+                        <strong>{m.name || m.fullName || '—'}</strong>
+                        <span className={`organizer-hackathon-teams__role-badge ${m.isTeamLead ? 'organizer-hackathon-teams__role-badge--lead' : 'organizer-hackathon-teams__role-badge--member'}`}>
+                          {m.role || (m.isTeamLead ? 'Team Leader' : 'Member')}
+                        </span>
+                      </div>
+                      <div className="organizer-hackathon-teams__detail-line">
+                        Email: <span>{m.email || '—'}</span>
+                      </div>
+                      <div className="organizer-hackathon-teams__detail-line">
+                        Registration ID: <code>{m.registrationId || '—'}</code>
+                      </div>
+                      {m.instituteName && (
+                        <div className="organizer-hackathon-teams__detail-line">
+                          Institution: <span>{m.instituteName}{m.department ? ` (${m.department})` : ''}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Problem Statement Box */}
+              <div className="organizer-hackathon-teams__problem-box">
+                <span className="organizer-hackathon-teams__section-title">Problem Statement</span>
+                {selectedTeamModal.team.problemStatement ? (
+                  <div className="organizer-hackathon-teams__problem-detail-card">
+                    <h4 className="organizer-hackathon-teams__problem-detail-title">
+                      {selectedTeamModal.team.problemStatement.title}
+                    </h4>
+                    {selectedTeamModal.team.problemStatement.description && (
+                      <p className="organizer-hackathon-teams__problem-detail-desc">
+                        {selectedTeamModal.team.problemStatement.description}
+                      </p>
+                    )}
+                    {selectedTeamModal.team.problemStatement.selectedAt && (
+                      <small style={{ color: '#7b6f93', marginTop: '0.4rem', display: 'block' }}>
+                        Selected: {new Date(selectedTeamModal.team.problemStatement.selectedAt).toLocaleString()}
+                      </small>
+                    )}
+                  </div>
+                ) : (
+                  <div className="organizer-hackathon-teams__problem-unselected-box">
+                    <span>Problem Statement Not Selected Yet</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="organizer-hackathon__modal-footer">
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => setSelectedTeamModal({ isOpen: false, team: null })}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. CREATE / EDIT MODAL */}
       {modalOpen && (

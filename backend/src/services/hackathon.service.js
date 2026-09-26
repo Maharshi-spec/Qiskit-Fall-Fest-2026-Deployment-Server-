@@ -4,6 +4,8 @@ const { pool } = require('../config/database')
 const { publicApiUrl } = require('../config/env')
 const { AppError } = require('../middleware/error.middleware')
 const { saveFile, removeFile, uploadRoot } = require('../utils/file-storage')
+const ExcelJS = require('exceljs')
+const { getActiveEventProfile, runWithProfile } = require('../middleware/profile.middleware')
 
 const formatAttachment = (fileRow) => ({
   id: String(fileRow.id),
@@ -1071,6 +1073,395 @@ const getActiveHackathons = async () => {
   })
 }
 
+const getOrganizerTeams = async (query = {}, profileOverride) => {
+  const targetProfile = profileOverride || getActiveEventProfile() || 'post-qiskit'
+  return runWithProfile(targetProfile, async () => {
+    let sql = `
+      SELECT
+        t.id AS team_id,
+        t.event_id,
+        t.team_name,
+        t.team_lead_registration_id,
+        t.created_at,
+        t.updated_at,
+        hps.id AS problem_statement_id,
+        hps.title AS problem_title,
+        hps.description AS problem_description,
+        hpsel.selected_at
+      FROM teams t
+      LEFT JOIN hackathon_problem_selections hpsel ON hpsel.team_id = t.id AND hpsel.event_id = t.event_id
+      LEFT JOIN hackathon_problem_statements hps ON hps.id = hpsel.problem_statement_id
+    `
+    const params = []
+    if (query.eventId) {
+      params.push(query.eventId)
+      sql += ` WHERE t.event_id = $${params.length}`
+    }
+    sql += ` ORDER BY t.created_at DESC;`
+
+    const teamsRes = await pool.query(sql, params)
+    const teamRows = teamsRes.rows
+
+    if (teamRows.length === 0) {
+      return {
+        teams: [],
+        stats: {
+          totalTeams: 0,
+          totalMembers: 0,
+          problemSelectedCount: 0,
+          problemNotSelectedCount: 0,
+        },
+      }
+    }
+
+    const teamIds = teamRows.map((r) => r.team_id)
+
+    const membersRes = await pool.query(
+      `SELECT
+         tm.team_id,
+         tm.registration_id,
+         tm.joined_at,
+         r.full_name,
+         r.email,
+         r.mobile_number,
+         r.institute_name,
+         r.department
+       FROM team_members tm
+       JOIN registrations r ON r.registration_id = tm.registration_id
+       WHERE tm.team_id = ANY($1::bigint[])
+       ORDER BY tm.joined_at ASC;`,
+      [teamIds],
+    )
+
+    const membersByTeam = new Map()
+    membersRes.rows.forEach((m) => {
+      const tid = String(m.team_id)
+      if (!membersByTeam.has(tid)) {
+        membersByTeam.set(tid, [])
+      }
+      membersByTeam.get(tid).push(m)
+    })
+
+    const missingLeadRegIds = teamRows
+      .filter((t) => t.team_lead_registration_id)
+      .map((t) => t.team_lead_registration_id)
+      .filter((regId) => !membersRes.rows.some((m) => m.registration_id === regId))
+
+    let fallbackLeadMap = new Map()
+    if (missingLeadRegIds.length > 0) {
+      const fallbackRes = await pool.query(
+        `SELECT registration_id, full_name, email, mobile_number, institute_name, department
+         FROM registrations
+         WHERE registration_id = ANY($1::text[]);`,
+        [missingLeadRegIds],
+      )
+      fallbackRes.rows.forEach((r) => fallbackLeadMap.set(r.registration_id, r))
+    }
+
+    let teams = teamRows.map((row) => {
+      const tid = String(row.team_id)
+      const rawMembers = membersByTeam.get(tid) || []
+
+      let leadMember = rawMembers.find((m) => m.registration_id === row.team_lead_registration_id)
+      if (!leadMember && row.team_lead_registration_id && fallbackLeadMap.has(row.team_lead_registration_id)) {
+        leadMember = fallbackLeadMap.get(row.team_lead_registration_id)
+      }
+
+      const teamLeader = leadMember
+        ? {
+            name: leadMember.full_name || '',
+            fullName: leadMember.full_name || '',
+            email: leadMember.email || '',
+            registrationId: leadMember.registration_id,
+          }
+        : row.team_lead_registration_id
+        ? {
+            name: 'Team Leader',
+            fullName: 'Team Leader',
+            email: '',
+            registrationId: row.team_lead_registration_id,
+          }
+        : null
+
+      const members = rawMembers.map((m) => ({
+        name: m.full_name || '',
+        fullName: m.full_name || '',
+        email: m.email || '',
+        registrationId: m.registration_id,
+        mobileNumber: m.mobile_number || '',
+        instituteName: m.institute_name || '',
+        department: m.department || '',
+        role: m.registration_id === row.team_lead_registration_id ? 'Team Leader' : 'Member',
+        isTeamLead: m.registration_id === row.team_lead_registration_id,
+        isLead: m.registration_id === row.team_lead_registration_id,
+        joinedAt: m.joined_at,
+      }))
+
+      members.sort((a, b) => (b.isTeamLead ? 1 : 0) - (a.isTeamLead ? 1 : 0))
+
+      const problemStatement = row.problem_statement_id
+        ? {
+            id: String(row.problem_statement_id),
+            title: row.problem_title,
+            description: row.problem_description || '',
+            selectedAt: row.selected_at,
+          }
+        : null
+
+      return {
+        teamId: tid,
+        teamName: row.team_name,
+        eventId: row.event_id,
+        status: 'ACTIVE',
+        createdAt: row.created_at,
+        teamLeader,
+        memberCount: members.length,
+        members,
+        problemStatement,
+      }
+    })
+
+    const totalTeams = teams.length
+    const totalMembers = teams.reduce((acc, t) => acc + t.memberCount, 0)
+    const problemSelectedCount = teams.filter((t) => t.problemStatement !== null).length
+    const problemNotSelectedCount = teams.filter((t) => t.problemStatement === null).length
+
+    const psFilter = String(query.problemStatementId || '').trim()
+    if (psFilter && psFilter !== 'ALL' && psFilter !== 'all') {
+      teams = teams.filter((t) => t.problemStatement?.id === psFilter)
+    }
+
+    const statusFilter = String(query.selectionStatus || query.filter || '').trim().toLowerCase()
+    if (statusFilter === 'selected' || statusFilter === 'has_problem' || statusFilter === 'problem_selected') {
+      teams = teams.filter((t) => t.problemStatement !== null)
+    } else if (
+      statusFilter === 'not_selected' ||
+      statusFilter === 'unselected' ||
+      statusFilter === 'no_problem' ||
+      statusFilter === 'problem_not_selected'
+    ) {
+      teams = teams.filter((t) => t.problemStatement === null)
+    }
+
+    const searchTerm = String(query.search || query.q || '').trim().toLowerCase()
+    if (searchTerm) {
+      teams = teams.filter((t) => {
+        const matchesTeamName = t.teamName && t.teamName.toLowerCase().includes(searchTerm)
+        const matchesLeader =
+          t.teamLeader &&
+          ((t.teamLeader.name && t.teamLeader.name.toLowerCase().includes(searchTerm)) ||
+            (t.teamLeader.email && t.teamLeader.email.toLowerCase().includes(searchTerm)) ||
+            (t.teamLeader.registrationId && t.teamLeader.registrationId.toLowerCase().includes(searchTerm)))
+        const matchesMember = t.members.some(
+          (m) =>
+            (m.name && m.name.toLowerCase().includes(searchTerm)) ||
+            (m.email && m.email.toLowerCase().includes(searchTerm)) ||
+            (m.registrationId && m.registrationId.toLowerCase().includes(searchTerm)),
+        )
+        const matchesProblem =
+          t.problemStatement && t.problemStatement.title && t.problemStatement.title.toLowerCase().includes(searchTerm)
+
+        return matchesTeamName || matchesLeader || matchesMember || matchesProblem
+      })
+    }
+
+    return {
+      teams,
+      stats: {
+        totalTeams,
+        totalMembers,
+        problemSelectedCount,
+        problemNotSelectedCount,
+      },
+    }
+  })
+}
+
+const exportHackathonTeamsToExcel = async (query = {}, profileOverride) => {
+  const targetProfile = profileOverride || getActiveEventProfile() || 'post-qiskit'
+  return runWithProfile(targetProfile, async () => {
+    const result = await getOrganizerTeams(query, targetProfile)
+    const teams = result.teams || []
+
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = 'Qiskit Fall Fest 2026 Organizer Portal'
+    workbook.created = new Date()
+
+    // ----------------------------------------------------
+    // Worksheet 1: Hackathon Teams
+    // ----------------------------------------------------
+    const teamsSheet = workbook.addWorksheet('Hackathon Teams', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    })
+
+    teamsSheet.columns = [
+      { header: 'Team Name', key: 'teamName', width: 28 },
+      { header: 'Team Leader', key: 'teamLeader', width: 26 },
+      { header: 'Team Leader Registration ID', key: 'leaderRegId', width: 28 },
+      { header: 'Team Leader Email', key: 'leaderEmail', width: 32 },
+      { header: 'Problem Statement', key: 'problemStatement', width: 40 },
+      { header: 'Member Count', key: 'memberCount', width: 16 },
+      { header: 'Members', key: 'membersList', width: 45 },
+    ]
+
+    teamsSheet.autoFilter = 'A1:G1'
+
+    const headerRow1 = teamsSheet.getRow(1)
+    headerRow1.height = 28
+    headerRow1.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF3D2F59' },
+      }
+      cell.font = {
+        name: 'Calibri',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: false,
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF5A4579' } },
+        left: { style: 'thin', color: { argb: 'FF5A4579' } },
+        bottom: { style: 'medium', color: { argb: 'FF2A1F3D' } },
+        right: { style: 'thin', color: { argb: 'FF5A4579' } },
+      }
+    })
+
+    teams.forEach((t) => {
+      const leaderName = t.teamLeader?.name || '—'
+      const leaderEmail = t.teamLeader?.email || '—'
+      const leaderRegId = t.teamLeader?.registrationId || '—'
+      const problemTitle = t.problemStatement?.title || 'Problem Statement Not Selected Yet'
+      const memberNames = (t.members || []).map((m) => m.fullName || m.name).join(', ')
+
+      const row = teamsSheet.addRow({
+        teamName: t.teamName || '',
+        teamLeader: leaderName,
+        leaderRegId: leaderRegId,
+        leaderEmail: leaderEmail,
+        problemStatement: problemTitle,
+        memberCount: Number(t.memberCount || 0),
+        membersList: memberNames,
+      })
+
+      row.height = 22
+
+      row.eachCell((cell, colNumber) => {
+        cell.font = { name: 'Calibri', size: 10 }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          left: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          right: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+        }
+        cell.alignment = { vertical: 'middle', horizontal: 'left' }
+
+        if (colNumber === 3) {
+          cell.numFmt = '@'
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        }
+        if (colNumber === 4) {
+          cell.numFmt = '@'
+        }
+        if (colNumber === 6) {
+          cell.numFmt = '#,##0'
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        }
+      })
+    })
+
+    // ----------------------------------------------------
+    // Worksheet 2: Team Members
+    // ----------------------------------------------------
+    const membersSheet = workbook.addWorksheet('Team Members', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    })
+
+    membersSheet.columns = [
+      { header: 'Team Name', key: 'teamName', width: 28 },
+      { header: 'Member Name', key: 'memberName', width: 26 },
+      { header: 'Registration ID', key: 'registrationId', width: 24 },
+      { header: 'Email', key: 'email', width: 32 },
+      { header: 'Role', key: 'role', width: 18 },
+      { header: 'Is Team Leader', key: 'isTeamLeader', width: 16 },
+    ]
+
+    membersSheet.autoFilter = 'A1:F1'
+
+    const headerRow2 = membersSheet.getRow(1)
+    headerRow2.height = 28
+    headerRow2.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF3D2F59' },
+      }
+      cell.font = {
+        name: 'Calibri',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: false,
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF5A4579' } },
+        left: { style: 'thin', color: { argb: 'FF5A4579' } },
+        bottom: { style: 'medium', color: { argb: 'FF2A1F3D' } },
+        right: { style: 'thin', color: { argb: 'FF5A4579' } },
+      }
+    })
+
+    teams.forEach((t) => {
+      (t.members || []).forEach((m) => {
+        const row = membersSheet.addRow({
+          teamName: t.teamName || '',
+          memberName: m.fullName || m.name || '',
+          registrationId: m.registrationId || '',
+          email: m.email || '',
+          role: m.role || (m.isTeamLead ? 'Team Leader' : 'Member'),
+          isTeamLeader: m.isTeamLead ? 'Yes' : 'No',
+        })
+
+        row.height = 20
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: 'Calibri', size: 10 }
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+            left: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+            bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+            right: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          }
+          cell.alignment = { vertical: 'middle', horizontal: 'left' }
+
+          if (colNumber === 3) {
+            cell.numFmt = '@'
+            cell.alignment = { vertical: 'middle', horizontal: 'center' }
+          }
+          if (colNumber === 4) {
+            cell.numFmt = '@'
+          }
+          if (colNumber === 6) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' }
+          }
+        })
+      })
+    })
+
+    return await workbook.xlsx.writeBuffer()
+  })
+}
+
 module.exports = {
   getHackathonInfo,
   getMyTeam,
@@ -1089,5 +1480,7 @@ module.exports = {
   selectProblemForTeam,
   selectProblemStatement,
   getActiveHackathons,
+  getOrganizerTeams,
+  exportHackathonTeamsToExcel,
 }
 

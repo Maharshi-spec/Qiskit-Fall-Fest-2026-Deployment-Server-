@@ -47,6 +47,8 @@ const eventsSchemaUpdateMigration = '017_update_events_schema.sql'
 const postQiskitRegistrationOpenMigration = '018_add_registration_open_to_post_qiskit_config.sql'
 const postQiskitScheduleUpdateMigration = '019_update_post_qiskit_schedule.sql'
 const postQiskitSingletonMigration = '020_enforce_singleton_post_qiskit_config.sql'
+const accommodationAndTransportMigration = '021_add_accommodation_and_transport.sql'
+
 
 const getMissingTables = async (client, tables) => {
   const result = await client.query(
@@ -105,6 +107,7 @@ const initializeDatabase = async () => {
       updates.push(postQiskitRegistrationOpenMigration)
       updates.push(postQiskitScheduleUpdateMigration)
       updates.push(postQiskitSingletonMigration)
+      updates.push(accommodationAndTransportMigration)
       filesToApply = updates
     }
 

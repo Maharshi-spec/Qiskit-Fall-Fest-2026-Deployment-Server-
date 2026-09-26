@@ -2089,6 +2089,36 @@ a:focus-visible {
   background: rgba(255, 79, 163, 0.05);
 }
 
+.organizer-participants__export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  height: 2.35rem;
+  padding: 0 0.95rem;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.organizer-participants__btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(120, 89, 202, 0.25);
+  border-top-color: #7859ca;
+  border-radius: 50%;
+  animation: organizerExportSpin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes organizerExportSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* STATUS / COUNT BAR */
 .organizer-participants__status-bar {
   font-size: 0.82rem;
@@ -2169,6 +2199,11 @@ a:focus-visible {
 
 .organizer-participants__email-cell {
   color: #5e5276;
+}
+
+.organizer-participants__phone-cell {
+  color: #5e5276;
+  white-space: nowrap;
 }
 
 .organizer-participants__role-tag {
@@ -13529,5 +13564,505 @@ a:focus-visible {
   }
 }
 
+/* ==========================================================================
+   ORGANIZER HACKATHON TEAMS SECTION & MODAL
+   ========================================================================== */
 
+.organizer-hackathon-teams__section {
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(120, 89, 202, 0.14);
+}
 
+.organizer-hackathon-teams__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.organizer-hackathon-teams__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #231738;
+  letter-spacing: -0.02em;
+}
+
+.organizer-hackathon-teams__subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #6e6184;
+}
+
+.organizer-hackathon-teams__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.organizer-hackathon-teams__export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 89, 202, 0.22);
+  background: #ffffff;
+  color: #3d2f59;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(45, 37, 63, 0.05);
+  transition: all 0.15s ease;
+}
+
+.organizer-hackathon-teams__export-btn:hover:not(:disabled) {
+  background: #f6f3fb;
+  border-color: #7859ca;
+  color: #1f1435;
+  transform: translateY(-1px);
+}
+
+.organizer-hackathon-teams__export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.organizer-hackathon-teams__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+
+.organizer-hackathon-teams__stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(120, 89, 202, 0.16);
+  font-size: 0.82rem;
+  color: #523e80;
+  font-weight: 600;
+}
+
+.organizer-hackathon-teams__stat-pill strong {
+  font-weight: 800;
+  color: #231738;
+}
+
+.organizer-hackathon-teams__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.organizer-hackathon-teams__search-wrap {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+.organizer-hackathon-teams__search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #8f82a7;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.organizer-hackathon-teams__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 2rem 0.55rem 2.2rem;
+  border: 1px solid rgba(120, 89, 202, 0.2);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: #ffffff;
+  color: #231738;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.organizer-hackathon-teams__search-input:focus {
+  border-color: #7859ca;
+  box-shadow: 0 0 0 3px rgba(120, 89, 202, 0.12);
+}
+
+.organizer-hackathon-teams__search-clear {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #8f82a7;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+}
+
+.organizer-hackathon-teams__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.organizer-hackathon-teams__filter-select {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgba(120, 89, 202, 0.2);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: #ffffff;
+  color: #2d253f;
+  outline: none;
+  cursor: pointer;
+}
+
+.organizer-hackathon-teams__filter-select:focus {
+  border-color: #7859ca;
+}
+
+.organizer-hackathon-teams__table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(120, 89, 202, 0.12);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(35, 23, 56, 0.03);
+}
+
+.organizer-hackathon-teams__table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.organizer-hackathon-teams__table thead tr {
+  background: #f8f6fc;
+  border-bottom: 1px solid rgba(120, 89, 202, 0.12);
+}
+
+.organizer-hackathon-teams__table th {
+  padding: 0.85rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6e6184;
+  white-space: nowrap;
+}
+
+.organizer-hackathon-teams__table tbody tr {
+  border-bottom: 1px solid rgba(120, 89, 202, 0.08);
+  transition: background-color 0.12s ease;
+}
+
+.organizer-hackathon-teams__table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.organizer-hackathon-teams__row--clickable {
+  cursor: pointer;
+}
+
+.organizer-hackathon-teams__row--clickable:hover {
+  background-color: rgba(120, 89, 202, 0.05);
+}
+
+.organizer-hackathon-teams__table td {
+  padding: 0.85rem 1rem;
+  color: #2d253f;
+  vertical-align: middle;
+}
+
+.organizer-hackathon-teams__team-name {
+  font-weight: 700;
+  color: #231738;
+}
+
+.organizer-hackathon-teams__member-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(120, 89, 202, 0.09);
+  color: #4b3482;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.organizer-hackathon-teams__problem-title {
+  color: #1f1435;
+  font-weight: 600;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organizer-hackathon-teams__problem-unselected {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: #8f82a7;
+}
+
+.organizer-hackathon-teams__leader-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.organizer-hackathon-teams__reg-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: #7b7092;
+}
+
+.organizer-hackathon-teams__view-arrow {
+  color: #7859ca;
+  font-size: 1.1rem;
+  opacity: 0.6;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.organizer-hackathon-teams__row--clickable:hover .organizer-hackathon-teams__view-arrow {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.organizer-hackathon-teams__empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: #6e6184;
+  font-size: 0.95rem;
+}
+
+/* MOBILE CARDS */
+.organizer-hackathon-teams__mobile-list {
+  display: none;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.organizer-hackathon-teams__mobile-card {
+  padding: 1rem;
+  background: #ffffff;
+  border: 1px solid rgba(120, 89, 202, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(35, 23, 56, 0.04);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.organizer-hackathon-teams__mobile-card:hover {
+  border-color: #7859ca;
+  transform: translateY(-1px);
+}
+
+.organizer-hackathon-teams__mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.organizer-hackathon-teams__mobile-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #4b3d68;
+}
+
+@media (max-width: 768px) {
+  .organizer-hackathon-teams__table-wrap {
+    display: none;
+  }
+  .organizer-hackathon-teams__mobile-list {
+    display: flex;
+  }
+}
+
+/* MODAL STYLES */
+.organizer-hackathon-teams__modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(18, 12, 30, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+}
+
+.organizer-hackathon-teams__modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 45px rgba(22, 12, 40, 0.22);
+  overflow: hidden;
+  animation: modalPop 0.18s ease-out;
+}
+
+@keyframes modalPop {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.organizer-hackathon-teams__modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(120, 89, 202, 0.12);
+  background: #fbf9fd;
+}
+
+.organizer-hackathon-teams__modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #231738;
+}
+
+.organizer-hackathon-teams__modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #6e6184;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.organizer-hackathon-teams__modal-close:hover {
+  color: #231738;
+}
+
+.organizer-hackathon-teams__modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.organizer-hackathon-teams__modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.organizer-hackathon-teams__modal-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7b7092;
+}
+
+.organizer-hackathon-teams__leader-box {
+  background: #fbf9fd;
+  border: 1px solid rgba(120, 89, 202, 0.14);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.organizer-hackathon-teams__members-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.organizer-hackathon-teams__member-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #fbf9fd;
+  border: 1px solid rgba(120, 89, 202, 0.12);
+  border-radius: 10px;
+}
+
+.organizer-hackathon-teams__member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.organizer-hackathon-teams__member-info strong {
+  color: #231738;
+  font-size: 0.92rem;
+}
+
+.organizer-hackathon-teams__member-info span {
+  font-size: 0.8rem;
+  color: #6e6184;
+  word-break: break-all;
+}
+
+.organizer-hackathon-teams__role-badge {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.organizer-hackathon-teams__role-badge--lead {
+  background: rgba(255, 79, 163, 0.12);
+  color: #d1186e;
+  border: 1px solid rgba(255, 79, 163, 0.3);
+}
+
+.organizer-hackathon-teams__role-badge--member {
+  background: rgba(120, 89, 202, 0.1);
+  color: #5b4299;
+  border: 1px solid rgba(120, 89, 202, 0.2);
+}
+
+.organizer-hackathon-teams__modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(120, 89, 202, 0.12);
+  background: #fbf9fd;
+}

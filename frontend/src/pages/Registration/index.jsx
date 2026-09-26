@@ -47,6 +47,8 @@ const Registration = () => {
     aicteQuantumCourse: false,
     knowsQuantumBasics: false,
     usedQiskitBefore: false,
+    accommodationRequired: false,
+    localTransportRequired: false,
   })
 
   const [idCard, setIdCard] = useState(null)
@@ -132,6 +134,8 @@ const Registration = () => {
       Object.entries(formData).forEach(([key, val]) => {
         payload.append(key, String(val))
       })
+      payload.append('accommodation_required', String(formData.accommodationRequired))
+      payload.append('local_transport_required', String(formData.localTransportRequired))
       payload.append('idCard', idCard)
 
       const result = await api.submitRegistration(payload)
@@ -224,6 +228,14 @@ const Registration = () => {
               <div className="detail-info-item">
                 <span>Status</span>
                 <strong>{activeRegistration.status || 'Confirmed'}</strong>
+              </div>
+              <div className="detail-info-item">
+                <span>Accommodation</span>
+                <strong>{activeRegistration.accommodationRequired || activeRegistration.accommodation_required ? 'Required' : 'Not Required'}</strong>
+              </div>
+              <div className="detail-info-item">
+                <span>Local Transport</span>
+                <strong>{activeRegistration.localTransportRequired || activeRegistration.local_transport_required ? 'Required' : 'Not Required'}</strong>
               </div>
               {activeRegistration.idCardUrl && (
                 <div className="detail-info-item">
@@ -382,6 +394,61 @@ const Registration = () => {
                 />
                 {errors.department && <span className="field-error">{errors.department}</span>}
               </label>
+
+              <div className="detail-form__field">
+                <span className="detail-form__field-label">Do you require accommodation?</span>
+                <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+                  <label className="checkbox-label" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="accommodationRequired"
+                      checked={formData.accommodationRequired === true}
+                      onChange={() => setFormData((prev) => ({ ...prev, accommodationRequired: true }))}
+                      disabled={isLoading}
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="checkbox-label" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="accommodationRequired"
+                      checked={formData.accommodationRequired === false}
+                      onChange={() => setFormData((prev) => ({ ...prev, accommodationRequired: false }))}
+                      disabled={isLoading}
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="detail-form__field">
+                <span className="detail-form__field-label">Do you require local transport?</span>
+                <span className="detail-form__hint" style={{ marginTop: '0.1rem', marginBottom: '0.25rem', color: '#6e6284', fontSize: '0.85rem' }}>
+                  Local transport is provided only between VZM and CUTMAP (VZM ↔ CUTMAP).
+                </span>
+                <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
+                  <label className="checkbox-label" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="localTransportRequired"
+                      checked={formData.localTransportRequired === true}
+                      onChange={() => setFormData((prev) => ({ ...prev, localTransportRequired: true }))}
+                      disabled={isLoading}
+                    />
+                    <span>Yes</span>
+                  </label>
+                  <label className="checkbox-label" style={{ cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="localTransportRequired"
+                      checked={formData.localTransportRequired === false}
+                      onChange={() => setFormData((prev) => ({ ...prev, localTransportRequired: false }))}
+                      disabled={isLoading}
+                    />
+                    <span>No</span>
+                  </label>
+                </div>
+              </div>
 
               <fieldset className="detail-form__fieldset">
                 <legend>Background & Experience</legend>

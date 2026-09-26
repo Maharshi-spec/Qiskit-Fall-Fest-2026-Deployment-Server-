@@ -220,9 +220,16 @@ export const api = {
     }
   },
 
-  async organizerFetchParticipants() {
+  async organizerFetchParticipants(queryParams = {}) {
     try {
-      const response = await profileFetch(resolveApiUrl('/api/v1/admin/participants'), {
+      const searchParams = new URLSearchParams()
+      Object.entries(queryParams).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          searchParams.append(k, v)
+        }
+      })
+      const queryString = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/admin/participants${queryString}`), {
         headers: {
           Authorization: `Bearer ${readOrganizerToken()}`,
           ...buildJsonHeaders(),
@@ -247,6 +254,143 @@ export const api = {
       return {
         success: false,
         error: { code: 'NETWORK_ERROR', message: 'Unable to load participant records.' },
+      }
+    }
+  },
+
+  async organizerExportParticipants(queryParams = {}) {
+    try {
+      const searchParams = new URLSearchParams()
+      Object.entries(queryParams).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          searchParams.append(k, v)
+        }
+      })
+      const queryString = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/admin/participants/export${queryString}`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...getProfileHeader(),
+        },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        let errMsg = 'Unable to export participant records.'
+        try {
+          const errData = await response.json()
+          if (errData?.error?.message) errMsg = errData.error.message
+        } catch (_e) {}
+        return {
+          success: false,
+          error: { code: 'EXPORT_FAILED', message: errMsg },
+        }
+      }
+
+      const blob = await response.blob()
+      const contentDisposition = response.headers.get('content-disposition') || ''
+      let filename = 'Qiskit-Fall-Fest-2026-Participants.xlsx'
+      const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/)
+      if (match && match[1]) {
+        filename = match[1]
+      }
+
+      return {
+        success: true,
+        data: { blob, filename },
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: { code: 'NETWORK_ERROR', message: 'Unable to export participant records.' },
+      }
+    }
+  },
+
+  async organizerFetchHackathonTeams(queryParams = {}) {
+    try {
+      const searchParams = new URLSearchParams()
+      Object.entries(queryParams).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          searchParams.append(k, v)
+        }
+      })
+      const queryString = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/admin/hackathon/teams${queryString}`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...buildJsonHeaders(),
+        },
+        credentials: 'include',
+      })
+
+      const data = await parseApiResponse(response)
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data?.error || { code: 'REQUEST_FAILED', message: 'Unable to load hackathon teams.' },
+        }
+      }
+
+      return {
+        success: true,
+        data: data?.teams || [],
+        stats: data?.stats || null,
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: { code: 'NETWORK_ERROR', message: 'Unable to load hackathon teams.' },
+      }
+    }
+  },
+
+  async organizerExportHackathonTeams(queryParams = {}) {
+    try {
+      const searchParams = new URLSearchParams()
+      Object.entries(queryParams).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          searchParams.append(k, v)
+        }
+      })
+      const queryString = searchParams.toString() ? `?${searchParams.toString()}` : ''
+      const response = await profileFetch(resolveApiUrl(`/api/v1/admin/hackathon/teams/export${queryString}`), {
+        headers: {
+          Authorization: `Bearer ${readOrganizerToken()}`,
+          ...getProfileHeader(),
+        },
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        let errMsg = 'Unable to export hackathon teams.'
+        try {
+          const errData = await response.json()
+          if (errData?.error?.message) errMsg = errData.error.message
+        } catch (_e) {}
+        return {
+          success: false,
+          error: { code: 'EXPORT_FAILED', message: errMsg },
+        }
+      }
+
+      const blob = await response.blob()
+      const contentDisposition = response.headers.get('content-disposition') || ''
+      let filename = 'Qiskit-Fall-Fest-2026-Hackathon-Teams.xlsx'
+      const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/)
+      if (match && match[1]) {
+        filename = match[1]
+      }
+
+      return {
+        success: true,
+        data: { blob, filename },
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: { code: 'NETWORK_ERROR', message: 'Unable to export hackathon teams.' },
       }
     }
   },

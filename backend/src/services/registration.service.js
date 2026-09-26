@@ -7,6 +7,8 @@ const { AppError } = require('../middleware/error.middleware')
 const { pool } = require('../config/database')
 const reminderService = require('./reminder.service')
 const { saveFile } = require('../utils/file-storage')
+const ExcelJS = require('exceljs')
+const { getActiveEventProfile, runWithProfile } = require('../middleware/profile.middleware')
 
 const VALID_ROLES = new Set(['STUDENT', 'FACULTY', 'PROFESSIONAL', 'OTHER'])
 const BOOLEAN_FIELDS = new Set(['knowsPython', 'aicteQuantumCourse', 'knowsQuantumBasics', 'usedQiskitBefore'])
@@ -32,9 +34,11 @@ const registrationRepository = {
     try {
       const result = await pool.query(
         `SELECT registration_id AS "registrationId", status, full_name AS "fullName",
-          email, mobile_number AS "mobileNumber", role, institute_name AS "instituteName",
+          email, mobile_number AS "mobileNumber", mobile_number AS "phone", role, institute_name AS "instituteName",
           department, knows_python AS "knowsPython", aicte_quantum_course AS "aicteQuantumCourse",
           knows_quantum_basics AS "knowsQuantumBasics", used_qiskit_before AS "usedQiskitBefore",
+          accommodation_required AS "accommodationRequired", local_transport_required AS "localTransportRequired",
+          accommodation_required AS "accommodation_required", local_transport_required AS "local_transport_required",
           id_card_url AS "idCardUrl", created_at AS "createdAt"
         FROM registrations WHERE email = $1 LIMIT 1`,
         [normalizedEmail],
@@ -53,9 +57,11 @@ const registrationRepository = {
     try {
       const result = await pool.query(
         `SELECT registration_id AS "registrationId", status, full_name AS "fullName",
-          email, mobile_number AS "mobileNumber", role, institute_name AS "instituteName",
+          email, mobile_number AS "mobileNumber", mobile_number AS "phone", role, institute_name AS "instituteName",
           department, knows_python AS "knowsPython", aicte_quantum_course AS "aicteQuantumCourse",
           knows_quantum_basics AS "knowsQuantumBasics", used_qiskit_before AS "usedQiskitBefore",
+          accommodation_required AS "accommodationRequired", local_transport_required AS "localTransportRequired",
+          accommodation_required AS "accommodation_required", local_transport_required AS "local_transport_required",
           id_card_url AS "idCardUrl", created_at AS "createdAt"
         FROM registrations WHERE email = $1 AND registration_id = $2 LIMIT 1`,
         [normalizedEmail, normalizedId],
@@ -73,9 +79,11 @@ const registrationRepository = {
     try {
       const result = await pool.query(
         `SELECT registration_id AS "registrationId", status, full_name AS "fullName",
-          email, mobile_number AS "mobileNumber", role, institute_name AS "instituteName",
+          email, mobile_number AS "mobileNumber", mobile_number AS "phone", role, institute_name AS "instituteName",
           department, knows_python AS "knowsPython", aicte_quantum_course AS "aicteQuantumCourse",
           knows_quantum_basics AS "knowsQuantumBasics", used_qiskit_before AS "usedQiskitBefore",
+          accommodation_required AS "accommodationRequired", local_transport_required AS "localTransportRequired",
+          accommodation_required AS "accommodation_required", local_transport_required AS "local_transport_required",
           id_card_url AS "idCardUrl", created_at AS "createdAt"
         FROM registrations WHERE registration_id = $1 LIMIT 1`,
         [normalizedId],
@@ -94,14 +102,17 @@ const registrationRepository = {
     const role = String(record.role || '').trim().toUpperCase()
     const instituteName = String(record.instituteName || '').trim()
     const department = String(record.department || '').trim()
+    const accommodationRequired = Boolean(record.accommodationRequired ?? record.accommodation_required ?? false)
+    const localTransportRequired = Boolean(record.localTransportRequired ?? record.local_transport_required ?? false)
 
     try {
       const result = await pool.query(
         `INSERT INTO registrations (
           registration_id, full_name, email, mobile_number, role, institute_name, department,
           knows_python, aicte_quantum_course, knows_quantum_basics, used_qiskit_before,
+          accommodation_required, local_transport_required,
           id_card_url, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
         RETURNING registration_id AS "registrationId", status`,
         [
           record.registrationId,
@@ -115,6 +126,8 @@ const registrationRepository = {
           Boolean(record.aicteQuantumCourse),
           Boolean(record.knowsQuantumBasics),
           Boolean(record.usedQiskitBefore),
+          accommodationRequired,
+          localTransportRequired,
           idCardUrl,
           record.status || 'CONFIRMED',
         ],
@@ -145,9 +158,11 @@ const registrationRepository = {
   async findAll() {
     const result = await pool.query(
       `SELECT registration_id AS "registrationId", status, full_name AS "fullName",
-        email, mobile_number AS "mobileNumber", role, institute_name AS "instituteName",
+        email, mobile_number AS "mobileNumber", mobile_number AS "phone", role, institute_name AS "instituteName",
         department, knows_python AS "knowsPython", aicte_quantum_course AS "aicteQuantumCourse",
         knows_quantum_basics AS "knowsQuantumBasics", used_qiskit_before AS "usedQiskitBefore",
+        accommodation_required AS "accommodationRequired", local_transport_required AS "localTransportRequired",
+        accommodation_required AS "accommodation_required", local_transport_required AS "local_transport_required",
         id_card_url AS "idCardUrl", created_at AS "createdAt"
       FROM registrations ORDER BY created_at DESC`,
     )
@@ -905,6 +920,15 @@ const validateRegistrationPayload = (payload) => {
     }
   }
 
+  const optionalBooleanFields = ['accommodation_required', 'accommodationRequired', 'local_transport_required', 'localTransportRequired']
+  for (const fieldName of optionalBooleanFields) {
+    if (payload[fieldName] !== undefined && payload[fieldName] !== null && String(payload[fieldName]).trim() !== '') {
+      if (!isBooleanLikeText(payload[fieldName])) {
+        throw new AppError(400, 'VALIDATION_ERROR', `${fieldName} must be a boolean.`)
+      }
+    }
+  }
+
   if (!payload.idCard && !payload.file) {
     throw new AppError(400, 'VALIDATION_ERROR', 'idCard is required.')
   }
@@ -945,6 +969,20 @@ const registerUser = async (payload = {}, file) => {
   const idCardUrl = await uploadIdCard(file)
   const generatedId = await generateRegistrationId()
 
+  const accommodationVal = requestPayload.accommodation_required !== undefined
+    ? requestPayload.accommodation_required
+    : requestPayload.accommodationRequired
+  const localTransportVal = requestPayload.local_transport_required !== undefined
+    ? requestPayload.local_transport_required
+    : requestPayload.localTransportRequired
+
+  const accommodationRequired = accommodationVal !== undefined && accommodationVal !== null && String(accommodationVal).trim() !== ''
+    ? normalizeBooleanField(accommodationVal)
+    : false
+  const localTransportRequired = localTransportVal !== undefined && localTransportVal !== null && String(localTransportVal).trim() !== ''
+    ? normalizeBooleanField(localTransportVal)
+    : false
+
   const registration = {
     id: generatedId.id,
     registrationId: generatedId.registrationId,
@@ -959,6 +997,10 @@ const registerUser = async (payload = {}, file) => {
     aicteQuantumCourse: normalizeBooleanField(requestPayload.aicteQuantumCourse),
     knowsQuantumBasics: normalizeBooleanField(requestPayload.knowsQuantumBasics),
     usedQiskitBefore: normalizeBooleanField(requestPayload.usedQiskitBefore),
+    accommodation_required: accommodationRequired,
+    local_transport_required: localTransportRequired,
+    accommodationRequired,
+    localTransportRequired,
     idCardUrl,
     createdAt: new Date().toISOString(),
   }
@@ -1429,27 +1471,219 @@ const getAdminRegistrations = async () => ({
   data: await registrationRepository.findAll(),
 })
 
-const getAdminParticipants = async () => {
+const getAdminParticipants = async (query = {}) => {
   const registrations = await registrationRepository.findAll()
   const attendanceByRegistrationId = Object.fromEntries(
     (await getAttendanceRecords()).map((record) => [record.registrationId, record.status || 'NOT_MARKED']),
   )
 
-  return {
-    success: true,
-    data: registrations.map((registration) => ({
+  let list = registrations.map((registration) => {
+    const accReq = Boolean(registration.accommodationRequired ?? registration.accommodation_required ?? false)
+    const transReq = Boolean(registration.localTransportRequired ?? registration.local_transport_required ?? false)
+    const phoneVal = registration.phone || registration.mobileNumber || ''
+    return {
       registrationId: registration.registrationId,
       fullName: registration.fullName,
       email: registration.email,
-      mobileNumber: registration.mobileNumber,
+      phone: phoneVal,
+      mobileNumber: registration.mobileNumber || phoneVal,
       role: registration.role,
       instituteName: registration.instituteName,
       department: registration.department,
       status: registration.status,
       attendanceStatus: attendanceByRegistrationId[registration.registrationId] || 'NOT_MARKED',
+      accommodation_required: accReq,
+      local_transport_required: transReq,
+      accommodationRequired: accReq,
+      localTransportRequired: transReq,
       createdAt: registration.createdAt,
-    })),
+    }
+  })
+
+  const accommodationRequiredCount = list.filter((p) => p.accommodation_required).length
+  const localTransportRequiredCount = list.filter((p) => p.local_transport_required).length
+
+  const searchTerm = String(query.search || query.q || query.searchTerm || '').toLowerCase().trim()
+  if (searchTerm) {
+    list = list.filter((p) => {
+      const matchFields = [
+        p.fullName,
+        p.email,
+        p.phone,
+        p.mobileNumber,
+        p.registrationId,
+        p.instituteName,
+        p.department,
+        p.role,
+      ]
+      return matchFields.some((field) => field && String(field).toLowerCase().includes(searchTerm))
+    })
   }
+
+  const roleFilter = String(query.role || '').toLowerCase().trim()
+  if (roleFilter && roleFilter !== 'all') {
+    list = list.filter((p) => String(p.role || '').toLowerCase() === roleFilter)
+  }
+
+  const statusFilter = String(query.status || '').toLowerCase().trim()
+  if (statusFilter && statusFilter !== 'all') {
+    list = list.filter((p) => String(p.status || '').toLowerCase() === statusFilter)
+  }
+
+  const accFilter = String(query.accommodation || query.accommodation_required || query.accommodationRequired || '').toLowerCase().trim()
+  if (accFilter === 'required' || accFilter === 'true' || accFilter === 'yes') {
+    list = list.filter((p) => p.accommodation_required === true)
+  } else if (accFilter === 'not_required' || accFilter === 'not-required' || accFilter === 'not required' || accFilter === 'false' || accFilter === 'no') {
+    list = list.filter((p) => p.accommodation_required === false)
+  }
+
+  const transFilter = String(query.local_transport || query.localTransport || query.local_transport_required || query.localTransportRequired || query.transport || '').toLowerCase().trim()
+  if (transFilter === 'required' || transFilter === 'true' || transFilter === 'yes') {
+    list = list.filter((p) => p.local_transport_required === true)
+  } else if (transFilter === 'not_required' || transFilter === 'not-required' || transFilter === 'not required' || transFilter === 'false' || transFilter === 'no') {
+    list = list.filter((p) => p.local_transport_required === false)
+  }
+
+  return {
+    success: true,
+    data: list,
+    counts: {
+      total: registrations.length,
+      accommodationRequired: accommodationRequiredCount,
+      localTransportRequired: localTransportRequiredCount,
+    },
+  }
+}
+
+const formatExcelDate = (val) => {
+  if (!val) return ''
+  try {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return String(val)
+    const pad = (n) => String(n).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    const mm = pad(d.getMonth() + 1)
+    const dd = pad(d.getDate())
+    const hh = pad(d.getHours())
+    const min = pad(d.getMinutes())
+    const ss = pad(d.getSeconds())
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`
+  } catch (_e) {
+    return String(val)
+  }
+}
+
+const exportParticipantsToExcel = async (query = {}, profileOverride) => {
+  const targetProfile = profileOverride || getActiveEventProfile() || 'pre-qiskit'
+  return runWithProfile(targetProfile, async () => {
+    const participantsResult = await getAdminParticipants(query)
+    const participants = participantsResult.data || []
+    const profileLabel = targetProfile === 'post-qiskit' ? 'Post-Qiskit' : 'Pre-Qiskit'
+
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = 'Qiskit Fall Fest 2026 Organizer Portal'
+    workbook.created = new Date()
+
+    const worksheet = workbook.addWorksheet('Participants', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    })
+
+    worksheet.columns = [
+      { header: 'Registration ID', key: 'registrationId', width: 22 },
+      { header: 'Full Name', key: 'fullName', width: 26 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Phone Number', key: 'phone', width: 18 },
+      { header: 'College / Institution', key: 'instituteName', width: 32 },
+      { header: 'Department', key: 'department', width: 24 },
+      { header: 'Year', key: 'year', width: 12 },
+      { header: 'Gender', key: 'gender', width: 12 },
+      { header: 'Accommodation Required', key: 'accommodationRequired', width: 24 },
+      { header: 'Local Transport Required', key: 'localTransportRequired', width: 24 },
+      { header: 'Registration Date', key: 'createdAt', width: 22 },
+      { header: 'Event / Profile', key: 'eventProfile', width: 16 },
+      { header: 'Registration Status', key: 'status', width: 20 },
+    ]
+
+    worksheet.autoFilter = 'A1:M1'
+
+    // Style header row
+    const headerRow = worksheet.getRow(1)
+    headerRow.height = 28
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF3D2F59' },
+      }
+      cell.font = {
+        name: 'Calibri',
+        size: 11,
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      }
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: false,
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF5A4579' } },
+        left: { style: 'thin', color: { argb: 'FF5A4579' } },
+        bottom: { style: 'medium', color: { argb: 'FF2A1F3D' } },
+        right: { style: 'thin', color: { argb: 'FF5A4579' } },
+      }
+    })
+
+    // Populate participant rows
+    participants.forEach((p) => {
+      const regDate = p.createdAt ? formatExcelDate(p.createdAt) : ''
+      const accStr = p.accommodation_required || p.accommodationRequired ? 'Yes' : 'No'
+      const transStr = p.local_transport_required || p.localTransportRequired ? 'Yes' : 'No'
+      const phoneStr = p.phone ? String(p.phone) : (p.mobileNumber ? String(p.mobileNumber) : '')
+      const regIdStr = p.registrationId ? String(p.registrationId) : ''
+
+      const row = worksheet.addRow({
+        registrationId: regIdStr,
+        fullName: p.fullName || '',
+        email: p.email || '',
+        phone: phoneStr,
+        instituteName: p.instituteName || '',
+        department: p.department || '',
+        year: '',
+        gender: '',
+        accommodationRequired: accStr,
+        localTransportRequired: transStr,
+        createdAt: regDate,
+        eventProfile: profileLabel,
+        status: p.status || 'CONFIRMED',
+      })
+
+      row.height = 22
+
+      row.eachCell((cell, colNumber) => {
+        cell.font = { name: 'Calibri', size: 10 }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          left: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+          right: { style: 'thin', color: { argb: 'FFE0E0E0' } },
+        }
+        cell.alignment = { vertical: 'middle', horizontal: 'left' }
+
+        // Format Registration ID and Phone as TEXT
+        if (colNumber === 1 || colNumber === 4) {
+          cell.numFmt = '@'
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        }
+        // Year, Gender, Accommodation, Transport, Date, Event Profile, Status centered
+        if ([7, 8, 9, 10, 11, 12, 13].includes(colNumber)) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' }
+        }
+      })
+    })
+
+    return await workbook.xlsx.writeBuffer()
+  })
 }
 
 const getAttendanceSummary = async () => {
@@ -1617,6 +1851,10 @@ const bulkImportStudents = async (students = [], options = {}) => {
         aicteQuantumCourse: false,
         knowsQuantumBasics: false,
         usedQiskitBefore: false,
+        accommodation_required: Boolean(item.accommodation_required ?? item.accommodationRequired ?? false),
+        local_transport_required: Boolean(item.local_transport_required ?? item.localTransportRequired ?? false),
+        accommodationRequired: Boolean(item.accommodation_required ?? item.accommodationRequired ?? false),
+        localTransportRequired: Boolean(item.local_transport_required ?? item.localTransportRequired ?? false),
         idCardUrl: 'bulk-import://pre-qiskit/student-id',
         createdAt: new Date().toISOString(),
       }
@@ -1727,6 +1965,7 @@ module.exports = {
   updateParticipantById,
   getAdminRegistrations,
   getAdminParticipants,
+  exportParticipantsToExcel,
   getAttendanceSummary,
   updateAttendanceStatus,
   getAdminEmailLogs,
