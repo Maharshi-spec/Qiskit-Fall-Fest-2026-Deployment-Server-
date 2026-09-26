@@ -121,16 +121,6 @@ export const techTeam = [
   },
 
   {
-    name: "Watkins Noah Sam",
-    role: "Frontend Developer",
-    department: "CSE-SE",
-    year: "2nd Year",
-    college: "Centurion University of Technology and Management, Vizianagaram",
-    photo: noahSam,
-    linkedin: "https://www.linkedin.com/in/noah-watkins-6ba545365/"
-  },
-
-  {
     name: "Tekupudi Balaji",
     role: "Backend Developer & Frontend Developer",
     department: "CSE-SE",
@@ -138,16 +128,6 @@ export const techTeam = [
     college: "Centurion University of Technology and Management, Vizianagaram",
     photo: balaji,
     linkedin: "https://www.linkedin.com/in/tekupudibalaji/"
-  },
-
-  {
-    name: "Goruputi Kesava Sai Kumar",
-    role: "Frontend Developer",
-    department: "CSE-SE",
-    year: "2nd Year",
-    college: "Centurion University of Technology and Management, Vizianagaram",
-    photo: kesava,
-    linkedin: "https://www.linkedin.com/in/kesava-sai-853779360/"
   },
 
   {
@@ -168,5 +148,25 @@ export const techTeam = [
     college: "Centurion University of Technology and Management, Vizianagaram",
     photo: saiTej,
     linkedin: "https://www.linkedin.com/in/nadiminti-venkata-sai-tej-23884237b/"
+  },
+
+  {
+    name: "Watkins Noah Sam",
+    role: "Frontend Developer",
+    department: "CSE-SE",
+    year: "2nd Year",
+    college: "Centurion University of Technology and Management, Vizianagaram",
+    photo: noahSam,
+    linkedin: "https://www.linkedin.com/in/noah-watkins-6ba545365/"
+  },
+
+  {
+    name: "Goruputi Kesava Sai Kumar",
+    role: "Frontend Developer",
+    department: "CSE-SE",
+    year: "2nd Year",
+    college: "Centurion University of Technology and Management, Vizianagaram",
+    photo: kesava,
+    linkedin: "https://www.linkedin.com/in/kesava-sai-853779360/"
   }
 ]

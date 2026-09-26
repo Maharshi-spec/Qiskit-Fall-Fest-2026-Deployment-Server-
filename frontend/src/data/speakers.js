@@ -2,14 +2,15 @@ import anilPhoto from '../assets/speakers/anil.jpeg';
 import jananiPhoto from '../assets/speakers/janani.jpeg';
 import srinivasPhoto from '../assets/speakers/srinivas.jpeg';
 
-import ritajitMajumderPhoto from '../assets/speakers/ritajit-majumder.jpg';
-import jananiAnanthanarayananPhoto from '../assets/speakers/janani-ananthanarayanan.jpg';
-import bharadwajMummaneniPhoto from '../assets/speakers/bharadwaj-mummaneni.jpg';
-import rukhsanUlHaqPhoto from '../assets/speakers/rukhsan-ul-haq.jpg';
-import shyamapadaMukherjeePhoto from '../assets/speakers/shyamapada-mukherjee.jpg';
-import kiranKaurRainaPhoto from '../assets/speakers/kiran-kaur-raina.jpg';
-import santoshiMatamPhoto from '../assets/speakers/santoshi-matam.jpg';
-import venkatSwamyTadikondaPhoto from '../assets/speakers/venkat-swamy-tadikonda.jpg';
+import ritajitMajumderPhoto from '../assets/speakers/ritajit-majumder.jpeg';
+import jananiAnanthanarayananPhoto from '../assets/speakers/janani-ananthanarayanan.jpeg';
+import rukhsanUlHaqPhoto from '../assets/speakers/rukhsan-ul-haq.jpeg';
+import shyamapadaMukherjeePhoto from '../assets/speakers/shyamapada-mukherjee.jpeg';
+import kiranKaurRainaPhoto from '../assets/speakers/kiran-kaur-raina.jpeg';
+import venkatSwamyTadikondaPhoto from '../assets/speakers/venkat-swamy-tadikonda.jpeg';
+import lVenkataSubramaniamPhoto from '../assets/speakers/L Venkata Subramaniam’s.jpeg';
+import mSribharatPhoto from '../assets/speakers/M Sribharat’s.jpeg';
+import shriSridharPhoto from '../assets/speakers/Shri Sridhar.jpeg';
 
 export const speakers = [
   {
@@ -54,13 +55,6 @@ export const postQiskitSpeakers = [
     image: jananiAnanthanarayananPhoto,
   },
   {
-    id: 'dr-bharadwaj-mummaneni',
-    name: 'Dr. Bharadwaj Mummaneni',
-    organization: 'IBM India',
-    affiliation: 'IBM India',
-    image: bharadwajMummaneniPhoto,
-  },
-  {
     id: 'dr-rukhsan-ul-haq',
     name: 'Dr. Rukhsan Ul Haq',
     organization: 'CEO, CQAI',
@@ -82,17 +76,31 @@ export const postQiskitSpeakers = [
     image: kiranKaurRainaPhoto,
   },
   {
-    id: 'dr-santoshi-matam',
-    name: 'Dr. Santoshi Matam',
-    organization: 'Session Speaker',
-    affiliation: 'Session Speaker',
-    image: santoshiMatamPhoto,
-  },
-  {
     id: 'venkat-swamy-tadikonda',
     name: 'Venkat Swamy Tadikonda',
     organization: 'QAIC AQV',
     affiliation: 'QAIC AQV',
     image: venkatSwamyTadikondaPhoto,
+  },
+  {
+    id: 'l-venkata-subramaniam',
+    name: 'L Venkata Subramaniam',
+    organization: 'CEO, Qbitforce',
+    affiliation: 'CEO, Qbitforce',
+    image: lVenkataSubramaniamPhoto,
+  },
+  {
+    id: 'm-sribharat',
+    name: 'M Sribharat',
+    organization: 'MP, Visakhapatnam',
+    affiliation: 'MP, Visakhapatnam',
+    image: mSribharatPhoto,
+  },
+  {
+    id: 'shri-sridhar',
+    name: 'Shri Sridhar CV',
+    organization: 'Mission Director AP, Quantum Mission',
+    affiliation: 'Mission Director AP, Quantum Mission',
+    image: shriSridharPhoto,
   },
 ];
